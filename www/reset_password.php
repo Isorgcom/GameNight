@@ -90,7 +90,7 @@ $token = csrf_token();
             <div class="alert alert-error">
                 This reset link is invalid or has expired. Reset links are valid for 1 hour.
             </div>
-            <p style="text-align:center;margin-top:1.25rem;font-size:.875rem;color:#64748b">
+            <p style="text-align:center;margin-top:1.25rem;font-size:.875rem;color:var(--fg-64748b, #64748b)">
                 <a href="/forgot_password.php">Request a new link</a>
             </p>
 

@@ -155,7 +155,7 @@ $token = csrf_token();
                 <label for="mfa-acct">Account</label>
                 <input type="text" id="mfa-acct" name="username" autocomplete="username" readonly
                        value="<?= htmlspecialchars(($user['email'] ?? '') !== '' ? $user['email'] : $user['username']) ?>"
-                       style="width:100%;text-align:center;padding:.5rem .6rem;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;color:#475569">
+                       style="width:100%;text-align:center;padding:.5rem .6rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:8px;background:var(--bg-f8fafc, #f8fafc);color:var(--fg-475569, #475569)">
             </div>
             <div class="form-group" style="text-align:center">
                 <!-- Dedicated 6-digit numeric field: maximizes one-time-code autofill
@@ -163,32 +163,32 @@ $token = csrf_token();
                 <input type="text" name="code" id="otp-code" placeholder="000000" maxlength="6"
                        inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code"
                        required autofocus aria-label="One-time code"
-                       style="width:200px;font-size:1.5rem;text-align:center;letter-spacing:.25em;padding:.6rem;border:2px solid #e2e8f0;border-radius:10px">
+                       style="width:200px;font-size:1.5rem;text-align:center;letter-spacing:.25em;padding:.6rem;border:2px solid var(--bd-e2e8f0, #e2e8f0);border-radius:10px">
             </div>
             <button type="submit" class="btn btn-primary" style="width:100%">Verify</button>
         </form>
 
         <?php if ($method === 'sms'): ?>
-        <p style="text-align:center;margin-top:1rem;font-size:.875rem;color:#64748b">
+        <p style="text-align:center;margin-top:1rem;font-size:.875rem;color:var(--fg-64748b, #64748b)">
             Didn't get it? <a href="/mfa_challenge.php">Resend code</a>
         </p>
         <?php endif; ?>
 
         <details style="margin-top:1rem">
-            <summary style="cursor:pointer;text-align:center;font-size:.8rem;color:#64748b">Lost your device? Use a recovery code</summary>
+            <summary style="cursor:pointer;text-align:center;font-size:.8rem;color:var(--fg-64748b, #64748b)">Lost your device? Use a recovery code</summary>
             <form method="post" action="/mfa_challenge.php" style="margin-top:.6rem">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <div class="form-group">
                     <input type="text" name="recovery_code" placeholder="xxxxx-xxxxx"
                            autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
                            aria-label="Recovery code"
-                           style="width:100%;text-align:center;letter-spacing:.1em;padding:.55rem;border:1.5px solid #e2e8f0;border-radius:8px">
+                           style="width:100%;text-align:center;letter-spacing:.1em;padding:.55rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:8px">
                 </div>
                 <button type="submit" class="btn" style="width:100%">Use recovery code</button>
             </form>
         </details>
 
-        <p style="text-align:center;margin-top:.75rem;font-size:.8rem;color:#64748b">
+        <p style="text-align:center;margin-top:.75rem;font-size:.8rem;color:var(--fg-64748b, #64748b)">
             <a href="/login.php">Back to sign in</a>
         </p>
     </div>

@@ -93,10 +93,10 @@ $prefill = htmlspecialchars($_GET['email'] ?? $_GET['phone'] ?? $_POST['identifi
             <div class="alert alert-success">
                 If that email or phone has an unverified account, a new verification has been sent.
             </div>
-            <p style="text-align:center;margin-top:1rem;font-size:.875rem;color:#64748b">
+            <p style="text-align:center;margin-top:1rem;font-size:.875rem;color:var(--fg-64748b, #64748b)">
                 Verifying a phone? <a href="/verify_phone.php">Enter your code</a>.
             </p>
-            <p style="text-align:center;margin-top:1.25rem;font-size:.875rem;color:#64748b">
+            <p style="text-align:center;margin-top:1.25rem;font-size:.875rem;color:var(--fg-64748b, #64748b)">
                 <a href="/login.php">&larr; Back to Sign In</a>
             </p>
         <?php else: ?>
@@ -115,7 +115,7 @@ $prefill = htmlspecialchars($_GET['email'] ?? $_GET['phone'] ?? $_POST['identifi
                     Resend Verification
                 </button>
             </form>
-            <p style="text-align:center;margin-top:1.25rem;font-size:.875rem;color:#64748b">
+            <p style="text-align:center;margin-top:1.25rem;font-size:.875rem;color:var(--fg-64748b, #64748b)">
                 <a href="/login.php">&larr; Back to Sign In</a>
             </p>
         <?php endif; ?>

@@ -108,7 +108,7 @@ $csrf = csrf_token();
         <?php else: ?>
             <h2>Verification Failed</h2>
             <div class="alert alert-error" style="text-align:left"><?= htmlspecialchars($error) ?></div>
-            <p style="margin-top:1rem;font-size:.875rem;color:#64748b">
+            <p style="margin-top:1rem;font-size:.875rem;color:var(--fg-64748b, #64748b)">
                 <a href="/resend_verification.php">Request a new verification link</a>
             </p>
         <?php endif; ?>

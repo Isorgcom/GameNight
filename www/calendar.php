@@ -967,12 +967,12 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         .cal-nav a {
             display: inline-flex; align-items: center; justify-content: center;
             width: 34px; height: 34px; border-radius: 7px;
-            border: 1.5px solid #e2e8f0; background: #f8fafc;
-            color: #475569; text-decoration: none; font-size: 1rem;
+            border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); background: var(--bg-f8fafc, #f8fafc);
+            color: var(--fg-475569, #475569); text-decoration: none; font-size: 1rem;
         }
-        .cal-nav a:hover { background: #e2e8f0; color: #1e293b; }
+        .cal-nav a:hover { background: var(--bg-e2e8f0, #e2e8f0); color: var(--fg-1e293b, #1e293b); }
         .cal-nav .month-label {
-            font-size: 1.1rem; font-weight: 600; color: #1e293b;
+            font-size: 1.1rem; font-weight: 600; color: var(--fg-1e293b, #1e293b);
             min-width: 160px; text-align: center;
         }
 
@@ -980,35 +980,35 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         .view-toggle { display: flex; gap: 2px; }
         .view-toggle a {
             padding: .3rem .85rem; border-radius: 6px; font-size: .8rem; font-weight: 600;
-            text-decoration: none; border: 1.5px solid #e2e8f0;
-            color: #475569; background: #f8fafc; transition: background .1s;
+            text-decoration: none; border: 1.5px solid var(--bd-e2e8f0, #e2e8f0);
+            color: var(--fg-475569, #475569); background: var(--bg-f8fafc, #f8fafc); transition: background .1s;
         }
         .view-toggle a.vt-active { background: #2563eb; color: #fff; border-color: #2563eb; }
-        .view-toggle a:hover:not(.vt-active) { background: #e2e8f0; color: #1e293b; }
+        .view-toggle a:hover:not(.vt-active) { background: var(--bg-e2e8f0, #e2e8f0); color: var(--fg-1e293b, #1e293b); }
 
         /* Calendar grid (month view) */
         .cal-grid {
             display: grid; grid-template-columns: repeat(7, 1fr);
-            border-left: 1.5px solid #e2e8f0; border-top: 1.5px solid #e2e8f0;
+            border-left: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-top: 1.5px solid var(--bd-e2e8f0, #e2e8f0);
             border-radius: 10px; overflow: hidden; width: 100%;
         }
         .cal-dow {
-            background: #f8fafc; padding: .45rem .5rem;
+            background: var(--bg-f8fafc, #f8fafc); padding: .45rem .5rem;
             text-align: center; font-size: .75rem; font-weight: 600;
-            color: #64748b; text-transform: uppercase; letter-spacing: .04em;
-            border-right: 1.5px solid #e2e8f0; border-bottom: 1.5px solid #e2e8f0;
+            color: var(--fg-64748b, #64748b); text-transform: uppercase; letter-spacing: .04em;
+            border-right: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-bottom: 1.5px solid var(--bd-e2e8f0, #e2e8f0);
             min-width: 0; overflow: hidden;
         }
         .cal-cell {
             min-height: 100px; padding: .35rem .4rem;
-            border-right: 1.5px solid #e2e8f0; border-bottom: 1.5px solid #e2e8f0;
-            background: #fff; vertical-align: top; position: relative;
+            border-right: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-bottom: 1.5px solid var(--bd-e2e8f0, #e2e8f0);
+            background: var(--bg-ffffff, #ffffff); vertical-align: top; position: relative;
             min-width: 0; overflow: hidden;
         }
-        .cal-cell.other-month { background: #f8fafc; }
-        .cal-cell.today { background: #eff6ff; }
+        .cal-cell.other-month { background: var(--bg-f8fafc, #f8fafc); }
+        .cal-cell.today { background: var(--bg-eff6ff, #eff6ff); }
         .cal-day {
-            font-size: .8rem; font-weight: 600; color: #64748b;
+            font-size: .8rem; font-weight: 600; color: var(--fg-64748b, #64748b);
             margin-bottom: .25rem; line-height: 1;
         }
         .cal-cell.today .cal-day {
@@ -1049,38 +1049,38 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             position: absolute; top: .3rem; right: .3rem;
             width: 20px; height: 20px; border-radius: 4px;
             background: transparent; border: none;
-            color: #64748b; font-size: 1rem; cursor: pointer;
+            color: var(--fg-64748b, #64748b); font-size: 1rem; cursor: pointer;
             display: flex; opacity: 0; align-items: center; justify-content: center;
             line-height: 1; padding: 0;
         }
         /* opacity, not display:none, so a keyboard user can still tab to it. */
         .cal-cell:hover .cal-add-btn, .cal-add-btn:focus-visible { opacity: 1; }
-        .cal-add-btn:hover { background: #e2e8f0; color: #2563eb; }
+        .cal-add-btn:hover { background: var(--bg-e2e8f0, #e2e8f0); color: var(--fg-2563eb, #2563eb); }
 
         /* ── Week view ───────────────────────────────────────────── */
         #weekView { max-width: 100%; overflow: hidden; }
-        .week-head { background: #fff; }
+        .week-head { background: var(--bg-ffffff, #ffffff); }
         .week-header-row {
             display: grid; grid-template-columns: 52px repeat(7, 1fr);
-            border: 1.5px solid #e2e8f0; border-radius: 10px 10px 0 0;
-            overflow: hidden; background: #f8fafc;
+            border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px 10px 0 0;
+            overflow: hidden; background: var(--bg-f8fafc, #f8fafc);
         }
         .week-hdr-gutter {
-            border-right: 1.5px solid #e2e8f0;
+            border-right: 1.5px solid var(--bd-e2e8f0, #e2e8f0);
         }
         .week-day-hdr {
             text-align: center; padding: .5rem .25rem .4rem;
-            font-size: .72rem; font-weight: 600; color: #64748b;
-            border-right: 1.5px solid #e2e8f0;
+            font-size: .72rem; font-weight: 600; color: var(--fg-64748b, #64748b);
+            border-right: 1.5px solid var(--bd-e2e8f0, #e2e8f0);
             text-transform: uppercase; letter-spacing: .04em;
             line-height: 1.3;
         }
         .week-day-hdr:last-child { border-right: none; }
         .week-day-hdr .wk-day-num {
             display: block; font-size: 1.05rem; font-weight: 700;
-            color: #1e293b; line-height: 1.4;
+            color: var(--fg-1e293b, #1e293b); line-height: 1.4;
         }
-        .week-day-hdr.wk-today { background: #eff6ff; }
+        .week-day-hdr.wk-today { background: var(--bg-eff6ff, #eff6ff); }
         .week-day-hdr.wk-today .wk-day-num {
             background: #2563eb; color: #fff;
             width: 28px; height: 28px; border-radius: 50%;
@@ -1090,15 +1090,15 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
 
         .week-allday-row {
             display: grid; grid-template-columns: 52px repeat(7, 1fr);
-            border: 1.5px solid #e2e8f0; border-top: none;
-            min-height: 26px; background: #fff;
+            border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-top: none;
+            min-height: 26px; background: var(--bg-ffffff, #ffffff);
         }
         .week-allday-gutter {
-            font-size: .62rem; color: #64748b; text-align: right;
-            padding: .3rem .45rem 0 0; border-right: 1.5px solid #e2e8f0;
+            font-size: .62rem; color: var(--fg-64748b, #64748b); text-align: right;
+            padding: .3rem .45rem 0 0; border-right: 1.5px solid var(--bd-e2e8f0, #e2e8f0);
         }
         .week-allday-col {
-            border-right: 1.5px solid #e2e8f0; padding: 2px 3px;
+            border-right: 1.5px solid var(--bd-e2e8f0, #e2e8f0); padding: 2px 3px;
         }
         .week-allday-col:last-child { border-right: none; }
         .week-allday-chip {
@@ -1118,7 +1118,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
 
         .week-scroll {
             height: 540px; overflow-y: auto;
-            border: 1.5px solid #e2e8f0; border-top: none;
+            border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-top: none;
             border-radius: 0 0 10px 10px;
         }
         .week-inner {
@@ -1128,27 +1128,27 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             min-height: 1020px;
         }
         .week-time-gutter {
-            background: #f8fafc; border-right: 1.5px solid #e2e8f0;
+            background: var(--bg-f8fafc, #f8fafc); border-right: 1.5px solid var(--bd-e2e8f0, #e2e8f0);
             position: relative;
         }
         .week-hour-label {
             position: absolute; right: 6px;
-            font-size: .63rem; color: #64748b;
+            font-size: .63rem; color: var(--fg-64748b, #64748b);
             transform: translateY(-50%);
             white-space: nowrap; user-select: none;
         }
         .week-day-col {
-            position: relative; border-right: 1.5px solid #e2e8f0;
+            position: relative; border-right: 1.5px solid var(--bd-e2e8f0, #e2e8f0);
         }
         .week-day-col:last-child { border-right: none; }
-        .week-day-col.wk-today { background: #fafeff; }
+        .week-day-col.wk-today { background: var(--bg-fafeff, #fafeff); }
         .week-hour-line {
             position: absolute; left: 0; right: 0;
-            border-top: 1px solid #f1f5f9; pointer-events: none; z-index: 0;
+            border-top: 1px solid var(--bd-f1f5f9, #f1f5f9); pointer-events: none; z-index: 0;
         }
         .week-half-line {
             position: absolute; left: 0; right: 0;
-            border-top: 1px dashed #f8fafc; pointer-events: none; z-index: 0;
+            border-top: 1px dashed var(--bd-f8fafc, #f8fafc); pointer-events: none; z-index: 0;
         }
         .week-now-line {
             position: absolute; left: 0; right: 0; z-index: 5;
@@ -1188,7 +1188,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         }
         .modal-overlay.open { display: flex; }
         .modal {
-            background: #fff; border-radius: 12px;
+            background: var(--bg-ffffff, #ffffff); border-radius: 12px;
             box-shadow: 0 20px 60px rgba(0,0,0,.25);
             width: 100%; max-width: 480px; padding: 1.75rem;
             animation: modalIn .15s ease;
@@ -1207,86 +1207,86 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         }
         /* ── Edit modal ── */
         #editModal .modal { max-width:95vw;width:95vw;max-height:95vh;height:95vh;display:flex;flex-direction:column;padding:0;overflow:hidden; }
-        #editModal .modal-header { padding:.9rem 1.25rem;margin-bottom:0;border-bottom:1px solid #e2e8f0;flex-shrink:0; }
+        #editModal .modal-header { padding:.9rem 1.25rem;margin-bottom:0;border-bottom:1px solid var(--bd-e2e8f0, #e2e8f0);flex-shrink:0; }
         #editModal form { display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto; }
 
         /* Header row: color dot + title + date + time + duration */
-        .ev-league-badge { display:inline-block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:.2rem .6rem;border-radius:999px;background:#dbeafe;color:#1e40af;white-space:nowrap;vertical-align:middle; }
-        .edit-top-bar { display:flex;align-items:center;gap:.75rem;padding:.6rem 1.25rem;flex-wrap:wrap;flex-shrink:0;border-bottom:1px solid #e2e8f0;background:#f8fafc; }
+        .ev-league-badge { display:inline-block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:.2rem .6rem;border-radius:999px;background:var(--bg-dbeafe, #dbeafe);color:var(--fg-1e40af, #1e40af);white-space:nowrap;vertical-align:middle; }
+        .edit-top-bar { display:flex;align-items:center;gap:.75rem;padding:.6rem 1.25rem;flex-wrap:wrap;flex-shrink:0;border-bottom:1px solid var(--bd-e2e8f0, #e2e8f0);background:var(--bg-f8fafc, #f8fafc); }
         .edit-top-bar select, .edit-top-bar input[type="text"], .edit-top-bar input[type="date"], .edit-top-bar input[type="time"] {
-            padding:.32rem .45rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.82rem;background:#fff;color:#1e293b;
+            padding:.32rem .45rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:6px;font-size:.82rem;background:var(--bg-ffffff, #ffffff);color:var(--fg-1e293b, #1e293b);
         }
         .edit-top-bar select:focus, .edit-top-bar input:focus { border-color:#2563eb; }
         .edit-top-bar .edit-title-input { flex:1;min-width:140px; }
-        .edit-top-bar label { font-size:.72rem;font-weight:600;color:#64748b;display:flex;flex-direction:column;gap:.1rem; }
+        .edit-top-bar label { font-size:.72rem;font-weight:600;color:var(--fg-64748b, #64748b);display:flex;flex-direction:column;gap:.1rem; }
         .edit-header-row .form-group { margin:0; }
         #eColorDot { width:38px;height:38px;border-radius:50%;cursor:pointer;border:3px solid transparent;flex-shrink:0;transition:border-color .15s,box-shadow .15s;position:relative; }
         #eColorDot:hover { border-color:#1e293b; }
         #eColorDot.open { box-shadow:0 0 0 3px rgba(37,99,235,.3);border-color:#2563eb; }
-        #eColorPicker { position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;padding:.6rem .75rem;display:none;gap:.5rem;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.15); }
+        #eColorPicker { position:absolute;top:calc(100% + 6px);left:0;background:var(--bg-ffffff, #ffffff);border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:10px;padding:.6rem .75rem;display:none;gap:.5rem;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.15); }
         #eColorPicker.open { display:flex; }
         #eColorPicker .color-swatch { width:26px;height:26px; }
         #eColorDotWrap { position:relative;flex-shrink:0; }
-        .edit-title-input { flex:1;min-width:140px;padding:.45rem .7rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.95rem;font-weight:500; }
+        .edit-title-input { flex:1;min-width:140px;padding:.45rem .7rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;font-size:.95rem;font-weight:500; }
         .edit-title-input:focus {border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
-        .edit-hdr-label { font-size:.72rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.2rem;display:block; }
+        .edit-hdr-label { font-size:.72rem;color:var(--fg-64748b, #64748b);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.2rem;display:block; }
         .edit-hdr-field { display:flex;flex-direction:column; }
         .edit-hdr-dur { display:flex;align-items:center;gap:.3rem; }
-        .edit-hdr-dur input { width:4.5rem;padding:.45rem .5rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;text-align:center; }
+        .edit-hdr-dur input { width:4.5rem;padding:.45rem .5rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;font-size:.875rem;text-align:center; }
         .edit-hdr-dur input:focus {border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
-        .edit-hdr-dur span { font-size:.8rem;color:#64748b;white-space:nowrap; }
+        .edit-hdr-dur span { font-size:.8rem;color:var(--fg-64748b, #64748b);white-space:nowrap; }
         #eTimeNative:focus {border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
 
         /* Manager toggle in invite pane */
         .inv-name-text { flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis; }
         .mgr-toggle { display:inline-flex;align-items:center;gap:.25rem;margin-left:auto;cursor:pointer;flex-shrink:0;user-select:none; }
-        .mgr-label { font-size:.65rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.03em; }
-        .pk-toggle-sm { position:relative;width:28px;height:16px;background:#cbd5e1;border-radius:99px;transition:background .2s;flex-shrink:0; }
-        .pk-toggle-sm::after { content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.2); }
+        .mgr-label { font-size:.65rem;color:var(--fg-64748b, #64748b);font-weight:600;text-transform:uppercase;letter-spacing:.03em; }
+        .pk-toggle-sm { position:relative;width:28px;height:16px;background:var(--bg-cbd5e1, #cbd5e1);border-radius:99px;transition:background .2s;flex-shrink:0; }
+        .pk-toggle-sm::after { content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;background:var(--bg-ffffff, #ffffff);border-radius:50%;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.2); }
         .pk-toggle-input:checked + .pk-toggle-sm { background:#7c3aed; }
         .pk-toggle-input:checked + .pk-toggle-sm::after { transform:translateX(12px); }
         #eInvitedList li[data-iname] { display:flex;align-items:center;gap:.4rem;cursor:grab; }
-        #eInvitedList li[data-iname].inv-dragging { opacity:.4;background:#dbeafe; }
+        #eInvitedList li[data-iname].inv-dragging { opacity:.4;background:var(--bg-dbeafe, #dbeafe); }
         /* Auto-number the invited list (1. 2. 3. …). Scoped to real invitee rows so the
            custom-entry row and capacity/declined dividers don't get counted, and reflows
            automatically on add/remove with no JS. */
         #eInvitedList { counter-reset: inv; }
         #eInvitedList li[data-iname] { counter-increment: inv; }
-        #eInvitedList li[data-iname] .inv-name-text::before { content: counter(inv) ". "; color:#64748b;font-weight:600; }
+        #eInvitedList li[data-iname] .inv-name-text::before { content: counter(inv) ". "; color:var(--fg-64748b, #64748b);font-weight:600; }
         .inv-rsvp-badge { font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:3px;text-transform:uppercase;letter-spacing:.03em;flex-shrink:0; }
-        .inv-rsvp-yes { background:#dcfce7;color:#166534; }
-        .inv-rsvp-no { background:#fee2e2;color:#991b1b; }
-        .inv-rsvp-maybe { background:#fef9c3;color:#854d0e; }
-        .inv-rsvp-waitlist { background:#eff6ff;color:#1e40af;border:1px solid #93c5fd; }
-        .inv-nocontact-tag { display:inline-block;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:.05rem .35rem;border-radius:3px;background:#fee2e2;color:#991b1b;vertical-align:middle;flex-shrink:0; }
+        .inv-rsvp-yes { background:var(--bg-dcfce7, #dcfce7);color:var(--fg-166534, #166534); }
+        .inv-rsvp-no { background:var(--bg-fee2e2, #fee2e2);color:var(--fg-991b1b, #991b1b); }
+        .inv-rsvp-maybe { background:var(--bg-fef9c3, #fef9c3);color:var(--fg-854d0e, #854d0e); }
+        .inv-rsvp-waitlist { background:var(--bg-eff6ff, #eff6ff);color:var(--fg-1e40af, #1e40af);border:1px solid var(--bd-93c5fd, #93c5fd); }
+        .inv-nocontact-tag { display:inline-block;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:.05rem .35rem;border-radius:3px;background:var(--bg-fee2e2, #fee2e2);color:var(--fg-991b1b, #991b1b);vertical-align:middle;flex-shrink:0; }
         /* Per-invitee clickable contact indicator (editor invited list) */
         .inv-contact-ctl { flex-shrink:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:.15rem;padding:.05rem .3rem;border-radius:4px;line-height:1; }
-        .inv-contact-ctl:hover { background:#e2e8f0; }
-        .inv-contact-ctl .inv-ci { color:#16a34a;font-size:.95rem;line-height:1; }
-        .inv-contact-ctl .inv-na { font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#991b1b;background:#fee2e2;border-radius:3px;padding:.05rem .3rem; }
+        .inv-contact-ctl:hover { background:var(--bg-e2e8f0, #e2e8f0); }
+        .inv-contact-ctl .inv-ci { color:var(--fg-16a34a, #16a34a);font-size:.95rem;line-height:1; }
+        .inv-contact-ctl .inv-na { font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--fg-991b1b, #991b1b);background:var(--bg-fee2e2, #fee2e2);border-radius:3px;padding:.05rem .3rem; }
         .inv-capacity-divider {
             padding:.3rem .5rem;text-align:center;font-size:.7rem;font-weight:700;
-            color:#dc2626;background:#fee2e2;border-top:2px dashed #fca5a5;border-bottom:2px dashed #fca5a5;
+            color:var(--fg-dc2626, #dc2626);background:var(--bg-fee2e2, #fee2e2);border-top:2px dashed var(--bd-fca5a5, #fca5a5);border-bottom:2px dashed var(--bd-fca5a5, #fca5a5);
             margin:.2rem 0;letter-spacing:.03em;cursor:default !important;user-select:none;
         }
         .inv-declined-divider {
             padding:.4rem .5rem;text-align:center;font-size:.75rem;font-weight:700;
-            color:#475569;background:#f1f5f9;border-top:1.5px solid #e2e8f0;
+            color:var(--fg-475569, #475569);background:var(--bg-f1f5f9, #f1f5f9);border-top:1.5px solid var(--bd-e2e8f0, #e2e8f0);
             margin:.3rem 0 .1rem;cursor:pointer !important;user-select:none;
         }
-        .inv-declined-divider:hover { background:#e2e8f0; }
+        .inv-declined-divider:hover { background:var(--bg-e2e8f0, #e2e8f0); }
         .inv-declined-item { opacity:.5;cursor:default !important; }
         .inv-declined-item .inv-rsvp-badge { display:inline-block !important; }
 
         /* Invite panel */
         .edit-invite-panel { display:grid;grid-template-columns:1fr auto 1fr;gap:.5rem;padding:0 1.25rem;flex:1;min-height:0; }
         .invite-arrows { display:flex;flex-direction:column;justify-content:center;gap:.4rem;padding:.25rem 0; }
-        .inv-arrow-btn { width:32px;height:32px;border:1.5px solid #cbd5e1;border-radius:6px;background:#fff;color:#475569;font-size:1.1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1; }
-        .inv-arrow-btn:hover { background:#eff6ff;border-color:#2563eb;color:#2563eb; }
+        .inv-arrow-btn { width:32px;height:32px;border:1.5px solid var(--bd-cbd5e1, #cbd5e1);border-radius:6px;background:var(--bg-ffffff, #ffffff);color:var(--fg-475569, #475569);font-size:1.1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1; }
+        .inv-arrow-btn:hover { background:var(--bg-eff6ff, #eff6ff);border-color:#2563eb;color:var(--fg-2563eb, #2563eb); }
         .arrow-mobile { display:none; }
-        .invite-pane { display:flex;flex-direction:column;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden;min-height:200px; }
-        .invite-pane-header { background:#f8fafc;padding:.35rem .65rem;font-size:.7rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;border-bottom:1px solid #e2e8f0; }
-        .inv-col-head { display:flex;align-items:center;gap:.4rem;padding:.25rem .6rem;font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;border-bottom:1px solid #eef2f7;flex-shrink:0; }
+        .invite-pane { display:flex;flex-direction:column;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:8px;overflow:hidden;min-height:200px; }
+        .invite-pane-header { background:var(--bg-f8fafc, #f8fafc);padding:.35rem .65rem;font-size:.7rem;font-weight:700;color:var(--fg-64748b, #64748b);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;border-bottom:1px solid var(--bd-e2e8f0, #e2e8f0); }
+        .inv-col-head { display:flex;align-items:center;gap:.4rem;padding:.25rem .6rem;font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--fg-64748b, #64748b);border-bottom:1px solid var(--bd-eef2f7, #eef2f7);flex-shrink:0; }
         .inv-col-head span:not(:first-child) { text-align:center; }
         /* Fixed-width trailing columns so the Invited header lines up with each row */
         .inv-col-contact { width:2.8rem;flex-shrink:0; }
@@ -1295,47 +1295,47 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         #eInvitedList li[data-iname] .inv-col-rsvp,
         #eInvitedList li[data-iname] .inv-col-mgr { display:inline-flex;align-items:center;justify-content:center; }
         #eInvitedList li[data-iname] .inv-col-mgr .mgr-toggle { margin-left:0; }
-        .invite-pane-search { width:100%;padding:.38rem .65rem;border:none;border-bottom:1.5px solid #e2e8f0;font-size:.85rem;box-sizing:border-box;flex-shrink:0; }
+        .invite-pane-search { width:100%;padding:.38rem .65rem;border:none;border-bottom:1.5px solid var(--bd-e2e8f0, #e2e8f0);font-size:.85rem;box-sizing:border-box;flex-shrink:0; }
         .invite-pane-search:focus {border-color:#2563eb; }
         .invite-pane-list { flex:1;overflow-y:auto;list-style:none;margin:0;padding:.2rem; }
         .invite-pane-list li { padding:.35rem .6rem;border-radius:5px;font-size:.875rem;cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-        .invite-pane-list li:hover { background:#f1f5f9; }
-        .invite-pane-list li.inv-selected { background:#dbeafe !important;color:#1e40af; }
+        .invite-pane-list li:hover { background:var(--bg-f1f5f9, #f1f5f9); }
+        .invite-pane-list li.inv-selected { background:var(--bg-dbeafe, #dbeafe) !important;color:var(--fg-1e40af, #1e40af); }
         /* Already-invited contacts: a green check + muted (but still legible) text so it's
            obvious at a glance which of many names are already on the right. */
-        .invite-pane-list li.dimmed { color:#64748b;cursor:default; }
-        .invite-pane-list li.dimmed::before { content:'\2713\00a0';color:#16a34a;font-weight:700; }
+        .invite-pane-list li.dimmed { color:var(--fg-64748b, #64748b);cursor:default; }
+        .invite-pane-list li.dimmed::before { content:'\2713\00a0';color:var(--fg-16a34a, #16a34a);font-weight:700; }
         .invite-pane-list li.dimmed:hover { background:transparent; }
         .invite-pane-list li.custom-row { padding:.2rem .4rem;cursor:default; }
         .invite-pane-list li.custom-row:hover { background:transparent; }
         .inv-mem-tag { display:inline-block;font-size:.7rem;font-weight:700;text-transform:uppercase;padding:.05rem .4rem;border-radius:999px;margin-left:.4rem;vertical-align:middle; }
-        .inv-mem-yes { background:#dcfce7;color:#166534; }
-        .inv-mem-no  { background:#e2e8f0;color:#475569; }
+        .inv-mem-yes { background:var(--bg-dcfce7, #dcfce7);color:var(--fg-166534, #166534); }
+        .inv-mem-no  { background:var(--bg-e2e8f0, #e2e8f0);color:var(--fg-475569, #475569); }
         .custom-row-inner { display:flex;gap:.3rem;align-items:center;flex-wrap:wrap; }
-        .custom-row-inner input { padding:.28rem .45rem;border:1.5px solid #e2e8f0;border-radius:5px;font-size:.8rem;min-width:0; }
+        .custom-row-inner input { padding:.28rem .45rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:5px;font-size:.8rem;min-width:0; }
         .custom-row-inner .cr-name    { flex:1.5;min-width:110px; }
         .custom-row-inner .cr-contact { flex:2.5;min-width:160px; }
-        .custom-row-inner .cr-remove  { flex-shrink:0;padding:.2rem .4rem;border:1px solid #e2e8f0;border-radius:5px;background:#fff;cursor:pointer;color:#64748b;font-size:.85rem;line-height:1; }
-        .custom-row-inner .cr-remove:hover { background:#fee2e2;color:#dc2626;border-color:#fca5a5; }
+        .custom-row-inner .cr-remove  { flex-shrink:0;padding:.2rem .4rem;border:1px solid var(--bd-e2e8f0, #e2e8f0);border-radius:5px;background:var(--bg-ffffff, #ffffff);cursor:pointer;color:var(--fg-64748b, #64748b);font-size:.85rem;line-height:1; }
+        .custom-row-inner .cr-remove:hover { background:var(--bg-fee2e2, #fee2e2);color:var(--fg-dc2626, #dc2626);border-color:var(--bd-fca5a5, #fca5a5); }
         /* hidden invite inputs container */
         #eInviteData { display:none; }
 
         /* Toolbar + description */
-        .edit-toolbar { display:flex;align-items:center;gap:.6rem;padding:.4rem 1rem;flex-wrap:wrap;flex-shrink:0;border-top:1px solid #e2e8f0;background:#f8fafc; }
+        .edit-toolbar { display:flex;align-items:center;gap:.6rem;padding:.4rem 1rem;flex-wrap:wrap;flex-shrink:0;border-top:1px solid var(--bd-e2e8f0, #e2e8f0);background:var(--bg-f8fafc, #f8fafc); }
         .edit-toolbar .btn { font-size:.78rem;padding:.3rem .65rem; }
         .edit-desc-wrap { padding:0 1rem .5rem;flex-shrink:0; }
-        .edit-desc-wrap textarea { width:100%;resize:vertical;min-height:80px;max-height:150px;padding:.5rem .7rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.85rem;box-sizing:border-box;font-family:inherit; }
+        .edit-desc-wrap textarea { width:100%;resize:vertical;min-height:80px;max-height:150px;padding:.5rem .7rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;font-size:.85rem;box-sizing:border-box;font-family:inherit; }
         .edit-desc-wrap textarea:focus {border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
-        .edit-desc-toggle { font-size:.82rem;color:#2563eb;cursor:pointer;padding:.3rem 1rem;flex-shrink:0; }
+        .edit-desc-toggle { font-size:.82rem;color:var(--fg-2563eb, #2563eb);cursor:pointer;padding:.3rem 1rem;flex-shrink:0; }
         .edit-desc-toggle:hover { text-decoration:underline; }
-        .edit-poker-bar { display:flex;align-items:center;gap:.5rem;padding:.3rem 1rem;flex-wrap:wrap;flex-shrink:0;background:#f0f9ff;border-top:1px solid #bfdbfe;font-size:.78rem;color:#475569; }
+        .edit-poker-bar { display:flex;align-items:center;gap:.5rem;padding:.3rem 1rem;flex-wrap:wrap;flex-shrink:0;background:var(--bg-f0f9ff, #f0f9ff);border-top:1px solid var(--bd-bfdbfe, #bfdbfe);font-size:.78rem;color:var(--fg-475569, #475569); }
         .edit-poker-bar label { display:flex;align-items:center;gap:.25rem; }
-        .edit-poker-bar select, .edit-poker-bar input { padding:.25rem .35rem;border:1px solid #cbd5e1;border-radius:4px;font-size:.78rem;background:#fff;width:auto; }
+        .edit-poker-bar select, .edit-poker-bar input { padding:.25rem .35rem;border:1px solid var(--bd-cbd5e1, #cbd5e1);border-radius:4px;font-size:.78rem;background:var(--bg-ffffff, #ffffff);width:auto; }
         .edit-poker-bar input[type="number"] { width:60px; }
-        .edit-notify-row { display:flex;align-items:center;gap:.4rem;font-size:.8rem;cursor:pointer;user-select:none;white-space:nowrap;color:#64748b; }
+        .edit-notify-row { display:flex;align-items:center;gap:.4rem;font-size:.8rem;cursor:pointer;user-select:none;white-space:nowrap;color:var(--fg-64748b, #64748b); }
         .pk-toggle-input { display:none; }
-        .pk-toggle-slider { position:relative;width:36px;height:20px;background:#cbd5e1;border-radius:99px;transition:background .2s;flex-shrink:0; }
-        .pk-toggle-slider::after { content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2); }
+        .pk-toggle-slider { position:relative;width:36px;height:20px;background:var(--bg-cbd5e1, #cbd5e1);border-radius:99px;transition:background .2s;flex-shrink:0; }
+        .pk-toggle-slider::after { content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:var(--bg-ffffff, #ffffff);border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2); }
         .pk-toggle-input:checked + .pk-toggle-slider { background:#22c55e; }
         .pk-toggle-input:checked + .pk-toggle-slider::after { transform:translateX(16px); }
 
@@ -1359,8 +1359,8 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             .invite-pane { min-height:180px; }
             .invite-pane-list li { padding:.5rem .75rem;font-size:.95rem; }
             .invite-pane input[type="text"] { min-height:44px;font-size:1rem; }
-            #eAllUsersList li:not(.dimmed):not(.custom-row)::after { content:'+';float:right;color:#22c55e;font-weight:700;font-size:1.1rem; }
-            #eInvitedList li[data-iname]::after { content:'\00d7';float:right;color:#dc2626;font-weight:700;font-size:1.1rem; }
+            #eAllUsersList li:not(.dimmed):not(.custom-row)::after { content:'+';float:right;color:var(--fg-22c55e, #22c55e);font-weight:700;font-size:1.1rem; }
+            #eInvitedList li[data-iname]::after { content:'\00d7';float:right;color:var(--fg-dc2626, #dc2626);font-weight:700;font-size:1.1rem; }
 
             .edit-toolbar { gap:.4rem;padding:.4rem .75rem; }
             .edit-toolbar .btn { width:auto;min-height:38px;font-size:.85rem; }
@@ -1368,10 +1368,10 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         }
         @keyframes rsvpSavedFade { 0%,60%{opacity:1} 100%{opacity:0} }
         .rsvp-saved-anim { animation: rsvpSavedFade 3s ease forwards; }
-        .rsvp-yes   { background:#dcfce7; color:#166534; border-radius:4px; padding:.1rem .4rem; font-size:.75rem; font-weight:600; }
-        .rsvp-no    { background:#fee2e2; color:#991b1b; border-radius:4px; padding:.1rem .4rem; font-size:.75rem; font-weight:600; }
-        .rsvp-maybe { background:#fef9c3; color:#854d0e; border-radius:4px; padding:.1rem .4rem; font-size:.75rem; font-weight:600; }
-        .inv-rsvp-sel { font-size:.75rem; padding:.15rem .3rem; border:1px solid #e2e8f0; border-radius:5px; background:#fff; cursor:pointer; min-width:58px; }
+        .rsvp-yes   { background:var(--bg-dcfce7, #dcfce7); color:var(--fg-166534, #166534); border-radius:4px; padding:.1rem .4rem; font-size:.75rem; font-weight:600; }
+        .rsvp-no    { background:var(--bg-fee2e2, #fee2e2); color:var(--fg-991b1b, #991b1b); border-radius:4px; padding:.1rem .4rem; font-size:.75rem; font-weight:600; }
+        .rsvp-maybe { background:var(--bg-fef9c3, #fef9c3); color:var(--fg-854d0e, #854d0e); border-radius:4px; padding:.1rem .4rem; font-size:.75rem; font-weight:600; }
+        .inv-rsvp-sel { font-size:.75rem; padding:.15rem .3rem; border:1px solid var(--bd-e2e8f0, #e2e8f0); border-radius:5px; background:var(--bg-ffffff, #ffffff); cursor:pointer; min-width:58px; }
         @keyframes modalIn {
             from { transform: translateY(-10px); opacity: 0; }
             to   { transform: none; opacity: 1; }
@@ -1383,16 +1383,16 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         .modal-header h2 { font-size: 1.1rem; }
         .modal-close {
             width: 30px; height: 30px; border-radius: 6px;
-            border: none; background: #f1f5f9; cursor: pointer;
-            font-size: 1rem; color: #475569;
+            border: none; background: var(--bg-f1f5f9, #f1f5f9); cursor: pointer;
+            font-size: 1rem; color: var(--fg-475569, #475569);
         }
-        .modal-close:hover { background: #e2e8f0; }
+        .modal-close:hover { background: var(--bg-e2e8f0, #e2e8f0); }
 
         /* View modal */
         .ev-view-title { font-size: 1.15rem; font-weight: 700; margin-bottom: .25rem; }
-        .ev-view-meta  { font-size: .82rem; color: #64748b; margin-bottom: .75rem; }
+        .ev-view-meta  { font-size: .82rem; color: var(--fg-64748b, #64748b); margin-bottom: .75rem; }
         .ev-view-desc  {
-            font-size: .9rem; color: #334155; white-space: pre-wrap;
+            font-size: .9rem; color: var(--fg-334155, #334155); white-space: pre-wrap;
             max-height: 30vh; overflow-y: auto;
             overscroll-behavior: contain; padding-right: .25rem;
         }
@@ -1456,7 +1456,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             /* Full-screen modals on mobile */
             .modal-overlay {
                 padding: 0 !important;
-                background: #fff !important;
+                background: var(--bg-ffffff, #ffffff) !important;
                 align-items: stretch !important;
             }
             .modal-overlay .modal {
@@ -1721,24 +1721,24 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         <!-- Single scroll region: header stays pinned, everything else (incl. the
              action buttons) scrolls, so a tall event can't push the buttons off-screen. -->
         <div id="vScrollBody" style="flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch">
-        <div id="vSavedBar" style="visibility:hidden;background:#dcfce7;color:#166534;border-radius:7px;padding:.2rem .9rem;font-size:.8rem;font-weight:600;margin-bottom:.5rem;text-align:center">
+        <div id="vSavedBar" style="visibility:hidden;background:var(--bg-dcfce7, #dcfce7);color:var(--fg-166534, #166534);border-radius:7px;padding:.2rem .9rem;font-size:.8rem;font-weight:600;margin-bottom:.5rem;text-align:center">
             Saved
         </div>
         <div id="vMeta"    class="ev-view-meta"></div>
         <div id="vLocation" class="ev-view-meta" style="display:none"></div>
         <div id="vAddCal"  class="ev-view-meta" style="font-size:.82rem"></div>
-        <div id="vWaitlistNotice" style="display:none;padding:.4rem .75rem;margin:.4rem 0;font-size:.82rem;font-weight:600;color:#1e40af;background:#eff6ff;border:1px solid #93c5fd;border-radius:6px"></div>
+        <div id="vWaitlistNotice" style="display:none;padding:.4rem .75rem;margin:.4rem 0;font-size:.82rem;font-weight:600;color:var(--fg-1e40af, #1e40af);background:var(--bg-eff6ff, #eff6ff);border:1px solid var(--bd-93c5fd, #93c5fd);border-radius:6px"></div>
         <div id="vDesc"    class="ev-view-desc"></div>
         <?php if ($current): ?>
-        <div id="vRsvpWrap" style="display:none;margin:.5rem 0 0;padding:.65rem .85rem;border:2px solid #bfdbfe;border-radius:10px;background:#eff6ff">
+        <div id="vRsvpWrap" style="display:none;margin:.5rem 0 0;padding:.65rem .85rem;border:2px solid var(--bd-bfdbfe, #bfdbfe);border-radius:10px;background:var(--bg-eff6ff, #eff6ff)">
             <input type="hidden" id="vRsvpCsrf" value="<?= htmlspecialchars($token) ?>">
             <input type="hidden" id="vRsvpEventId" value="">
             <input type="hidden" id="vRsvpOccDate" value="">
-            <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#2563eb;margin-bottom:.5rem">Are you coming? &mdash; RSVP</div>
+            <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--fg-2563eb, #2563eb);margin-bottom:.5rem">Are you coming? &mdash; RSVP</div>
             <div style="display:flex;gap:.75rem;align-items:center">
                 <div id="vRsvpStatus" style="min-width:62px;text-align:center"></div>
                 <select id="vRsvpSelect"
-                        style="padding:.42rem .7rem;border:1.5px solid #93c5fd;border-radius:7px;font-size:.9rem;background:#fff;color:#1e3a5f;font-weight:500">
+                        style="padding:.42rem .7rem;border:1.5px solid var(--bd-93c5fd, #93c5fd);border-radius:7px;font-size:.9rem;background:var(--bg-ffffff, #ffffff);color:var(--fg-1e3a5f, #1e3a5f);font-weight:500">
                     <option value="">-- select --</option>
                     <option value="yes">Yes</option>
                     <option value="no">No</option>
@@ -1747,17 +1747,17 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             </div>
         </div>
         <?php endif; ?>
-        <div id="vInvites" style="display:none;margin:.25rem 0 0;padding:.6rem 0;border-top:1px solid #f1f5f9"></div>
+        <div id="vInvites" style="display:none;margin:.25rem 0 0;padding:.6rem 0;border-top:1px solid var(--bd-f1f5f9, #f1f5f9)"></div>
         <?php if ($current): ?>
-        <div id="vSignupWrap" style="display:none;padding:.5rem 0;border-top:1px solid #f1f5f9">
+        <div id="vSignupWrap" style="display:none;padding:.5rem 0;border-top:1px solid var(--bd-f1f5f9, #f1f5f9)">
             <button id="vSignupBtn" class="btn btn-primary" style="width:100%;font-size:.875rem">Sign up to attend</button>
         </div>
-        <div id="vLeaveWrap" style="display:none;padding:.5rem 0;border-top:1px solid #f1f5f9">
-            <button id="vLeaveBtn" class="btn btn-outline" style="width:100%;font-size:.875rem;color:#dc2626;border-color:#fca5a5">Leave this event</button>
+        <div id="vLeaveWrap" style="display:none;padding:.5rem 0;border-top:1px solid var(--bd-f1f5f9, #f1f5f9)">
+            <button id="vLeaveBtn" class="btn btn-outline" style="width:100%;font-size:.875rem;color:var(--fg-dc2626, #dc2626);border-color:var(--bd-fca5a5, #fca5a5)">Leave this event</button>
         </div>
         <?php endif; ?>
         <?php if (!$current): ?>
-        <div style="padding:.5rem 0;border-top:1px solid #f1f5f9;display:flex;gap:.5rem">
+        <div style="padding:.5rem 0;border-top:1px solid var(--bd-f1f5f9, #f1f5f9);display:flex;gap:.5rem">
             <a id="vLoginBtn" href="/login.php" class="btn btn-primary" style="flex:1;text-align:center;font-size:.875rem;text-decoration:none">
                 Login to join
             </a>
@@ -1842,10 +1842,10 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             <button aria-label="Close" class="modal-close" data-act="closeWalkinQR">&#x2715;</button>
         </div>
         <div id="walkinQRCode" style="display:flex;justify-content:center;margin:.5rem 0 1rem"></div>
-        <div id="walkinQRUrl" style="font-size:.72rem;color:#64748b;word-break:break-all;margin-bottom:.75rem;padding:0 .5rem"></div>
+        <div id="walkinQRUrl" style="font-size:.72rem;color:var(--fg-64748b, #64748b);word-break:break-all;margin-bottom:.75rem;padding:0 .5rem"></div>
         <button class="btn btn-outline" data-act="copyWalkinLink" style="width:100%;margin-bottom:.5rem" id="walkinCopyBtn">Copy link</button>
         <button class="btn btn-outline" data-act="openWalkinSeparate" style="width:100%;margin-bottom:.5rem">Open on separate screen</button>
-        <button class="btn" data-act="closeWalkinQR" style="width:100%;background:#f1f5f9;color:#475569">Close</button>
+        <button class="btn" data-act="closeWalkinQR" style="width:100%;background:var(--bg-f1f5f9, #f1f5f9);color:var(--fg-475569, #475569)">Close</button>
     </div>
 </div>
 <?php endif; ?>
@@ -1985,18 +1985,18 @@ function renderInvitesPanel(eid) {
         // this modal session actually watched invites go through the queue.
         const q = eventInviteQueue[eid];
         if (q && q.pending > 0) {
-            ih += '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#1e40af;font-weight:600">'
-                + '&#9203; ' + q.pending + ' invitation' + (q.pending === 1 ? '' : 's') + ' queued &mdash; sending now&hellip; <span style="font-weight:400;color:#3b82f6">(updates automatically)</span>'
+            ih += '<div style="background:var(--bg-eff6ff, #eff6ff);border:1px solid var(--bd-bfdbfe, #bfdbfe);border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:var(--fg-1e40af, #1e40af);font-weight:600">'
+                + '&#9203; ' + q.pending + ' invitation' + (q.pending === 1 ? '' : 's') + ' queued &mdash; sending now&hellip; <span style="font-weight:400;color:var(--fg-3b82f6, #3b82f6)">(updates automatically)</span>'
                 + '</div>';
         } else if (q && _invQueueSawPending[eid]) {
-            ih += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#166534;font-weight:600">'
+            ih += '<div style="background:var(--bg-f0fdf4, #f0fdf4);border:1px solid var(--bd-bbf7d0, #bbf7d0);border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:var(--fg-166534, #166534);font-weight:600">'
                 + '&#10003; All queued invitations were sent.'
                 + '</div>';
         }
         if (q && q.failed > 0) {
-            ih += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#991b1b;font-weight:600">'
+            ih += '<div style="background:var(--bg-fef2f2, #fef2f2);border:1px solid var(--bd-fecaca, #fecaca);border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:var(--fg-991b1b, #991b1b);font-weight:600">'
                 + '&#9888; ' + q.failed + ' invitation' + (q.failed === 1 ? '' : 's') + ' could not be sent after several retries. '
-                + '<a href="/event_history.php?id=' + eid + '&status=failed" style="color:#991b1b">See what failed</a>'
+                + '<a href="/event_history.php?id=' + eid + '&status=failed" style="color:var(--fg-991b1b, #991b1b)">See what failed</a>'
                 + '</div>';
         }
 
@@ -2006,31 +2006,31 @@ function renderInvitesPanel(eid) {
         const unsent    = approved.filter(inv => !inv.sent && !inv.no_contact);
         const noContact = approved.filter(inv => inv.no_contact);
         if (unsent.length) {
-            ih += '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.55rem .7rem;margin-bottom:.7rem">'
-                + '<span style="flex:1;min-width:0;font-size:.8rem;color:#92400e;font-weight:600">&#9888; Invitations not sent to ' + unsent.length + ' ' + (unsent.length === 1 ? 'person' : 'people') + '</span>'
+            ih += '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;background:var(--bg-fffbeb, #fffbeb);border:1px solid var(--bd-fde68a, #fde68a);border-radius:8px;padding:.55rem .7rem;margin-bottom:.7rem">'
+                + '<span style="flex:1;min-width:0;font-size:.8rem;color:var(--fg-92400e, #92400e);font-weight:600">&#9888; Invitations not sent to ' + unsent.length + ' ' + (unsent.length === 1 ? 'person' : 'people') + '</span>'
                 + '<button type="button" class="btn-send-invites" data-eid="' + eid + '" style="font-size:.78rem;padding:.3rem .8rem;border-radius:6px;border:0;background:#2563eb;color:#fff;font-weight:600;cursor:pointer">Send Invitations</button>'
                 + '</div>';
         }
         if (noContact.length) {
-            ih += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.78rem;color:#991b1b;line-height:1.45">'
+            ih += '<div style="background:var(--bg-fef2f2, #fef2f2);border:1px solid var(--bd-fecaca, #fecaca);border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.78rem;color:var(--fg-991b1b, #991b1b);line-height:1.45">'
                 + '&#9888; ' + noContact.length + ' ' + (noContact.length === 1 ? 'invitee has' : 'invitees have') + ' no email or phone and can’t be notified. Edit the event to add a contact for them.'
                 + '</div>';
         }
         // Invited but no answer yet → offer a one-click nudge (server dedups per day).
         const nonresp = approved.filter(inv => inv.sent && !inv.rsvp && !inv.no_contact);
         if (nonresp.length) {
-            ih += '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.55rem .7rem;margin-bottom:.7rem">'
-                + '<span style="flex:1;min-width:0;font-size:.8rem;color:#475569;font-weight:600">&#9200; ' + nonresp.length + ' invited, no response yet</span>'
-                + '<button type="button" class="btn-nudge" data-eid="' + eid + '" style="font-size:.78rem;padding:.3rem .8rem;border-radius:6px;border:1.5px solid #cbd5e1;background:#fff;color:#334155;font-weight:600;cursor:pointer">Send reminder</button>'
+            ih += '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;background:var(--bg-f8fafc, #f8fafc);border:1px solid var(--bd-e2e8f0, #e2e8f0);border-radius:8px;padding:.55rem .7rem;margin-bottom:.7rem">'
+                + '<span style="flex:1;min-width:0;font-size:.8rem;color:var(--fg-475569, #475569);font-weight:600">&#9200; ' + nonresp.length + ' invited, no response yet</span>'
+                + '<button type="button" class="btn-nudge" data-eid="' + eid + '" style="font-size:.78rem;padding:.3rem .8rem;border-radius:6px;border:1.5px solid var(--bd-cbd5e1, #cbd5e1);background:var(--bg-ffffff, #ffffff);color:var(--fg-334155, #334155);font-weight:600;cursor:pointer">Send reminder</button>'
                 + '</div>';
         }
     }
 
     if (approved.length) {
-        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:.4rem">Invites (' + approved.length + ')</div>';
+        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-64748b, #64748b);margin-bottom:.4rem">Invites (' + approved.length + ')</div>';
         ih += '<div style="display:flex;flex-direction:column;gap:.2rem;max-height:8.5rem;overflow-y:auto;padding-right:.25rem">';
         approved.forEach(inv => {
-            ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">';
+            ih += '<div style="font-size:.875rem;color:var(--fg-334155, #334155);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">';
             if (canManage) {
                 const r = inv.rsvp || '';
                 ih += '<select class="inv-rsvp-sel" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '">'
@@ -2052,11 +2052,11 @@ function renderInvitesPanel(eid) {
             // Older sends predate tracking and show nothing.
             if (canManage) {
                 if (inv.delivery === 'failed') {
-                    ih += '<span title="' + escHtml(inv.delivery_error || 'Delivery failed') + '" style="font-size:.68rem;font-weight:700;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:5px;padding:.1rem .4rem;cursor:help">&#10007; failed</span>';
+                    ih += '<span title="' + escHtml(inv.delivery_error || 'Delivery failed') + '" style="font-size:.68rem;font-weight:700;color:var(--fg-dc2626, #dc2626);background:var(--bg-fef2f2, #fef2f2);border:1px solid var(--bd-fecaca, #fecaca);border-radius:5px;padding:.1rem .4rem;cursor:help">&#10007; failed</span>';
                 } else if (inv.delivery === 'sending') {
-                    ih += '<span title="Queued — delivery in progress" style="font-size:.68rem;font-weight:700;color:#1e40af;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:.1rem .4rem">&#9203; sending</span>';
+                    ih += '<span title="Queued — delivery in progress" style="font-size:.68rem;font-weight:700;color:var(--fg-1e40af, #1e40af);background:var(--bg-eff6ff, #eff6ff);border:1px solid var(--bd-bfdbfe, #bfdbfe);border-radius:5px;padding:.1rem .4rem">&#9203; sending</span>';
                 } else if (inv.delivery === 'delivered') {
-                    ih += '<span title="Handed to the provider successfully" style="font-size:.68rem;font-weight:700;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:.1rem .4rem">&#10003;</span>';
+                    ih += '<span title="Handed to the provider successfully" style="font-size:.68rem;font-weight:700;color:var(--fg-166534, #166534);background:var(--bg-f0fdf4, #f0fdf4);border:1px solid var(--bd-bbf7d0, #bbf7d0);border-radius:5px;padding:.1rem .4rem">&#10003;</span>';
                 }
             }
             // Resend button: only for managers, only when no RSVP yet, only for non-self.
@@ -2064,7 +2064,7 @@ function renderInvitesPanel(eid) {
             // so failed always offers the button.
             if (canManage && NOTIFS_ENABLED && (!inv.rsvp || inv.delivery === 'failed')) {
                 const sendLabel = inv.delivery === 'failed' ? 'Retry' : (inv.sent ? 'Resend' : 'Send');
-                ih += '<button type="button" class="btn-resend-inv" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '" title="' + sendLabel + ' invite SMS/email" style="font-size:.7rem;padding:.15rem .5rem;border-radius:5px;border:1px solid #cbd5e1;background:#fff;color:#475569;font-weight:600;cursor:pointer">' + sendLabel + '</button>';
+                ih += '<button type="button" class="btn-resend-inv" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '" title="' + sendLabel + ' invite SMS/email" style="font-size:.7rem;padding:.15rem .5rem;border-radius:5px;border:1px solid var(--bd-cbd5e1, #cbd5e1);background:var(--bg-ffffff, #ffffff);color:var(--fg-475569, #475569);font-weight:600;cursor:pointer">' + sendLabel + '</button>';
             }
             ih += '</div>';
         });
@@ -2073,10 +2073,10 @@ function renderInvitesPanel(eid) {
 
     // Pending approval section — only managers see it.
     if (canManage && pending.length) {
-        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#d97706;margin-top:.7rem;margin-bottom:.4rem">⏳ Pending Approval (' + pending.length + ')</div>';
+        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-d97706, #d97706);margin-top:.7rem;margin-bottom:.4rem">⏳ Pending Approval (' + pending.length + ')</div>';
         ih += '<div style="display:flex;flex-direction:column;gap:.3rem;max-height:8.5rem;overflow-y:auto;padding-right:.25rem">';
         pending.forEach(inv => {
-            ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:.35rem .5rem">';
+            ih += '<div style="font-size:.875rem;color:var(--fg-334155, #334155);display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;background:var(--bg-fefce8, #fefce8);border:1px solid var(--bd-fde68a, #fde68a);border-radius:6px;padding:.35rem .5rem">';
             ih += '<span style="flex:1;min-width:0">' + escHtml(inv.username);
             ih += '</span>';
             ih += '<button type="button" class="btn-approve-inv" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '" style="font-size:.75rem;padding:.2rem .55rem;border-radius:5px;border:0;background:#16a34a;color:#fff;font-weight:600;cursor:pointer">Approve</button>';
@@ -2088,20 +2088,20 @@ function renderInvitesPanel(eid) {
 
     // Waitlisted section
     if (waitlisted.length) {
-        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#1e40af;margin-top:.7rem;margin-bottom:.4rem">Waitlisted (' + waitlisted.length + ')</div>';
+        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-1e40af, #1e40af);margin-top:.7rem;margin-bottom:.4rem">Waitlisted (' + waitlisted.length + ')</div>';
         ih += '<div style="display:flex;flex-direction:column;gap:.2rem;max-height:5rem;overflow-y:auto;padding-right:.25rem;opacity:.7">';
         waitlisted.forEach(inv => {
-            ih += '<div style="font-size:.82rem;color:#475569;padding:.15rem 0">' + escHtml(inv.username) + '</div>';
+            ih += '<div style="font-size:.82rem;color:var(--fg-475569, #475569);padding:.15rem 0">' + escHtml(inv.username) + '</div>';
         });
         ih += '</div>';
     }
 
     // Declined section. Managers can flip the RSVP back to yes/maybe; non-managers see a faded list.
     if (declined.length) {
-        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#dc2626;margin-top:.7rem;margin-bottom:.4rem">Declined (' + declined.length + ')</div>';
+        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-dc2626, #dc2626);margin-top:.7rem;margin-bottom:.4rem">Declined (' + declined.length + ')</div>';
         ih += '<div style="display:flex;flex-direction:column;gap:.2rem;max-height:6rem;overflow-y:auto;padding-right:.25rem;opacity:.75">';
         declined.forEach(inv => {
-            ih += '<div style="font-size:.82rem;color:#475569;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.15rem 0">';
+            ih += '<div style="font-size:.82rem;color:var(--fg-475569, #475569);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.15rem 0">';
             if (canManage) {
                 const r = inv.rsvp || '';
                 ih += '<select class="inv-rsvp-sel" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '">'
@@ -2122,9 +2122,9 @@ function renderInvitesPanel(eid) {
     // Host messages ("final details"): compose button for managers + read-only history.
     const msgs = eventMessages[eid] || [];
     if ((canManage && NOTIFS_ENABLED) || msgs.length) {
-        ih += '<div style="margin-top:.8rem;border-top:1px solid #f1f5f9;padding-top:.6rem">';
+        ih += '<div style="margin-top:.8rem;border-top:1px solid var(--bd-f1f5f9, #f1f5f9);padding-top:.6rem">';
         ih += '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem">'
-            + '<span style="flex:1;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b">Messages from the host</span>';
+            + '<span style="flex:1;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-64748b, #64748b)">Messages from the host</span>';
         if (canManage && NOTIFS_ENABLED) {
             ih += '<button type="button" class="btn-msg-guests" data-eid="' + eid + '" style="font-size:.75rem;padding:.25rem .7rem;border-radius:6px;border:0;background:#16a34a;color:#fff;font-weight:600;cursor:pointer">Message guests</button>';
         }
@@ -2136,19 +2136,19 @@ function renderInvitesPanel(eid) {
                 const delBtn = (m.can_manage && m.id)
                     ? '<button aria-label="Delete this message" type="button" class="btn-del-msg" data-eid="' + eid + '" data-mid="' + m.id + '" title="Delete this message" style="background:none;border:0;color:#cbd5e1;cursor:pointer;font-size:1.15rem;line-height:1;padding:0 .15rem">&times;</button>'
                     : '';
-                ih += '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:.5rem .6rem;background:#fff">'
+                ih += '<div style="border:1px solid var(--bd-e2e8f0, #e2e8f0);border-radius:8px;padding:.5rem .6rem;background:var(--bg-ffffff, #ffffff)">'
                     + '<div style="display:flex;align-items:flex-start;gap:.5rem">'
-                    +   '<div style="flex:1;min-width:0;font-weight:600;font-size:.85rem;color:#1e293b">' + escHtml(m.subject) + '</div>'
+                    +   '<div style="flex:1;min-width:0;font-weight:600;font-size:.85rem;color:var(--fg-1e293b, #1e293b)">' + escHtml(m.subject) + '</div>'
                     +   delBtn
                     + '</div>'
-                    + '<div style="font-size:.7rem;color:#64748b;margin:.1rem 0 .4rem">' + escHtml(m.created_at) + (m.can_manage ? ' &middot; ' + aud : '') + '</div>'
-                    + '<div style="font-size:.85rem;color:#334155;line-height:1.5">' + m.body_html + '</div>'
+                    + '<div style="font-size:.7rem;color:var(--fg-64748b, #64748b);margin:.1rem 0 .4rem">' + escHtml(m.created_at) + (m.can_manage ? ' &middot; ' + aud : '') + '</div>'
+                    + '<div style="font-size:.85rem;color:var(--fg-334155, #334155);line-height:1.5">' + m.body_html + '</div>'
                     + (m.attachment ? '<div style="margin-top:.4rem;font-size:.8rem"><a href="' + escHtml(m.attachment.url) + '" target="_blank" rel="noopener">&#128206; ' + escHtml(m.attachment.name) + '</a></div>' : '')
                     + '</div>';
             });
             ih += '</div>';
         } else if (canManage) {
-            ih += '<div style="font-size:.78rem;color:#64748b">No messages sent yet. Use “Message guests” to send the address and final details.</div>';
+            ih += '<div style="font-size:.78rem;color:var(--fg-64748b, #64748b)">No messages sent yet. Use “Message guests” to send the address and final details.</div>';
         }
         ih += '</div>';
     }
@@ -2300,7 +2300,7 @@ function updateRsvpStatusBadge(rsvp) {
     if (rsvp && cls[rsvp]) {
         el.innerHTML = '<span class="' + cls[rsvp] + '">' + text[rsvp] + '</span>';
     } else {
-        el.innerHTML = '<span style="font-size:.78rem;color:#64748b">--</span>';
+        el.innerHTML = '<span style="font-size:.78rem;color:var(--fg-64748b, #64748b)">--</span>';
     }
 }
 
@@ -2515,9 +2515,9 @@ if (vInvDiv) {
                         return;
                     }
                     btn.textContent = 'Sent ✓';
-                    btn.style.background = '#dcfce7';
-                    btn.style.borderColor = '#86efac';
-                    btn.style.color = '#166534';
+                    btn.style.background = 'var(--bg-dcfce7, #dcfce7)';
+                    btn.style.borderColor = 'var(--bd-86efac, #86efac)';
+                    btn.style.color = 'var(--fg-166534, #166534)';
                     showSavedBar();
                     // Refetch invite state so the "Invitations not sent to N" banner count
                     // recomputes after this individual send (same refresh the bulk path uses).
@@ -3081,10 +3081,10 @@ function copyWalkinLink() {
 <?php if ($current): ?>
 <!-- Compose "final details" message to going guests (host/manager only) -->
 <div class="modal-overlay" id="eventMsgModal" data-act-self="closeEventMsgModal">
-    <div class="modal" style="max-width:640px;display:flex;flex-direction:column;max-height:92vh">
-        <div class="modal-header" style="display:flex;align-items:center;gap:.6rem;border-bottom:1px solid #e2e8f0;padding-bottom:.6rem;margin-bottom:.75rem">
+    <div class="modal" style="max-width:640px;display:flex;flex-direction:column;max-height:92vh;overflow-y:auto">
+        <div class="modal-header" style="display:flex;align-items:center;gap:.6rem;border-bottom:1px solid var(--bd-e2e8f0, #e2e8f0);padding-bottom:.6rem;margin-bottom:.75rem">
             <h2 style="margin:0;flex:1;font-size:1.15rem">Message going guests</h2>
-            <button type="button" class="modal-close" data-act="closeEventMsgModal" aria-label="Close" style="font-size:1.5rem;line-height:1;color:#64748b;background:none;border:0;padding:0 .2rem;cursor:pointer">&times;</button>
+            <button type="button" class="modal-close" data-act="closeEventMsgModal" aria-label="Close" style="font-size:1.5rem;line-height:1;color:var(--fg-64748b, #64748b);background:none;border:0;padding:0 .2rem;cursor:pointer">&times;</button>
         </div>
         <p class="subtitle" style="margin-top:0">Send a message to your guests. They'll get it by their preferred channel; text recipients get a link to read it.</p>
         <input type="hidden" id="emEventId" value="">
@@ -3094,18 +3094,22 @@ function copyWalkinLink() {
         </div>
         <div class="form-group">
             <label for="emAudience">Send to</label>
-            <select id="emAudience" class="form-select" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff">
+            <select id="emAudience" class="form-select" style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:8px;background:var(--bg-ffffff, #ffffff)">
                 <option value="yes">Going (Yes) only</option>
                 <option value="yes_maybe">Going &amp; Maybe</option>
                 <option value="all">All invited (any response)</option>
             </select>
         </div>
-        <div class="form-group" style="flex:1;min-height:0">
+        <?php /* flex:none, not flex:1 + min-height:0: the editor is a fixed 280px
+                 plus its toolbar and status bar, so a group allowed to shrink
+                 below that let the status bar overlap "Attach a PDF". The
+                 modal scrolls instead when the window is short. */ ?>
+        <div class="form-group" style="flex:none">
             <label for="emBody">Message</label>
             <textarea id="emBody" name="body"></textarea>
         </div>
         <div class="form-group">
-            <label for="emFile">Attach a PDF <span style="font-weight:400;color:#64748b">(optional, up to 5 MB; emailed as an attachment, a link for everyone else)</span></label>
+            <label for="emFile">Attach a PDF <span style="font-weight:400;color:var(--fg-64748b, #64748b)">(optional, up to 5 MB; emailed as an attachment, a link for everyone else)</span></label>
             <input type="file" id="emFile" accept="application/pdf,.pdf">
         </div>
         <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.5rem">
@@ -3128,6 +3132,7 @@ function _emEnsureEditor() {
 function _emMakeEditor() {
     if (_emEditor) return;
     _emEditor = Jodit.make('#emBody', {
+        theme: (typeof pkIsDark === 'function' && pkIsDark()) ? 'dark' : 'default',   // dark mode (v1.34.0)
         // Jodit pulls js-beautify and ACE from cdnjs on load. script-src is 'self',
         // so both are refused and the features never worked here — this just stops
         // two dead cross-origin requests and the console noise on every page with an

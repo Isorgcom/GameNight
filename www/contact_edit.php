@@ -38,21 +38,21 @@ $canMsg   = $isLinked && (int)$c['linked_user_id'] !== $uid;
     <style>
         .ce-wrap { max-width: 560px; margin: 1.25rem auto 2rem; padding: 0 1rem; }
         .ce-head { display: flex; align-items: center; gap: .6rem; margin-bottom: 1rem; flex-wrap: wrap; }
-        .ce-head h1 { font-size: 1.3rem; font-weight: 800; color: #1e293b; margin: 0; flex: 1; }
-        .ce-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 1.1rem 1.25rem; }
+        .ce-head h1 { font-size: 1.3rem; font-weight: 800; color: var(--fg-1e293b, #1e293b); margin: 0; flex: 1; }
+        .ce-card { background: var(--bg-ffffff, #ffffff); border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 12px; padding: 1.1rem 1.25rem; }
         .ce-field { margin-bottom: .9rem; }
-        .ce-field label { display: block; font-size: .8rem; font-weight: 700; color: #475569; margin-bottom: .25rem; }
+        .ce-field label { display: block; font-size: .8rem; font-weight: 700; color: var(--fg-475569, #475569); margin-bottom: .25rem; }
         .ce-field input, .ce-field select, .ce-field textarea {
-            width: 100%; padding: .5rem .65rem; border: 1.5px solid #cbd5e1; border-radius: 8px;
-            font: inherit; color: #1e293b; box-sizing: border-box; background: #fff;
+            width: 100%; padding: .5rem .65rem; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 8px;
+            font: inherit; color: var(--fg-1e293b, #1e293b); box-sizing: border-box; background: var(--bg-ffffff, #ffffff);
         }
-        .ce-field .ce-hint { font-size: .75rem; color: #64748b; margin-top: .25rem; }
+        .ce-field .ce-hint { font-size: .75rem; color: var(--fg-64748b, #64748b); margin-top: .25rem; }
         .ce-actions { display: flex; gap: .6rem; align-items: center; margin-top: 1.1rem; flex-wrap: wrap; }
-        .ce-del { margin-left: auto; background: #fff; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; padding: .45rem .9rem; font-size: .85rem; font-weight: 600; cursor: pointer; }
-        .ce-del:hover { background: #fee2e2; }
+        .ce-del { margin-left: auto; background: var(--bg-ffffff, #ffffff); color: var(--fg-dc2626, #dc2626); border: 1.5px solid var(--bd-fecaca, #fecaca); border-radius: 8px; padding: .45rem .9rem; font-size: .85rem; font-weight: 600; cursor: pointer; }
+        .ce-del:hover { background: var(--bg-fee2e2, #fee2e2); }
         .c-badge { display: inline-block; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: .15rem .5rem; border-radius: 999px; }
-        .c-badge-linked { background: #dcfce7; color: #166534; }
-        .c-badge-pending { background: #fef3c7; color: #92400e; }
+        .c-badge-linked { background: var(--bg-dcfce7, #dcfce7); color: var(--fg-166534, #166534); }
+        .c-badge-pending { background: var(--bg-fef3c7, #fef3c7); color: var(--fg-92400e, #92400e); }
     </style>
 </head>
 <body>
@@ -90,7 +90,7 @@ $canMsg   = $isLinked && (int)$c['linked_user_id'] !== $uid;
             <?php if ($isLinked):
                 $prefLabels = ['email' => 'Email', 'sms' => 'Text message', 'whatsapp' => 'WhatsApp', 'both' => 'Email + text', 'none' => 'None'];
             ?>
-            <input type="text" value="<?= htmlspecialchars($prefLabels[$c['linked_pref'] ?? 'email'] ?? 'Email') ?> (their setting)" disabled style="background:#f8fafc;color:#64748b">
+            <input type="text" value="<?= htmlspecialchars($prefLabels[$c['linked_pref'] ?? 'email'] ?? 'Email') ?> (their setting)" disabled style="background:var(--bg-f8fafc, #f8fafc);color:var(--fg-64748b, #64748b)">
             <input type="hidden" id="ceVia" value="<?= htmlspecialchars($c['invite_via'] ?? 'email') ?>">
             <div class="ce-hint">This contact has a <?= htmlspecialchars($site_name) ?> account, so invites follow the contact method they chose in their own settings.</div>
             <?php else: ?>

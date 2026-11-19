@@ -80,6 +80,16 @@ $_accent        = get_setting('accent_color', '');
 <?php endif; ?>
 </style>
 <?php endif; ?>
+<?php
+// Appearance (My Settings, v1.34.0). Set before anything paints, so a forced
+// theme never flashes the other one first. A page with its own look pins
+// <html data-theme="light"> itself, and that wins. NULL/absent = follow the
+// device, which style.css does on its own.
+// Signed-out visitors keep the toolbar switch's choice in a cookie instead.
+$_theme = $_nu ? ($_nu['theme'] ?? null) : ($_COOKIE['gn_theme'] ?? null);
+if ($_theme === 'light' || $_theme === 'dark'): ?>
+<script nonce="<?= csp_nonce() ?>">(function(d){if(!d.getAttribute('data-theme'))d.setAttribute('data-theme',<?= js_json($_theme) ?>);})(document.documentElement);</script>
+<?php endif; ?>
 <?php if (!$_nu && get_setting('show_landing_page', '0') === '1'): ?>
 <!-- SaaS landing mode: no nav for guests -->
 <?php return; endif; ?>
@@ -100,6 +110,15 @@ $_accent        = get_setting('accent_color', '');
         <div class="nav-collapsible" style="flex:1"></div>
         <?php endif; ?>
         <div class="nav-user">
+            <?php /* Light/dark switch (v1.34.0). One click flips the page and saves
+                     the choice: to the account (theme_dl.php) when signed in, to a
+                     cookie otherwise. "Match this device" is in My Settings. The
+                     icon shows what a click switches TO; nav.js keeps the label
+                     right. Hidden on a page that keeps its own light look. */ ?>
+            <button type="button" class="nav-theme-btn" data-nav="theme" aria-label="Switch to dark mode" title="Switch to dark mode"<?= $_nu ? ' data-csrf="' . htmlspecialchars(csrf_token(), ENT_QUOTES | ENT_SUBSTITUTE) . '"' : '' ?>>
+                <svg class="nav-theme-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+                <svg class="nav-theme-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v2.5M12 20v2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M1.5 12h2.5M20 12h2.5M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg>
+            </button>
             <?php if ($_nu):
                 $_combined = $_nf_unread + $_dm_unread;
             ?>

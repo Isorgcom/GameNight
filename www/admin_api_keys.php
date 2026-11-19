@@ -66,14 +66,14 @@ function api_keys_admin_fmt(?string $utc_dt, DateTimeZone $local_tz): string {
     <title>API Keys — <?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
-        .ak-card { background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; padding:1.25rem; margin-bottom:1rem; }
+        .ak-card { background:var(--bg-ffffff, #ffffff); border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:10px; padding:1.25rem; margin-bottom:1rem; }
         .ak-table { width:100%; border-collapse:collapse; font-size:.875rem; }
-        .ak-table th, .ak-table td { padding:.55rem .6rem; border-bottom:1px solid #f1f5f9; text-align:left; }
-        .ak-table th { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
+        .ak-table th, .ak-table td { padding:.55rem .6rem; border-bottom:1px solid var(--bd-f1f5f9, #f1f5f9); text-align:left; }
+        .ak-table th { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:var(--fg-64748b, #64748b); font-weight:700; }
         .ak-btn { background:#dc2626; color:#fff; border:none; border-radius:6px; padding:.3rem .8rem; font-size:.78rem; font-weight:600; cursor:pointer; }
         .ak-flash { border:1.5px solid; border-radius:10px; padding:1rem 1.25rem; margin-bottom:1rem; font-size:.9rem; }
-        .ak-flash.success { background:#f0fdf4; border-color:#86efac; color:#166534; }
-        .ak-flash.error   { background:#fef2f2; border-color:#fca5a5; color:#991b1b; }
+        .ak-flash.success { background:var(--bg-f0fdf4, #f0fdf4); border-color:var(--bd-86efac, #86efac); color:var(--fg-166534, #166534); }
+        .ak-flash.error   { background:var(--bg-fef2f2, #fef2f2); border-color:var(--bd-fca5a5, #fca5a5); color:var(--fg-991b1b, #991b1b); }
     </style>
 </head>
 <body>
@@ -83,7 +83,7 @@ function api_keys_admin_fmt(?string $utc_dt, DateTimeZone $local_tz): string {
 <div role="main" class="dash-wrap">
     <?php $admin_tab = 'apikeys'; require __DIR__ . '/_admin_tabs.php'; ?>
     <h1 style="font-size:1.5rem;font-weight:700;margin:0 0 1rem">API Keys (audit view)</h1>
-    <p style="color:#64748b;margin:0 0 1.25rem;font-size:.9rem;line-height:1.55">
+    <p style="color:var(--fg-64748b, #64748b);margin:0 0 1.25rem;font-size:.9rem;line-height:1.55">
         League owners mint and manage their own keys from the API tab on each league page.
         This audit view shows every key across every league — useful when investigating
         abuse or rotating credentials site-wide. You can revoke any key here.
@@ -95,7 +95,7 @@ function api_keys_admin_fmt(?string $utc_dt, DateTimeZone $local_tz): string {
 
     <div class="ak-card">
         <?php if (empty($keys)): ?>
-            <p style="color:#64748b;font-size:.9rem;margin:0">No keys exist yet.</p>
+            <p style="color:var(--fg-64748b, #64748b);font-size:.9rem;margin:0">No keys exist yet.</p>
         <?php else: ?>
         <table class="ak-table">
             <thead>
@@ -113,9 +113,9 @@ function api_keys_admin_fmt(?string $utc_dt, DateTimeZone $local_tz): string {
                     <td><?= htmlspecialchars($k['label']) ?></td>
                     <td>
                         <?php if (!empty($k['league_name'])): ?>
-                            <a href="/league.php?id=<?= (int)$k['league_id'] ?>&tab=api" style="color:#2563eb;text-decoration:none"><?= htmlspecialchars($k['league_name']) ?></a>
+                            <a href="/league.php?id=<?= (int)$k['league_id'] ?>&tab=api" style="color:var(--fg-2563eb, #2563eb);text-decoration:none"><?= htmlspecialchars($k['league_name']) ?></a>
                         <?php else: ?>
-                            <span style="color:#64748b">league <?= (int)$k['league_id'] ?></span>
+                            <span style="color:var(--fg-64748b, #64748b)">league <?= (int)$k['league_id'] ?></span>
                         <?php endif; ?>
                     </td>
                     <td><?= htmlspecialchars(api_keys_admin_fmt($k['created_at'], $local_tz)) ?></td>

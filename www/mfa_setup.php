@@ -177,7 +177,7 @@ $site_name = get_setting('site_name', 'Game Night');
             <!-- Step 3: recovery codes (shown once) -->
             <h2>Save your recovery codes</h2>
             <p class="subtitle">Two-factor authentication is on. Each code below works once if you lose access to your second factor. They will <strong>not</strong> be shown again, so store them somewhere safe now.</p>
-            <div style="margin:1rem 0;display:grid;grid-template-columns:1fr 1fr;gap:.5rem 1rem;font-family:monospace;font-size:1.1rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1.1rem">
+            <div style="margin:1rem 0;display:grid;grid-template-columns:1fr 1fr;gap:.5rem 1rem;font-family:monospace;font-size:1.1rem;background:var(--bg-f8fafc, #f8fafc);border:1px solid var(--bd-e2e8f0, #e2e8f0);border-radius:10px;padding:1.1rem">
                 <?php foreach ($show_codes as $rc): ?>
                 <span><?= htmlspecialchars($rc) ?></span>
                 <?php endforeach; ?>
@@ -189,7 +189,7 @@ $site_name = get_setting('site_name', 'Game Night');
             <h2>Set up authenticator app</h2>
             <p class="subtitle">1. Scan this QR code with Google Authenticator, Authy, 1Password, or any TOTP app.</p>
             <div id="mfaQr" style="display:flex;justify-content:center;margin:1rem 0"></div>
-            <p style="font-size:.85rem;color:#64748b">Can't scan? Enter this key manually:<br>
+            <p style="font-size:.85rem;color:var(--fg-64748b, #64748b)">Can't scan? Enter this key manually:<br>
                 <code style="font-size:1.05rem;word-break:break-all"><?= htmlspecialchars($setup['secret']) ?></code>
             </p>
             <form method="post" action="/mfa_setup.php" style="margin-top:1rem">
@@ -222,7 +222,7 @@ $site_name = get_setting('site_name', 'Game Night');
             <form method="post" action="/mfa_setup.php" style="text-align:center;margin-top:1rem">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="resend_sms">
-                <button type="submit" class="btn-link" style="background:none;border:none;color:#2563eb;cursor:pointer;font-size:.875rem">Resend code</button>
+                <button type="submit" class="btn-link" style="background:none;border:none;color:var(--fg-2563eb, #2563eb);cursor:pointer;font-size:.875rem">Resend code</button>
             </form>
             <p style="text-align:center;margin-top:.5rem;font-size:.875rem"><a href="/mfa_setup.php?cancel=1">Cancel</a></p>
 

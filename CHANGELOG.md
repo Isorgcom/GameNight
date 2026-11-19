@@ -11,6 +11,14 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Added
+
+- **Dark mode.** The site now follows your phone or computer's dark mode setting. A sun/moon button in the top toolbar, next to your picture, switches between light and dark in one click and remembers it (on your account when signed in, in the browser otherwise), and **My Settings → Preferences → Appearance** has the same choice plus "Match this device" to go back to following the device. Every page with the site's navigation turns dark: home, calendar, events, the event editor, the check-in console, leagues, messages, settings and the admin pages. Coloured badges, warnings and notices keep their meaning (green yes, red no, amber warning) in deeper shades with lighter text, and the rich-text editor follows the page. Screens with a look of their own stay as they are: the Tournament Timer and Classic, the TV and walk-in displays, the Table Manager and the timer layout editor. Emails are unchanged. Under the hood every page colour is a token named after its light colour (`var(--fg-64748b, #64748b)`), whose fallback is the light colour itself, so light mode is exactly as before and only `style.css` carries the dark values. (`www/style.css`, `www/_nav.php`, `www/nav.js`, `www/theme_dl.php`, `www/settings.php`, `www/db.php`, `www/auth.php`, `www/pk-dialogs.js` and the page files)
+
+### Fixed
+
+- **The event messenger's editor no longer overlaps "Attach a PDF".** On a window of ordinary height the editor's status bar sat on top of the attachment line, because its box was allowed to shrink below the editor's own height. The pop-up now scrolls instead. (`www/event.php`, `www/calendar.php`)
+
 ## [v1.33.2] - 2026-11-19
 
 ### Fixed

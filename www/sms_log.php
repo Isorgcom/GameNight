@@ -95,15 +95,15 @@ unset($_SESSION['flash']);
         .sms-log-actions { display:flex; gap:.5rem; align-items:center; }
         .sms-log-table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
         .sms-log-table { width:100%; border-collapse:collapse; font-size:.85rem; }
-        .sms-log-table th { background:#f1f5f9; text-align:left; padding:.6rem 1rem; font-size:.78rem; color:#475569; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; position:sticky; top:0; z-index:1; }
-        .sms-log-table td { padding:.55rem 1rem; border-top:1px solid #e2e8f0; }
-        .sms-log-table tr:hover td { background:#f8fafc; }
-        .sms-log-table .col-time { white-space:nowrap; color:#64748b; }
+        .sms-log-table th { background:var(--bg-f1f5f9, #f1f5f9); text-align:left; padding:.6rem 1rem; font-size:.78rem; color:var(--fg-475569, #475569); text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; position:sticky; top:0; z-index:1; }
+        .sms-log-table td { padding:.55rem 1rem; border-top:1px solid var(--bd-e2e8f0, #e2e8f0); }
+        .sms-log-table tr:hover td { background:var(--bg-f8fafc, #f8fafc); }
+        .sms-log-table .col-time { white-space:nowrap; color:var(--fg-64748b, #64748b); }
         .sms-log-table .col-phone { white-space:nowrap; }
         .sms-log-table .col-msg { max-width:400px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .sms-log-table .col-raw { white-space:nowrap; }
         .pager { display:flex; justify-content:center; gap:.5rem; margin-top:1rem; align-items:center; }
-        .pager span { font-size:.85rem; color:#64748b; }
+        .pager span { font-size:.85rem; color:var(--fg-64748b, #64748b); }
     </style>
 </head>
 <body>
@@ -121,7 +121,7 @@ unset($_SESSION['flash']);
             <form method="post" style="margin:0" data-confirm="Clear all SMS logs?" data-confirm-danger="1">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="sms_clear_log">
-                <button type="submit" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .75rem;color:#dc2626;border-color:#fca5a5">Clear Log</button>
+                <button type="submit" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .75rem;color:var(--fg-dc2626, #dc2626);border-color:var(--bd-fca5a5, #fca5a5)">Clear Log</button>
             </form>
             <?php endif; ?>
             <a href="/sms_conversations.php<?= $f_event > 0 ? '?event=' . $f_event : '' ?>" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .75rem">Conversations</a>
@@ -135,31 +135,31 @@ unset($_SESSION['flash']);
 
     <form method="get" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem;font-size:.83rem">
         <?php if ($f_event > 0): ?><input type="hidden" name="event" value="<?= $f_event ?>"><?php endif; ?>
-        <select name="status" style="padding:.35rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px">
+        <select name="status" style="padding:.35rem .5rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:6px">
             <option value="">Any status</option>
             <?php foreach (['sent', 'failed', 'queued', 'received'] as $st): ?>
             <option value="<?= $st ?>" <?= $f_status === $st ? 'selected' : '' ?>><?= ucfirst($st) ?></option>
             <?php endforeach; ?>
         </select>
-        <select name="channel" style="padding:.35rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px">
+        <select name="channel" style="padding:.35rem .5rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:6px">
             <option value="">Any channel</option>
             <option value="email"    <?= $f_channel === 'email'    ? 'selected' : '' ?>>Email</option>
             <option value="sms"      <?= $f_channel === 'sms'      ? 'selected' : '' ?>>SMS</option>
             <option value="whatsapp" <?= $f_channel === 'whatsapp' ? 'selected' : '' ?>>WhatsApp</option>
         </select>
         <input type="text" name="q" value="<?= htmlspecialchars($f_q) ?>" placeholder="Recipient (name, email, phone)"
-               style="padding:.35rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px;min-width:200px">
-        <input type="date" name="from" value="<?= htmlspecialchars($f_from) ?>" style="padding:.32rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px">
-        <span style="color:#64748b">&rarr;</span>
-        <input type="date" name="to" value="<?= htmlspecialchars($f_to) ?>" style="padding:.32rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px">
+               style="padding:.35rem .5rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:6px;min-width:200px">
+        <input type="date" name="from" value="<?= htmlspecialchars($f_from) ?>" style="padding:.32rem .5rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:6px">
+        <span style="color:var(--fg-64748b, #64748b)">&rarr;</span>
+        <input type="date" name="to" value="<?= htmlspecialchars($f_to) ?>" style="padding:.32rem .5rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:6px">
         <button type="submit" class="btn btn-primary" style="font-size:.8rem;padding:.4rem .8rem">Filter</button>
         <?php if ($f_status || $f_channel || $f_q !== '' || $f_from || $f_to): ?>
-        <a href="/sms_log.php<?= $f_event > 0 ? '?event=' . $f_event : '' ?>" style="font-size:.8rem;color:#64748b">Reset</a>
+        <a href="/sms_log.php<?= $f_event > 0 ? '?event=' . $f_event : '' ?>" style="font-size:.8rem;color:var(--fg-64748b, #64748b)">Reset</a>
         <?php endif; ?>
     </form>
 
     <?php if (empty($smsRows)): ?>
-        <p style="color:#64748b">No notifications match<?= $where ? ' these filters' : '' ?>.</p>
+        <p style="color:var(--fg-64748b, #64748b)">No notifications match<?= $where ? ' these filters' : '' ?>.</p>
     <?php else: ?>
     <div class="table-card" style="overflow:visible">
         <div class="sms-log-table-wrap">
@@ -183,29 +183,29 @@ unset($_SESSION['flash']);
                         <td class="col-time"><?= htmlspecialchars($log['created_at']) ?></td>
                         <td>
                             <?php if ($log['direction'] === 'inbound'): ?>
-                                <span style="color:#16a34a;font-weight:600" title="Inbound">&#x2B07;</span>
+                                <span style="color:var(--fg-16a34a, #16a34a);font-weight:600" title="Inbound">&#x2B07;</span>
                             <?php else: ?>
-                                <span style="color:#2563eb;font-weight:600" title="Outbound">&#x2B06;</span>
+                                <span style="color:var(--fg-2563eb, #2563eb);font-weight:600" title="Outbound">&#x2B06;</span>
                             <?php endif; ?>
                         </td>
                         <td class="col-phone"><?= htmlspecialchars($log['phone']) ?></td>
-                        <td class="col-phone"><?= htmlspecialchars($log['username'] ?? '') ?: '<span style="color:#64748b">&mdash;</span>' ?></td>
+                        <td class="col-phone"><?= htmlspecialchars($log['username'] ?? '') ?: '<span style="color:var(--fg-64748b, #64748b)">&mdash;</span>' ?></td>
                         <td class="col-phone">
                             <?php if (!empty($log['event_id'])): ?>
-                                <a href="/event.php?id=<?= (int)$log['event_id'] ?>" style="color:#2563eb;text-decoration:none">#<?= (int)$log['event_id'] ?></a>
+                                <a href="/event.php?id=<?= (int)$log['event_id'] ?>" style="color:var(--fg-2563eb, #2563eb);text-decoration:none">#<?= (int)$log['event_id'] ?></a>
                             <?php else: ?>
-                                <span style="color:#64748b">&mdash;</span>
+                                <span style="color:var(--fg-64748b, #64748b)">&mdash;</span>
                             <?php endif; ?>
                         </td>
                         <td class="col-msg" title="<?= htmlspecialchars($log['body']) ?>"><?= htmlspecialchars($log['body']) ?></td>
                         <td><?= htmlspecialchars($log['provider'] ?? '') ?></td>
                         <td>
                             <?php if ($log['status'] === 'sent' || $log['status'] === 'received'): ?>
-                                <span style="color:#16a34a;font-weight:600"><?= htmlspecialchars($log['status']) ?></span>
+                                <span style="color:var(--fg-16a34a, #16a34a);font-weight:600"><?= htmlspecialchars($log['status']) ?></span>
                             <?php elseif ($log['status'] === 'queued'): ?>
-                                <span style="color:#d97706;font-weight:600" title="Pending retry: <?= htmlspecialchars($log['error'] ?? '') ?>"><?= htmlspecialchars($log['status']) ?></span>
+                                <span style="color:var(--fg-d97706, #d97706);font-weight:600" title="Pending retry: <?= htmlspecialchars($log['error'] ?? '') ?>"><?= htmlspecialchars($log['status']) ?></span>
                             <?php else: ?>
-                                <span style="color:#dc2626;font-weight:600" title="<?= htmlspecialchars($log['error'] ?? '') ?>"><?= htmlspecialchars($log['status']) ?></span>
+                                <span style="color:var(--fg-dc2626, #dc2626);font-weight:600" title="<?= htmlspecialchars($log['error'] ?? '') ?>"><?= htmlspecialchars($log['status']) ?></span>
                             <?php endif; ?>
                         </td>
                         <td class="col-raw">
@@ -215,7 +215,7 @@ unset($_SESSION['flash']);
                                         data-act="copySmsRaw" data-a1="@self"
                                         class="btn btn-outline btn-sm">Copy</button>
                             <?php else: ?>
-                                <span style="color:#64748b">&mdash;</span>
+                                <span style="color:var(--fg-64748b, #64748b)">&mdash;</span>
                             <?php endif; ?>
                         </td>
                     </tr>

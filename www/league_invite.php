@@ -103,9 +103,9 @@ if (!$row) {
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .li-wrap { max-width: 520px; margin: 3rem auto; padding: 0 1rem; }
-        .li-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 1.5rem; text-align: center; }
-        .li-card h1 { font-size: 1.35rem; margin: 0 0 .75rem; color: #1e293b; }
-        .li-card p  { color: #64748b; margin: 0 0 1rem; font-size: .95rem; }
+        .li-card { background: var(--bg-ffffff, #ffffff); border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; padding: 1.5rem; text-align: center; }
+        .li-card h1 { font-size: 1.35rem; margin: 0 0 .75rem; color: var(--fg-1e293b, #1e293b); }
+        .li-card p  { color: var(--fg-64748b, #64748b); margin: 0 0 1rem; font-size: .95rem; }
         .li-btn { background: #2563eb; color: #fff; padding: .55rem 1.1rem; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block; }
     </style>
 </head>

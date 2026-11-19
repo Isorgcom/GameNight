@@ -167,10 +167,10 @@ $site_name = get_setting('site_name', 'Game Night');
         @media (max-width: 640px) { .edit-grid { grid-template-columns: 1fr; } }
         select.form-select {
             width: 100%; padding: .6rem .85rem;
-            border: 1.5px solid #e2e8f0; border-radius: 7px;
-            font-size: .95rem; background: #f8fafc;
+            border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 7px;
+            font-size: .95rem; background: var(--bg-f8fafc, #f8fafc);
         }
-        select.form-select:focus { border-color: #2563eb; background: #fff; }
+        select.form-select:focus { border-color: #2563eb; background: var(--bg-ffffff, #ffffff); }
     </style>
 </head>
 <body>
@@ -243,8 +243,8 @@ $site_name = get_setting('site_name', 'Game Night');
                               style="width:100%;resize:vertical"><?= htmlspecialchars($target['notes'] ?? '') ?></textarea>
                 </div>
 
-                <hr style="margin:1rem 0;border:none;border-top:1px solid #e2e8f0">
-                <h3 style="font-size:.9rem;color:#475569;margin-bottom:.75rem">Account Settings</h3>
+                <hr style="margin:1rem 0;border:none;border-top:1px solid var(--bd-e2e8f0, #e2e8f0)">
+                <h3 style="font-size:.9rem;color:var(--fg-475569, #475569);margin-bottom:.75rem">Account Settings</h3>
 
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
                     <div class="form-group" style="margin-bottom:0">
@@ -298,8 +298,8 @@ $site_name = get_setting('site_name', 'Game Night');
                 <button type="submit" class="btn btn-primary" style="width:100%">Update Password</button>
             </form>
 
-            <hr style="margin:1.25rem 0;border:none;border-top:1px solid #e2e8f0">
-            <h3 style="font-size:.9rem;color:#475569;margin-bottom:.5rem">Two-Factor Authentication</h3>
+            <hr style="margin:1.25rem 0;border:none;border-top:1px solid var(--bd-e2e8f0, #e2e8f0)">
+            <h3 style="font-size:.9rem;color:var(--fg-475569, #475569);margin-bottom:.5rem">Two-Factor Authentication</h3>
             <?php if ((int)($target['mfa_enabled'] ?? 0) === 1): ?>
             <p class="subtitle" style="margin-bottom:.75rem">
                 Enabled (<?= $target['mfa_method'] === 'sms' ? 'SMS' : 'authenticator app' ?>).
@@ -323,18 +323,18 @@ $site_name = get_setting('site_name', 'Game Night');
         <h3>Account Info</h3>
         <table>
             <tbody>
-                <tr><td style="color:#64748b;width:140px">User ID</td><td><?= (int)$target['id'] ?></td></tr>
-                <tr><td style="color:#64748b">Role</td>
+                <tr><td style="color:var(--fg-64748b, #64748b);width:140px">User ID</td><td><?= (int)$target['id'] ?></td></tr>
+                <tr><td style="color:var(--fg-64748b, #64748b)">Role</td>
                     <td><span class="badge badge-<?= $target['role'] === 'admin' ? 'admin' : 'user' ?>">
                         <?= htmlspecialchars($target['role']) ?></span></td></tr>
-                <tr><td style="color:#64748b">Email Verified</td>
-                    <td><?= (int)($target['email_verified'] ?? 0) ? '<span style="color:#22c55e;font-weight:600">Yes</span>' : '<span style="color:#ef4444;font-weight:600">No</span>' ?></td></tr>
-                <tr><td style="color:#64748b">Two-Factor</td>
+                <tr><td style="color:var(--fg-64748b, #64748b)">Email Verified</td>
+                    <td><?= (int)($target['email_verified'] ?? 0) ? '<span style="color:var(--fg-22c55e, #22c55e);font-weight:600">Yes</span>' : '<span style="color:var(--fg-ef4444, #ef4444);font-weight:600">No</span>' ?></td></tr>
+                <tr><td style="color:var(--fg-64748b, #64748b)">Two-Factor</td>
                     <td><?= (int)($target['mfa_enabled'] ?? 0)
-                        ? '<span style="color:#22c55e;font-weight:600">On (' . htmlspecialchars($target['mfa_method'] === 'sms' ? 'SMS' : 'app') . ')</span>'
-                        : '<span style="color:#64748b">Off</span>' ?></td></tr>
-                <tr><td style="color:#64748b">Member since</td><td><?= htmlspecialchars($target['created_at']) ?></td></tr>
-                <tr><td style="color:#64748b">Last login</td><td><?= htmlspecialchars($target['last_login'] ?? 'Never') ?></td></tr>
+                        ? '<span style="color:var(--fg-22c55e, #22c55e);font-weight:600">On (' . htmlspecialchars($target['mfa_method'] === 'sms' ? 'SMS' : 'app') . ')</span>'
+                        : '<span style="color:var(--fg-64748b, #64748b)">Off</span>' ?></td></tr>
+                <tr><td style="color:var(--fg-64748b, #64748b)">Member since</td><td><?= htmlspecialchars($target['created_at']) ?></td></tr>
+                <tr><td style="color:var(--fg-64748b, #64748b)">Last login</td><td><?= htmlspecialchars($target['last_login'] ?? 'Never') ?></td></tr>
             </tbody>
         </table>
     </div>
@@ -343,14 +343,14 @@ $site_name = get_setting('site_name', 'Game Night');
     <div class="table-card" style="margin-top:1.5rem;max-width:540px">
         <h3>Leagues (<?= count($user_leagues) ?>)</h3>
         <?php if (!$user_leagues): ?>
-            <p style="padding:0 1.5rem 1rem;color:#64748b;font-size:.875rem">Not a member of any league.</p>
+            <p style="padding:0 1.5rem 1rem;color:var(--fg-64748b, #64748b);font-size:.875rem">Not a member of any league.</p>
         <?php else: ?>
         <table>
             <thead><tr><th scope="col">League</th><th scope="col">Role</th><th scope="col">Joined</th></tr></thead>
             <tbody>
             <?php foreach ($user_leagues as $l): ?>
                 <tr>
-                    <td><a href="/league.php?id=<?= (int)$l['id'] ?>"><?= htmlspecialchars($l['name']) ?></a><?= (int)$l['is_hidden'] ? ' <span style="color:#64748b;font-size:.8rem">(hidden)</span>' : '' ?></td>
+                    <td><a href="/league.php?id=<?= (int)$l['id'] ?>"><?= htmlspecialchars($l['name']) ?></a><?= (int)$l['is_hidden'] ? ' <span style="color:var(--fg-64748b, #64748b);font-size:.8rem">(hidden)</span>' : '' ?></td>
                     <td><?= htmlspecialchars(ucfirst($l['role'])) ?></td>
                     <td style="white-space:nowrap"><?= htmlspecialchars($l['joined_at'] ? date('M j, Y', strtotime($l['joined_at'] . ' UTC')) : '') ?></td>
                 </tr>
@@ -362,9 +362,9 @@ $site_name = get_setting('site_name', 'Game Night');
 
     <!-- Danger zone -->
     <?php if ($id !== $current['id']): ?>
-    <div style="margin-top:2rem;max-width:540px;border:1.5px solid #fca5a5;border-radius:10px;padding:1.25rem 1.5rem;background:#fff">
-        <h3 style="color:#dc2626;margin-bottom:.4rem">Danger Zone</h3>
-        <p style="font-size:.875rem;color:#64748b;margin-bottom:1rem">
+    <div style="margin-top:2rem;max-width:540px;border:1.5px solid var(--bd-fca5a5, #fca5a5);border-radius:10px;padding:1.25rem 1.5rem;background:var(--bg-ffffff, #ffffff)">
+        <h3 style="color:var(--fg-dc2626, #dc2626);margin-bottom:.4rem">Danger Zone</h3>
+        <p style="font-size:.875rem;color:var(--fg-64748b, #64748b);margin-bottom:1rem">
             Permanently delete this account and all associated activity logs. This cannot be undone.
         </p>
         <form method="post" action="/user_edit.php?id=<?= $id ?>"

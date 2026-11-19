@@ -164,42 +164,42 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
     <title>Connected Apps — <?= $e($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
-        .sa-card { background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; padding:1.25rem; margin-bottom:1rem; }
+        .sa-card { background:var(--bg-ffffff, #ffffff); border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:10px; padding:1.25rem; margin-bottom:1rem; }
         .sa-card h2 { font-size:1.05rem; font-weight:700; margin:0 0 .5rem; }
-        .sa-help { color:#64748b; font-size:.875rem; line-height:1.55; margin:0 0 1rem; }
+        .sa-help { color:var(--fg-64748b, #64748b); font-size:.875rem; line-height:1.55; margin:0 0 1rem; }
         .sa-table { width:100%; border-collapse:collapse; font-size:.875rem; }
-        .sa-table th, .sa-table td { padding:.55rem .6rem; border-bottom:1px solid #f1f5f9; text-align:left; vertical-align:middle; }
-        .sa-table th { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
+        .sa-table th, .sa-table td { padding:.55rem .6rem; border-bottom:1px solid var(--bd-f1f5f9, #f1f5f9); text-align:left; vertical-align:middle; }
+        .sa-table th { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:var(--fg-64748b, #64748b); font-weight:700; }
         .sa-btn { border:none; border-radius:6px; padding:.3rem .8rem; font-size:.78rem; font-weight:600; cursor:pointer; color:#fff; background:#475569; }
         .sa-btn.danger { background:#dc2626; }
         .sa-btn.primary { background:var(--accent); }
         .sa-flash { border:1.5px solid; border-radius:10px; padding:1rem 1.25rem; margin-bottom:1rem; font-size:.9rem; }
-        .sa-flash.success { background:#f0fdf4; border-color:#86efac; color:#166534; }
-        .sa-flash.error   { background:#fef2f2; border-color:#fca5a5; color:#991b1b; }
+        .sa-flash.success { background:var(--bg-f0fdf4, #f0fdf4); border-color:var(--bd-86efac, #86efac); color:var(--fg-166534, #166534); }
+        .sa-flash.error   { background:var(--bg-fef2f2, #fef2f2); border-color:var(--bd-fca5a5, #fca5a5); color:var(--fg-991b1b, #991b1b); }
         .sa-pill { display:inline-block; padding:.1rem .5rem; border-radius:999px; font-size:.72rem; font-weight:700; }
-        .sa-pill.on  { background:#dcfce7; color:#166534; }
-        .sa-pill.off { background:#f1f5f9; color:#475569; }
-        .sa-pre { width:100%; box-sizing:border-box; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.75rem; line-height:1.4; border:1.5px solid #e2e8f0; border-radius:8px; padding:.6rem .75rem; background:#f8fafc; color:#1e293b; resize:vertical; }
+        .sa-pill.on  { background:var(--bg-dcfce7, #dcfce7); color:var(--fg-166534, #166534); }
+        .sa-pill.off { background:var(--bg-f1f5f9, #f1f5f9); color:var(--fg-475569, #475569); }
+        .sa-pre { width:100%; box-sizing:border-box; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.75rem; line-height:1.4; border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:8px; padding:.6rem .75rem; background:var(--bg-f8fafc, #f8fafc); color:var(--fg-1e293b, #1e293b); resize:vertical; }
         .sa-row { display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; margin-top:.5rem; }
         .sa-form { display:grid; grid-template-columns:1fr 1fr 2fr auto; gap:.6rem; align-items:end; }
-        .sa-form label { display:block; font-size:.72rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-bottom:.25rem; }
-        .sa-form input { width:100%; box-sizing:border-box; padding:.45rem .6rem; border:1.5px solid #e2e8f0; border-radius:6px; font-size:.875rem; }
-        .sa-warn { background:#fffbeb; border:1.5px solid #f59e0b; color:#92400e; border-radius:8px; padding:.75rem 1rem; font-size:.85rem; line-height:1.5; margin-top:1rem; }
-        .sa-steps { background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:8px; padding:.9rem 1rem; }
-        .sa-steps-head { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; margin-bottom:.5rem; }
-        .sa-steps ol { margin:0; padding-left:1.15rem; font-size:.875rem; color:#334155; line-height:1.6; }
+        .sa-form label { display:block; font-size:.72rem; font-weight:700; color:var(--fg-64748b, #64748b); text-transform:uppercase; letter-spacing:.05em; margin-bottom:.25rem; }
+        .sa-form input { width:100%; box-sizing:border-box; padding:.45rem .6rem; border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:6px; font-size:.875rem; }
+        .sa-warn { background:var(--bg-fffbeb, #fffbeb); border:1.5px solid #f59e0b; color:var(--fg-92400e, #92400e); border-radius:8px; padding:.75rem 1rem; font-size:.85rem; line-height:1.5; margin-top:1rem; }
+        .sa-steps { background:var(--bg-f8fafc, #f8fafc); border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:8px; padding:.9rem 1rem; }
+        .sa-steps-head { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:var(--fg-64748b, #64748b); font-weight:700; margin-bottom:.5rem; }
+        .sa-steps ol { margin:0; padding-left:1.15rem; font-size:.875rem; color:var(--fg-334155, #334155); line-height:1.6; }
         .sa-steps li + li { margin-top:.5rem; }
         .sa-kv { display:grid; grid-template-columns:auto 1fr; gap:.3rem .7rem; align-items:center; margin-top:.45rem; }
-        .sa-kv span { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
-        .sa-kv code { background:#fff; border:1px solid #e2e8f0; border-radius:5px; padding:.2rem .45rem; font-size:.8rem; }
-        .sa-details { margin-top:1rem; border-top:1px solid #f1f5f9; padding-top:.75rem; }
-        .sa-details > summary { cursor:pointer; font-size:.8rem; color:#64748b; font-weight:600; }
-        .sa-details > summary:hover { color:#334155; }
-        .sa-keyrow td { padding-top:0; border-bottom:1px solid #e2e8f0; }
+        .sa-kv span { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:var(--fg-64748b, #64748b); font-weight:700; }
+        .sa-kv code { background:var(--bg-ffffff, #ffffff); border:1px solid var(--bd-e2e8f0, #e2e8f0); border-radius:5px; padding:.2rem .45rem; font-size:.8rem; }
+        .sa-details { margin-top:1rem; border-top:1px solid var(--bd-f1f5f9, #f1f5f9); padding-top:.75rem; }
+        .sa-details > summary { cursor:pointer; font-size:.8rem; color:var(--fg-64748b, #64748b); font-weight:600; }
+        .sa-details > summary:hover { color:var(--fg-334155, #334155); }
+        .sa-keyrow td { padding-top:0; border-bottom:1px solid var(--bd-e2e8f0, #e2e8f0); }
         .sa-keyform { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin:0; }
-        .sa-keyform input[type=password] { width:260px; max-width:100%; box-sizing:border-box; padding:.35rem .55rem; border:1.5px solid #e2e8f0; border-radius:6px; font-size:.8rem; }
-        .sa-keyform label { font-size:.75rem; color:#64748b; display:flex; align-items:center; gap:.25rem; }
-        .sa-keyform .sa-keylbl { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
+        .sa-keyform input[type=password] { width:260px; max-width:100%; box-sizing:border-box; padding:.35rem .55rem; border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:6px; font-size:.8rem; }
+        .sa-keyform label { font-size:.75rem; color:var(--fg-64748b, #64748b); display:flex; align-items:center; gap:.25rem; }
+        .sa-keyform .sa-keylbl { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:var(--fg-64748b, #64748b); font-weight:700; }
         .sa-btn[disabled] { opacity:.45; cursor:default; }
         @media (max-width: 720px) { .sa-form { grid-template-columns:1fr; } }
     </style>
@@ -224,7 +224,7 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
     <div class="sa-card">
         <h2>Registered apps</h2>
         <?php if (empty($apps)): ?>
-            <p style="color:#64748b;font-size:.9rem;margin:0 0 1rem">No apps connected yet.</p>
+            <p style="color:var(--fg-64748b, #64748b);font-size:.9rem;margin:0 0 1rem">No apps connected yet.</p>
         <?php else: ?>
         <table class="sa-table">
             <thead>
@@ -283,7 +283,7 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
                             <input type="hidden" name="action" value="test">
                             <input type="hidden" name="id" value="<?= (int)$a['id'] ?>">
                             <button type="submit" class="sa-btn" <?= (int)$a['has_key'] ? '' : 'disabled' ?>>Test</button>
-                            <span style="font-size:.75rem;color:#64748b;margin-left:.4rem">Proves the address and the key with two requests; nothing is made.</span>
+                            <span style="font-size:.75rem;color:var(--fg-64748b, #64748b);margin-left:.4rem">Proves the address and the key with two requests; nothing is made.</span>
                         </form>
                     </td>
                 </tr>

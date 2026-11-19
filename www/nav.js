@@ -34,6 +34,9 @@ document.addEventListener('click', function (e) {
         case 'collapse':
             if (typeof toggleNavCollapse === 'function') toggleNavCollapse();
             break;
+        case 'theme':
+            navToggleTheme(t);
+            break;
     }
 });
 
@@ -64,4 +67,41 @@ document.addEventListener('keydown', function (e) {
     var back = open.find(function (b) { return b.nextElementSibling.contains(document.activeElement); }) || open[0];
     back.focus();
 });
+
+// ── Light / dark switch (v1.34.0) ───────────────────────────────────────────
+// <html data-theme> is the choice; without it the page follows the device.
+// A click flips whatever is showing now and saves it: to the account when the
+// button carries a CSRF token (signed in), to a year-long cookie otherwise,
+// which _nav.php reads back for a signed-out visitor.
+function navIsDark() {
+    var a = document.documentElement.getAttribute('data-theme');
+    if (a) return a === 'dark';
+    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+}
+function navThemeLabels() {
+    var l = navIsDark() ? 'Switch to light mode' : 'Switch to dark mode';
+    document.querySelectorAll('[data-nav="theme"]').forEach(function (b) {
+        b.setAttribute('aria-label', l); b.title = l;
+    });
+}
+function navToggleTheme(btn) {
+    if (document.documentElement.hasAttribute('data-theme-lock')) return;
+    var next = navIsDark() ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    navThemeLabels();
+    if (typeof pkAnnounce === 'function') pkAnnounce(next === 'dark' ? 'Dark mode' : 'Light mode');
+    var tok = btn.getAttribute('data-csrf');
+    if (tok) {
+        var fd = new FormData();
+        fd.append('csrf_token', tok); fd.append('theme', next);
+        fetch('/theme_dl.php', { method: 'POST', body: fd, credentials: 'same-origin' }).catch(function () {});
+    } else {
+        document.cookie = 'gn_theme=' + next + '; path=/; max-age=31536000; samesite=lax' + (location.protocol === 'https:' ? '; secure' : '');
+    }
+}
+navThemeLabels();
+if (window.matchMedia) {
+    var _navMq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (_navMq.addEventListener) _navMq.addEventListener('change', navThemeLabels);
+}
 

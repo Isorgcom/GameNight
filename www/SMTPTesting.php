@@ -71,8 +71,8 @@ $configured     = $smtp_host && $smtp_username && $smtp_password && $smtp_from;
     <style>
         .smtp-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; }
         @media (max-width:640px) { .smtp-grid { grid-template-columns:1fr; } }
-        .result-box { background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:8px; padding:1rem; margin-top:1rem; font-size:.875rem; }
-        .cred-note { font-size:.78rem; color:#64748b; margin-top:.25rem; }
+        .result-box { background:var(--bg-f8fafc, #f8fafc); border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:8px; padding:1rem; margin-top:1rem; font-size:.875rem; }
+        .cred-note { font-size:.78rem; color:var(--fg-64748b, #64748b); margin-top:.25rem; }
     </style>
 </head>
 <body>
@@ -132,9 +132,9 @@ $configured     = $smtp_host && $smtp_username && $smtp_password && $smtp_from;
                 <div style="display:flex;align-items:center;gap:.75rem">
                     <button type="submit" class="btn btn-primary">Save Settings</button>
                     <?php if ($configured): ?>
-                        <span style="color:#16a34a;font-size:.8rem;font-weight:600">&#10003; Configured</span>
+                        <span style="color:var(--fg-16a34a, #16a34a);font-size:.8rem;font-weight:600">&#10003; Configured</span>
                     <?php else: ?>
-                        <span style="color:#dc2626;font-size:.8rem;font-weight:600">&#9679; Not configured</span>
+                        <span style="color:var(--fg-dc2626, #dc2626);font-size:.8rem;font-weight:600">&#9679; Not configured</span>
                     <?php endif; ?>
                 </div>
             </form>
@@ -167,10 +167,10 @@ $configured     = $smtp_host && $smtp_username && $smtp_password && $smtp_from;
             <?php if ($result): ?>
             <div class="result-box">
                 <?php if ($result['ok']): ?>
-                    <span style="color:#166534;font-weight:700">&#10003; Sent successfully</span>
+                    <span style="color:var(--fg-166534, #166534);font-weight:700">&#10003; Sent successfully</span>
                 <?php else: ?>
-                    <span style="color:#dc2626;font-weight:700">&#10007; Failed</span>
-                    <div style="margin-top:.5rem;color:#dc2626;font-size:.85rem"><?= htmlspecialchars($result['error']) ?></div>
+                    <span style="color:var(--fg-dc2626, #dc2626);font-weight:700">&#10007; Failed</span>
+                    <div style="margin-top:.5rem;color:var(--fg-dc2626, #dc2626);font-size:.85rem"><?= htmlspecialchars($result['error']) ?></div>
                 <?php endif; ?>
             </div>
             <?php endif; ?>
@@ -182,12 +182,12 @@ $configured     = $smtp_host && $smtp_username && $smtp_password && $smtp_from;
     <div class="table-card" style="margin-top:1.5rem;max-width:620px">
         <h3>SendGrid Quick Reference</h3>
         <table><tbody>
-            <tr><td style="color:#64748b;width:160px">Console</td><td><a href="https://app.sendgrid.com" target="_blank" rel="noopener">app.sendgrid.com</a></td></tr>
-            <tr><td style="color:#64748b">SMTP Host</td><td><code>smtp.sendgrid.net</code></td></tr>
-            <tr><td style="color:#64748b">Port</td><td>587 (TLS) or 465 (SSL)</td></tr>
-            <tr><td style="color:#64748b">Username</td><td><code>apikey</code> (literal)</td></tr>
-            <tr><td style="color:#64748b">Password</td><td>API key from Settings &rsaquo; API Keys (starts with <code>SG.</code>)</td></tr>
-            <tr><td style="color:#64748b">From domain</td><td>Must be verified under Settings &rsaquo; Sender Authentication</td></tr>
+            <tr><td style="color:var(--fg-64748b, #64748b);width:160px">Console</td><td><a href="https://app.sendgrid.com" target="_blank" rel="noopener">app.sendgrid.com</a></td></tr>
+            <tr><td style="color:var(--fg-64748b, #64748b)">SMTP Host</td><td><code>smtp.sendgrid.net</code></td></tr>
+            <tr><td style="color:var(--fg-64748b, #64748b)">Port</td><td>587 (TLS) or 465 (SSL)</td></tr>
+            <tr><td style="color:var(--fg-64748b, #64748b)">Username</td><td><code>apikey</code> (literal)</td></tr>
+            <tr><td style="color:var(--fg-64748b, #64748b)">Password</td><td>API key from Settings &rsaquo; API Keys (starts with <code>SG.</code>)</td></tr>
+            <tr><td style="color:var(--fg-64748b, #64748b)">From domain</td><td>Must be verified under Settings &rsaquo; Sender Authentication</td></tr>
         </tbody></table>
     </div>
 

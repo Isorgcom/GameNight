@@ -903,44 +903,44 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
     <title><?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
-        .hint { font-size: .78rem; color: #64748b; margin-top: .35rem; }
+        .hint { font-size: .78rem; color: var(--fg-64748b, #64748b); margin-top: .35rem; }
         .pk-toggle-input { display:none; }
-        .pk-toggle-slider { position:relative;width:36px;height:20px;background:#cbd5e1;border-radius:99px;transition:background .2s;flex-shrink:0;cursor:pointer; }
-        .pk-toggle-slider::after { content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2); }
+        .pk-toggle-slider { position:relative;width:36px;height:20px;background:var(--bg-cbd5e1, #cbd5e1);border-radius:99px;transition:background .2s;flex-shrink:0;cursor:pointer; }
+        .pk-toggle-slider::after { content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:var(--bg-ffffff, #ffffff);border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2); }
         .pk-toggle-input:checked + .pk-toggle-slider { background:#22c55e; }
         .pk-toggle-input:checked + .pk-toggle-slider::after { transform:translateX(16px); }
         .form-group .setting-toggle { display:flex !important;align-items:center;gap:.6rem;cursor:pointer;font-weight:500;margin-bottom:0; }
         .sms-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; }
         @media (max-width:640px) { .sms-grid { grid-template-columns:1fr; } }
-        .cred-note { font-size:.78rem; color:#64748b; margin-top:.25rem; }
+        .cred-note { font-size:.78rem; color:var(--fg-64748b, #64748b); margin-top:.25rem; }
 
         /* .tabs / .tab-btn styles live in style.css (shared with API Keys + Help Tips pages) */
         .tab-panel { display: none; }
         .tab-panel.active { display: block; }
 
         .bar-row { display:flex; align-items:center; gap:.6rem; margin:.2rem 0; font-size:.8rem; }
-        .bar-row .bar-label { width:3.5rem; color:#64748b; flex:none; }
-        .bar-row .bar-track { flex:1; background:#f1f5f9; border-radius:4px; height:1rem; overflow:hidden; }
+        .bar-row .bar-label { width:3.5rem; color:var(--fg-64748b, #64748b); flex:none; }
+        .bar-row .bar-track { flex:1; background:var(--bg-f1f5f9, #f1f5f9); border-radius:4px; height:1rem; overflow:hidden; }
         .bar-row .bar-fill  { display:block; background:#2563eb; height:100%; border-radius:4px; }
-        .bar-row .bar-n     { width:2rem; text-align:right; color:#1e293b; flex:none; }
+        .bar-row .bar-n     { width:2rem; text-align:right; color:var(--fg-1e293b, #1e293b); flex:none; }
 
         .subtabs { display:flex; gap:0; margin-bottom:1.5rem; }
         .subtab-btn {
-            padding:.45rem 1rem; font-size:.82rem; font-weight:500; color:#64748b;
-            background:#f8fafc; border:1px solid #e2e8f0; border-bottom:none;
+            padding:.45rem 1rem; font-size:.82rem; font-weight:500; color:var(--fg-64748b, #64748b);
+            background:var(--bg-f8fafc, #f8fafc); border:1px solid var(--bd-e2e8f0, #e2e8f0); border-bottom:none;
             cursor:pointer; text-decoration:none; margin-right:-1px;
         }
         .subtab-btn:first-child { border-radius:8px 0 0 0; }
         .subtab-btn:last-child  { border-radius:0 8px 0 0; margin-right:0; }
-        .subtab-btn.active { background:#fff; color:#2563eb; font-weight:600; border-bottom:1px solid #fff; position:relative; z-index:1; }
+        .subtab-btn.active { background:var(--bg-ffffff, #ffffff); color:var(--fg-2563eb, #2563eb); font-weight:600; border-bottom:1px solid #fff; position:relative; z-index:1; }
 
         .pagination { display:flex; gap:.4rem; margin-top:1rem; flex-wrap:wrap; }
         .pagination a, .pagination span {
             display:inline-block; padding:.3rem .75rem; border-radius:6px;
-            font-size:.82rem; border:1px solid #e2e8f0;
+            font-size:.82rem; border:1px solid var(--bd-e2e8f0, #e2e8f0);
         }
-        .pagination a { color:#2563eb; }
-        .pagination a:hover { background:#eff6ff; text-decoration:none; }
+        .pagination a { color:var(--fg-2563eb, #2563eb); }
+        .pagination a:hover { background:var(--bg-eff6ff, #eff6ff); text-decoration:none; }
         .pagination .current { background:#2563eb; color:#fff; border-color:#2563eb; }
 
         /* ── Users tab ── */
@@ -948,71 +948,71 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
         .ug-wrap {
             width: 100%; overflow-x: auto;
             -webkit-overflow-scrolling: touch;
-            border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
+            border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; background: var(--bg-ffffff, #ffffff);
         }
         .ug-toolbar {
             display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
-            padding: .9rem 1rem; border-bottom: 1px solid #e2e8f0;
-            background: #f8fafc; border-radius: 10px 10px 0 0;
+            padding: .9rem 1rem; border-bottom: 1px solid var(--bd-e2e8f0, #e2e8f0);
+            background: var(--bg-f8fafc, #f8fafc); border-radius: 10px 10px 0 0;
         }
         #usersGrid {
             border-collapse: collapse; width: 100%; font-size: .85rem;
         }
         #usersGrid th {
-            background: #f1f5f9; color: #475569; font-weight: 600;
+            background: var(--bg-f1f5f9, #f1f5f9); color: var(--fg-475569, #475569); font-weight: 600;
             font-size: .78rem; text-transform: uppercase; letter-spacing: .04em;
-            padding: .6rem .75rem; border-bottom: 2px solid #e2e8f0;
-            border-right: 1px solid #e2e8f0; white-space: nowrap;
+            padding: .6rem .75rem; border-bottom: 2px solid var(--bd-e2e8f0, #e2e8f0);
+            border-right: 1px solid var(--bd-e2e8f0, #e2e8f0); white-space: nowrap;
             position: sticky; top: 0; z-index: 2;
         }
         #usersGrid td {
-            padding: 0; border-bottom: 1px solid #e2e8f0;
-            border-right: 1px solid #e2e8f0; vertical-align: middle;
+            padding: 0; border-bottom: 1px solid var(--bd-e2e8f0, #e2e8f0);
+            border-right: 1px solid var(--bd-e2e8f0, #e2e8f0); vertical-align: middle;
         }
         #usersGrid tr:last-child td { border-bottom: none; }
         #usersGrid td:last-child, #usersGrid th:last-child { border-right: none; }
-        #usersGrid tr:hover td { background: #f8fafc; }
-        #usersGrid tr.ug-selected td { background: #eff6ff !important; }
+        #usersGrid tr:hover td { background: var(--bg-f8fafc, #f8fafc); }
+        #usersGrid tr.ug-selected td { background: var(--bg-eff6ff, #eff6ff) !important; }
         .ug-cell-input {
             width: 100%; padding: .42rem .6rem; border: none;
             background: transparent; font-size: .85rem; font-family: inherit;
-            color: #1e293b; box-sizing: border-box; outline: none; cursor: text;
+            color: var(--fg-1e293b, #1e293b); box-sizing: border-box; outline: none; cursor: text;
         }
         .ug-cell-input:focus {
-            background: #eff6ff; outline: 2px solid #2563eb;
+            background: var(--bg-eff6ff, #eff6ff); outline: 2px solid #2563eb;
             outline-offset: -2px; border-radius: 2px;
         }
         .ug-cell-select {
             width: 100%; padding: .42rem .4rem; border: none;
             background: transparent; font-size: .85rem; font-family: inherit;
-            color: #1e293b; cursor: pointer; box-sizing: border-box;
+            color: var(--fg-1e293b, #1e293b); cursor: pointer; box-sizing: border-box;
             outline: none; appearance: auto;
         }
         .ug-cell-select:focus {
-            background: #eff6ff; outline: 2px solid #2563eb;
+            background: var(--bg-eff6ff, #eff6ff); outline: 2px solid #2563eb;
             outline-offset: -2px; border-radius: 2px;
         }
-        .ug-id-cell   { color: #64748b; font-size: .78rem; text-align: center; width: 44px; }
+        .ug-id-cell   { color: var(--fg-64748b, #64748b); font-size: .78rem; text-align: center; width: 44px; }
         .ug-cb-cell   { width: 36px; text-align: center; }
         .ug-act-cell  { text-align: center; width: 44px; }
         .ug-del-btn {
             background: none; border: none; cursor: pointer;
-            color: #ef4444; font-size: 1rem; padding: .3rem .5rem;
+            color: var(--fg-ef4444, #ef4444); font-size: 1rem; padding: .3rem .5rem;
             border-radius: 5px; line-height: 1;
         }
-        .ug-del-btn:hover { background: #fee2e2; }
+        .ug-del-btn:hover { background: var(--bg-fee2e2, #fee2e2); }
         .ug-edit-btn {
             background: none; border: none; cursor: pointer;
-            color: #2563eb; font-size: .8rem; padding: .3rem .5rem;
+            color: var(--fg-2563eb, #2563eb); font-size: .8rem; padding: .3rem .5rem;
             border-radius: 5px; line-height: 1; text-decoration: none;
             display: inline-block;
         }
-        .ug-edit-btn:hover { background: #eff6ff; }
+        .ug-edit-btn:hover { background: var(--bg-eff6ff, #eff6ff); }
         #ugBulkBar {
             display: none; align-items: center; gap: .75rem; flex-wrap: wrap;
-            background: #eff6ff; border: 1px solid #bfdbfe;
+            background: var(--bg-eff6ff, #eff6ff); border: 1px solid var(--bd-bfdbfe, #bfdbfe);
             border-radius: 8px; padding: .5rem 1rem;
-            font-size: .875rem; color: #1e40af; margin: .75rem 1.5rem;
+            font-size: .875rem; color: var(--fg-1e40af, #1e40af); margin: .75rem 1.5rem;
         }
         #ugBulkBar .bulk-label { font-weight: 600; }
         .cb-col { width: 40px; text-align: center; }
@@ -1021,12 +1021,12 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
         .btn-icon {
             display: inline-flex; align-items: center; justify-content: center;
             width: 32px; height: 32px; border-radius: 7px; font-size: 1rem;
-            border: 1.5px solid #e2e8f0; background: #fff; cursor: pointer;
-            color: #475569; text-decoration: none;
+            border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); background: var(--bg-ffffff, #ffffff); cursor: pointer;
+            color: var(--fg-475569, #475569); text-decoration: none;
         }
-        .btn-icon:hover { background: #f1f5f9; border-color: #cbd5e1; text-decoration: none; color: #1e293b; }
-        .btn-icon.danger { border-color: #fca5a5; color: #ef4444; }
-        .btn-icon.danger:hover { background: #fee2e2; border-color: #f87171; }
+        .btn-icon:hover { background: var(--bg-f1f5f9, #f1f5f9); border-color: var(--bd-cbd5e1, #cbd5e1); text-decoration: none; color: var(--fg-1e293b, #1e293b); }
+        .btn-icon.danger { border-color: var(--bd-fca5a5, #fca5a5); color: var(--fg-ef4444, #ef4444); }
+        .btn-icon.danger:hover { background: var(--bg-fee2e2, #fee2e2); border-color: #f87171; }
         .ug-save-indicator {
             display: none; position: fixed; bottom: 1.5rem; right: 1.5rem;
             background: #16a34a; color: #fff; padding: .5rem 1rem;
@@ -1041,7 +1041,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
         }
         .modal-overlay.open { display: flex; }
         .modal {
-            background: #fff; border-radius: 12px;
+            background: var(--bg-ffffff, #ffffff); border-radius: 12px;
             box-shadow: 0 20px 60px rgba(0,0,0,.25);
             width: 100%; max-width: 440px; padding: 2rem;
             animation: modalIn .18s ease;
@@ -1054,15 +1054,15 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
         .modal-header h2 { font-size: 1.25rem; }
         .modal-close {
             width: 32px; height: 32px; border-radius: 7px; border: none;
-            background: #f1f5f9; cursor: pointer; font-size: 1.1rem;
-            color: #475569; display: flex; align-items: center; justify-content: center;
+            background: var(--bg-f1f5f9, #f1f5f9); cursor: pointer; font-size: 1.1rem;
+            color: var(--fg-475569, #475569); display: flex; align-items: center; justify-content: center;
         }
-        .modal-close:hover { background: #e2e8f0; }
+        .modal-close:hover { background: var(--bg-e2e8f0, #e2e8f0); }
         .modal select {
-            width: 100%; padding: .6rem .85rem; border: 1.5px solid #e2e8f0;
-            border-radius: 7px; font-size: .95rem; background: #f8fafc;
+            width: 100%; padding: .6rem .85rem; border: 1.5px solid var(--bd-e2e8f0, #e2e8f0);
+            border-radius: 7px; font-size: .95rem; background: var(--bg-f8fafc, #f8fafc);
         }
-        .modal select:focus { border-color: #2563eb; background: #fff; }
+        .modal select:focus { border-color: #2563eb; background: var(--bg-ffffff, #ffffff); }
 
         /* ── Mobile/tablet touch optimization ── */
         @media (max-width: 1024px) {
@@ -1100,7 +1100,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
     <!-- ── Dashboard tab ── -->
     <div class="tab-panel <?= $tab === 'dashboard' ? 'active' : '' ?>">
 
-        <p style="color:#64748b;font-size:.875rem;margin-bottom:1.5rem">
+        <p style="color:var(--fg-64748b, #64748b);font-size:.875rem;margin-bottom:1.5rem">
             Welcome back, <?= htmlspecialchars($current['username']) ?>.
             <?php if ($current['last_login']): ?>
                 Last login: <?= htmlspecialchars($current['last_login']) ?>
@@ -1128,7 +1128,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 <div class="label">Version</div>
                 <div class="value" style="font-size:1.1rem"><?= htmlspecialchars(APP_VERSION) ?></div>
                 <?php if (update_available()): ?>
-                <div style="margin-top:.35rem;font-size:.78rem;color:#92400e">
+                <div style="margin-top:.35rem;font-size:.78rem;color:var(--fg-92400e, #92400e)">
                     Update available: v<?= htmlspecialchars(get_setting('latest_version')) ?>
                     &middot; <a href="<?= htmlspecialchars(CHANGELOG_URL) ?>" target="_blank" rel="noopener">changelog</a>
                 </div>
@@ -1156,7 +1156,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
     <div class="tab-panel <?= $tab === 'reports' ? 'active' : '' ?>">
         <?php if ($tab === 'reports'): ?>
 
-        <p style="color:#64748b;font-size:.875rem;margin-bottom:1.5rem">
+        <p style="color:var(--fg-64748b, #64748b);font-size:.875rem;margin-bottom:1.5rem">
             User growth, verification, and event engagement at a glance.
         </p>
 
@@ -1226,8 +1226,8 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                             <td><?= htmlspecialchars($u['email'] ?? '') ?></td>
                             <td><?= htmlspecialchars($u['role']) ?></td>
                             <td><?= htmlspecialchars($u['tier'] ?? 'Free') ?></td>
-                            <td style="text-align:center"><?= $u['email_verified'] ? '<span style="color:#16a34a">✓</span>' : '<span style="color:#cbd5e1">—</span>' ?></td>
-                            <td style="text-align:center"><?= $u['phone_verified'] ? '<span style="color:#16a34a">✓</span>' : '<span style="color:#cbd5e1">—</span>' ?></td>
+                            <td style="text-align:center"><?= $u['email_verified'] ? '<span style="color:var(--fg-16a34a, #16a34a)">✓</span>' : '<span style="color:#cbd5e1">—</span>' ?></td>
+                            <td style="text-align:center"><?= $u['phone_verified'] ? '<span style="color:var(--fg-16a34a, #16a34a)">✓</span>' : '<span style="color:#cbd5e1">—</span>' ?></td>
                             <td><?= htmlspecialchars($u['created_at'] ? date('M j, Y', strtotime($u['created_at'])) : '') ?></td>
                             <td><?= htmlspecialchars($u['last_login'] ? date('M j, Y', strtotime($u['last_login'])) : '—') ?></td>
                         </tr>
@@ -1270,10 +1270,10 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
     <!-- ── Activity tab ── -->
     <div class="tab-panel <?= $tab === 'activity' ? 'active' : '' ?>">
         <?php if ($tab === 'activity'): ?>
-        <p style="color:#64748b;font-size:.875rem;margin-bottom:1rem">
+        <p style="color:var(--fg-64748b, #64748b);font-size:.875rem;margin-bottom:1rem">
             Live snapshot of current site usage &mdash; auto-refreshes every 30s.
             <button type="button" class="btn btn-outline" id="actRefresh" style="margin-left:.5rem;padding:.2rem .6rem;font-size:.8rem">Refresh now</button>
-            <span id="actAsOf" style="color:#64748b;font-size:.8rem;margin-left:.5rem">as of <?= htmlspecialchars($act['as_of']) ?></span>
+            <span id="actAsOf" style="color:var(--fg-64748b, #64748b);font-size:.8rem;margin-left:.5rem">as of <?= htmlspecialchars($act['as_of']) ?></span>
         </p>
 
         <div class="stats">
@@ -1282,20 +1282,20 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             <div class="stat-card"><div class="label">Active users &middot; 1h</div><div class="value" id="actUsers"><?= (int)$act['active_users_1h'] ?></div></div>
             <div class="stat-card"><div class="label">API calls &middot; 1h</div><div class="value" id="actApi"><?= (int)$act['api_calls_1h'] ?></div></div>
             <div class="stat-card"><div class="label">Notif queue</div><div class="value" id="actQueue"><?= (int)$act['notif_queue'] ?></div></div>
-            <div class="stat-card"><div class="label">Failed &middot; 24h</div><div class="value" id="actFailed" style="<?= (int)$act['notif_failed_24h'] > 0 ? 'color:#dc2626' : '' ?>"><?= (int)$act['notif_failed_24h'] ?></div></div>
+            <div class="stat-card"><div class="label">Failed &middot; 24h</div><div class="value" id="actFailed" style="<?= (int)$act['notif_failed_24h'] > 0 ? 'color:var(--fg-dc2626, #dc2626)' : '' ?>"><?= (int)$act['notif_failed_24h'] ?></div></div>
             <div class="stat-card" id="actWahaCard" style="<?= $act['waha_status'] === '' ? 'display:none' : '' ?>">
                 <div class="label">WhatsApp</div>
-                <div class="value" id="actWaha" style="font-size:1rem;<?= $act['waha_status'] === 'WORKING' ? 'color:#16a34a' : 'color:#dc2626' ?>"><?= htmlspecialchars($act['waha_status'] ?: '—') ?></div>
+                <div class="value" id="actWaha" style="font-size:1rem;<?= $act['waha_status'] === 'WORKING' ? 'color:var(--fg-16a34a, #16a34a)' : 'color:var(--fg-dc2626, #dc2626)' ?>"><?= htmlspecialchars($act['waha_status'] ?: '—') ?></div>
                 <div class="subtitle" id="actWahaAge"><?= $act['waha_status_age'] >= 0 ? 'checked ' . (int)ceil($act['waha_status_age'] / 60) . 'm ago' : '' ?></div>
             </div>
         </div>
-        <div id="actDrainPaused" style="<?= $act['drain_paused_until'] !== '' ? '' : 'display:none;' ?>margin-top:.75rem;padding:.55rem .75rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;font-size:.83rem;color:#dc2626;font-weight:600">
+        <div id="actDrainPaused" style="<?= $act['drain_paused_until'] !== '' ? '' : 'display:none;' ?>margin-top:.75rem;padding:.55rem .75rem;background:var(--bg-fef2f2, #fef2f2);border:1px solid var(--bd-fca5a5, #fca5a5);border-radius:8px;font-size:.83rem;color:var(--fg-dc2626, #dc2626);font-weight:600">
             &#9888; Notification sending is paused (provider rate limit) until <span id="actDrainUntil"><?= htmlspecialchars($act['drain_paused_until']) ?></span> UTC. Queued messages resume automatically.
         </div>
-        <div id="actDeadRows" style="<?= (int)$act['notif_dead'] > 0 ? '' : 'display:none;' ?>margin-top:.75rem;padding:.55rem .75rem;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:.83rem;color:#b45309;font-weight:600">
-            &#9888; <span id="actDeadCount"><?= (int)$act['notif_dead'] ?></span> notification(s) gave up after 3 retries. <a href="/sms_log.php?status=failed" style="color:#b45309">View the delivery log</a> for errors; resend from the event roster.
+        <div id="actDeadRows" style="<?= (int)$act['notif_dead'] > 0 ? '' : 'display:none;' ?>margin-top:.75rem;padding:.55rem .75rem;background:var(--bg-fffbeb, #fffbeb);border:1px solid var(--bd-fcd34d, #fcd34d);border-radius:8px;font-size:.83rem;color:var(--fg-b45309, #b45309);font-weight:600">
+            &#9888; <span id="actDeadCount"><?= (int)$act['notif_dead'] ?></span> notification(s) gave up after 3 retries. <a href="/sms_log.php?status=failed" style="color:var(--fg-b45309, #b45309)">View the delivery log</a> for errors; resend from the event roster.
         </div>
-        <p style="color:#64748b;font-size:.78rem;margin-top:.5rem">
+        <p style="color:var(--fg-64748b, #64748b);font-size:.78rem;margin-top:.5rem">
             &ldquo;Active users&rdquo; is an estimate from logged activity in the last hour (individual connections aren&rsquo;t tracked). &ldquo;Live timers&rdquo; counts tournament clocks that have polled within the last 2 minutes. &ldquo;Failed &middot; 24h&rdquo; counts provider-level delivery failures in the notification log.
         </p>
 
@@ -1304,7 +1304,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             <div class="subtitle" id="actTimersEmpty" style="<?= $act['timers'] ? 'display:none' : '' ?>">No timers running right now.</div>
             <ul id="actTimersList" style="list-style:none;padding:0;margin:.5rem 0 0">
                 <?php foreach ($act['timers'] as $t): ?>
-                <li style="padding:.3rem 0;border-bottom:1px solid #f1f5f9"><?= htmlspecialchars($t['title']) ?> <span style="color:#64748b">&mdash; Level <?= (int)$t['level'] ?></span></li>
+                <li style="padding:.3rem 0;border-bottom:1px solid var(--bd-f1f5f9, #f1f5f9)"><?= htmlspecialchars($t['title']) ?> <span style="color:var(--fg-64748b, #64748b)">&mdash; Level <?= (int)$t['level'] ?></span></li>
                 <?php endforeach; ?>
             </ul>
         </div>
@@ -1337,7 +1337,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 document.getElementById('actQueue').textContent  = d.notif_queue;
                 var af = document.getElementById('actFailed');
                 af.textContent = d.notif_failed_24h;
-                af.style.color = (parseInt(d.notif_failed_24h) > 0) ? '#dc2626' : '';
+                af.style.color = (parseInt(d.notif_failed_24h) > 0) ? 'var(--fg-dc2626, #dc2626)' : '';
                 document.getElementById('actDrainPaused').style.display = d.drain_paused_until ? '' : 'none';
                 document.getElementById('actDrainUntil').textContent = d.drain_paused_until || '';
                 document.getElementById('actDeadRows').style.display = (parseInt(d.notif_dead) > 0) ? '' : 'none';
@@ -1347,14 +1347,14 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     wc.style.display = d.waha_status ? '' : 'none';
                     var wv = document.getElementById('actWaha');
                     wv.textContent = d.waha_status || '—';
-                    wv.style.color = d.waha_status === 'WORKING' ? '#16a34a' : '#dc2626';
+                    wv.style.color = d.waha_status === 'WORKING' ? 'var(--fg-16a34a, #16a34a)' : 'var(--fg-dc2626, #dc2626)';
                     document.getElementById('actWahaAge').textContent =
                         (d.waha_status_age >= 0) ? 'checked ' + Math.ceil(d.waha_status_age / 60) + 'm ago' : '';
                 }
                 document.getElementById('actAsOf').textContent   = 'as of ' + d.as_of;
                 var timers = d.timers || [];
                 document.getElementById('actTimersList').innerHTML = timers.map(function(t){
-                    return '<li style="padding:.3rem 0;border-bottom:1px solid #f1f5f9">' + esc(t.title) + ' <span style="color:#64748b">&mdash; Level ' + esc(t.level) + '</span></li>';
+                    return '<li style="padding:.3rem 0;border-bottom:1px solid var(--bd-f1f5f9, #f1f5f9)">' + esc(t.title) + ' <span style="color:var(--fg-64748b, #64748b)">&mdash; Level ' + esc(t.level) + '</span></li>';
                 }).join('');
                 document.getElementById('actTimersEmpty').style.display = timers.length ? 'none' : '';
                 var recent = d.recent || [];
@@ -1405,7 +1405,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 </div>
                 <div class="form-group">
                     <label for="timezone">Timezone</label>
-                    <select id="timezone" name="timezone" style="width:100%;padding:.6rem .85rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.95rem;background:#f8fafc">
+                    <select id="timezone" name="timezone" style="width:100%;padding:.6rem .85rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;font-size:.95rem;background:var(--bg-f8fafc, #f8fafc)">
                         <?php foreach ($tz_offsets as $label => $tz_id): ?>
                             <option value="<?= htmlspecialchars($tz_id) ?>"
                                 <?= $tz_id === $timezone ? 'selected' : '' ?>>
@@ -1506,7 +1506,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     <p class="hint">Browser notifications are delivered only through the known push services (Google, Mozilla, Microsoft, Apple). A browser that uses another service needs its host listed here, comma-separated; a leading dot covers subdomains.</p>
                 </div>
 
-                <hr style="border:none;border-top:1px solid #e2e8f0;margin:1rem 0">
+                <hr style="border:none;border-top:1px solid var(--bd-e2e8f0, #e2e8f0);margin:1rem 0">
                 <h3 style="font-size:.95rem;margin:0 0 .5rem">Event Reminders</h3>
                 <p class="hint" style="margin-bottom:.75rem">Every new event starts with these reminders; the host changes them on the event itself. Each is a number and a unit before the start, up to <?= REMINDER_OFFSETS_MAX ?>.</p>
                 <?php
@@ -1521,7 +1521,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                          data-offsets="<?= implode(',', array_map('intval', $__defs)) ?>"></div>
                 </div>
 
-                <hr style="border:none;border-top:1px solid #e2e8f0;margin:1rem 0">
+                <hr style="border:none;border-top:1px solid var(--bd-e2e8f0, #e2e8f0);margin:1rem 0">
                 <h3 style="font-size:.95rem;margin:0 0 .5rem">Donation Banner</h3>
                 <p class="hint" style="margin-bottom:.75rem">When a donation URL is set, a banner appears on the home page above the posts and a small link appears in the footer.</p>
                 <div class="form-group">
@@ -1539,7 +1539,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     <p class="hint">Custom text shown on the banner. If blank, a default message is used.</p>
                 </div>
 
-                <hr style="border:none;border-top:1px solid #e2e8f0;margin:1rem 0">
+                <hr style="border:none;border-top:1px solid var(--bd-e2e8f0, #e2e8f0);margin:1rem 0">
                 <h3 style="font-size:.95rem;margin:0 0 .5rem">Search &amp; Sharing</h3>
                 <p class="hint" style="margin-bottom:.75rem">What search engines and link previews show for the landing page, and the ownership proofs for Google Search Console and Bing Webmaster Tools. The share image is uploaded below, outside this form.</p>
                 <div class="form-group">
@@ -1569,7 +1569,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                            placeholder="msvalidate.01 token (or import from Search Console and leave this blank)">
                 </div>
 
-                <hr style="border:none;border-top:1px solid #e2e8f0;margin:1rem 0">
+                <hr style="border:none;border-top:1px solid var(--bd-e2e8f0, #e2e8f0);margin:1rem 0">
                 <h3 style="font-size:.95rem;margin:0 0 .5rem">Tournament Timer</h3>
                 <div class="form-group">
                     <label for="stream_allowed_hosts">Allowed video stream hosts</label>
@@ -1608,11 +1608,11 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 
             <?php /* Share image (og:image). Its own forms: a file upload cannot
                      ride inside the general settings form. */ ?>
-            <hr style="border:none;border-top:1px solid #e2e8f0;margin:1.25rem 0 1rem">
+            <hr style="border:none;border-top:1px solid var(--bd-e2e8f0, #e2e8f0);margin:1.25rem 0 1rem">
             <h3 style="font-size:.95rem;margin:0 0 .5rem">Share Image</h3>
             <p class="hint" style="margin-bottom:.75rem">The picture shown when the site is shared on social media or in chat apps, and the image search engines pair with the landing page. Card-shaped: <strong>1200 &times; 630</strong> pixels (1.91:1). Without one, the header banner is used and gets cropped.</p>
             <?php $seo_og_image_path = get_setting('seo_og_image_path', ''); if ($seo_og_image_path): ?>
-            <div style="background:#f1f5f9;padding:.65rem;border-radius:8px;margin-bottom:.85rem;text-align:center">
+            <div style="background:var(--bg-f1f5f9, #f1f5f9);padding:.65rem;border-radius:8px;margin-bottom:.85rem;text-align:center">
                 <img src="<?= htmlspecialchars($seo_og_image_path, ENT_QUOTES | ENT_SUBSTITUTE) ?>?v=<?= time() ?>"
                      alt="Current share image" style="max-width:100%;max-height:200px;border-radius:6px">
             </div>
@@ -1621,7 +1621,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 <input type="hidden" name="action" value="seo_share_image_remove">
                 <input type="hidden" name="tab" value="general">
                 <button type="submit" class="btn btn-outline"
-                        style="color:#ef4444;border-color:#fca5a5;font-size:.82rem"
+                        style="color:var(--fg-ef4444, #ef4444);border-color:var(--bd-fca5a5, #fca5a5);font-size:.82rem"
                         data-confirm="Remove the share image? Shared links fall back to the header banner." data-confirm-ok="Remove" data-confirm-danger="1">&#x2715; Remove Share Image</button>
             </form>
             <?php endif; ?>
@@ -1657,7 +1657,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         <div style="display:flex;gap:.5rem;align-items:center">
                             <input type="color" id="nav_bg_picker"
                                    value="<?= htmlspecialchars(get_setting('nav_bg_color','') ?: '#0f172a') ?>"
-                                   style="width:40px;height:38px;padding:2px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;flex-shrink:0"
+                                   style="width:40px;height:38px;padding:2px;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;cursor:pointer;flex-shrink:0"
                                    data-act-input="syncTextPreview" data-input-a1="nav_bg_color" data-input-a2="@value">
                             <input type="text" name="nav_bg_color" id="nav_bg_color"
                                    value="<?= htmlspecialchars(get_setting('nav_bg_color','')) ?>"
@@ -1672,7 +1672,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         <div style="display:flex;gap:.5rem;align-items:center">
                             <input type="color" id="nav_text_picker"
                                    value="<?= htmlspecialchars(get_setting('nav_text_color','') ?: '#ffffff') ?>"
-                                   style="width:40px;height:38px;padding:2px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;flex-shrink:0"
+                                   style="width:40px;height:38px;padding:2px;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;cursor:pointer;flex-shrink:0"
                                    data-act-input="syncTextPreview" data-input-a1="nav_text_color" data-input-a2="@value">
                             <input type="text" name="nav_text_color" id="nav_text_color"
                                    value="<?= htmlspecialchars(get_setting('nav_text_color','')) ?>"
@@ -1687,7 +1687,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         <div style="display:flex;gap:.5rem;align-items:center">
                             <input type="color" id="accent_picker"
                                    value="<?= htmlspecialchars(get_setting('accent_color','') ?: '#2563eb') ?>"
-                                   style="width:40px;height:38px;padding:2px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;flex-shrink:0"
+                                   style="width:40px;height:38px;padding:2px;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;cursor:pointer;flex-shrink:0"
                                    data-act-input="syncTextPreview" data-input-a1="accent_color" data-input-a2="@value">
                             <input type="text" name="accent_color" id="accent_color"
                                    value="<?= htmlspecialchars(get_setting('accent_color','')) ?>"
@@ -1717,7 +1717,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     <input type="hidden" name="action" value="banner_remove">
                     <input type="hidden" name="tab" value="appearance">
                     <button type="submit" class="btn btn-outline"
-                            style="color:#ef4444;border-color:#fca5a5;font-size:.82rem"
+                            style="color:var(--fg-ef4444, #ef4444);border-color:var(--bd-fca5a5, #fca5a5);font-size:.82rem"
                             data-confirm="Remove the banner?" data-confirm-ok="Remove" data-confirm-danger="1">&#x2715; Remove Banner</button>
                 </form>
                 <?php endif; ?>
@@ -1754,7 +1754,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         <input type="hidden" name="action" value="header_banner_remove">
                         <input type="hidden" name="tab" value="appearance">
                         <button type="submit" class="btn btn-outline"
-                                style="color:#ef4444;border-color:#fca5a5;font-size:.82rem"
+                                style="color:var(--fg-ef4444, #ef4444);border-color:var(--bd-fca5a5, #fca5a5);font-size:.82rem"
                                 data-confirm="Remove the header banner?" data-confirm-ok="Remove" data-confirm-danger="1">&#x2715; Remove Header Banner</button>
                     </form>
                     <?php endif; ?>
@@ -1792,17 +1792,17 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 
         <!-- Live preview -->
         <div style="margin-top:1.5rem;max-width:860px">
-            <p style="font-size:.82rem;font-weight:600;color:#64748b;margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.04em">Live Preview</p>
+            <p style="font-size:.82rem;font-weight:600;color:var(--fg-64748b, #64748b);margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.04em">Live Preview</p>
             <div style="border-radius:10px;overflow:hidden;box-shadow:var(--shadow)">
                 <div id="previewTop" style="display:flex;align-items:center;justify-content:space-between;padding:0 2rem;height:52px;background:<?= htmlspecialchars(get_setting('nav_bg_color','') ?: '#0f172a') ?>">
                     <span id="previewBrand" style="font-weight:700;font-size:1.15rem;color:<?= htmlspecialchars(get_setting('nav_text_color','') ?: '#ffffff') ?>">
                         <?= $banner_path ? '<img src="' . htmlspecialchars($banner_path) . '" style="max-height:36px;vertical-align:middle">' : htmlspecialchars($site_name) ?>
                     </span>
-                    <span style="color:#64748b;font-size:.875rem"><?= htmlspecialchars($current['username']) ?> &#9776;</span>
+                    <span style="color:var(--fg-64748b, #64748b);font-size:.875rem"><?= htmlspecialchars($current['username']) ?> &#9776;</span>
                 </div>
                 <div id="previewLinks" style="height:40px;background:rgba(0,0,0,.2);padding:0 2rem;display:flex;align-items:center;gap:1.5rem">
-                    <span id="previewAccent" style="font-size:.9rem;font-weight:600;color:<?= htmlspecialchars(get_setting('accent_color','') ?: '#2563eb') ?>">Home</span>
-                    <span style="font-size:.9rem;color:#64748b">Calendar</span>
+                    <span id="previewAccent" style="font-size:.9rem;font-weight:600;color:<?= htmlspecialchars(get_setting('accent_color','') ?: 'var(--fg-2563eb, #2563eb)') ?>">Home</span>
+                    <span style="font-size:.9rem;color:var(--fg-64748b, #64748b)">Calendar</span>
                 </div>
             </div>
         </div>
@@ -1812,7 +1812,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
     <div class="tab-panel <?= $tab === 'logs' ? 'active' : '' ?>">
 
         <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.25rem">
-            <p style="color:#64748b;font-size:.875rem;margin:0">
+            <p style="color:var(--fg-64748b, #64748b);font-size:.875rem;margin:0">
                 All user activity &mdash; <?= number_format($log_total) ?> total entries.
             </p>
             <div style="display:flex;gap:.5rem;flex-wrap:wrap">
@@ -1832,7 +1832,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 
         <div class="table-card">
             <?php if (empty($log_rows)): ?>
-                <p style="padding:1rem 1.5rem;color:#64748b;font-size:.875rem">No activity recorded yet.</p>
+                <p style="padding:1rem 1.5rem;color:var(--fg-64748b, #64748b);font-size:.875rem">No activity recorded yet.</p>
             <?php else: ?>
             <table>
                 <thead>
@@ -1845,7 +1845,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 </thead>
                 <tbody>
                 <?php foreach ($log_rows as $a): ?>
-                    <tr<?= $a['severity'] === 'critical' ? ' style="background:#fef2f2;color:#991b1b;font-weight:500"' : '' ?>>
+                    <tr<?= $a['severity'] === 'critical' ? ' style="background:var(--bg-fef2f2, #fef2f2);color:var(--fg-991b1b, #991b1b);font-weight:500"' : '' ?>>
                         <td style="white-space:nowrap">
                             <?= htmlspecialchars(
                                 (new DateTime($a['created_at'], new DateTimeZone('UTC')))
@@ -1867,7 +1867,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             </table>
 
             <?php if ($log_pages > 1): ?>
-            <div style="padding:.75rem 1.5rem;border-top:1px solid #e2e8f0">
+            <div style="padding:.75rem 1.5rem;border-top:1px solid var(--bd-e2e8f0, #e2e8f0)">
                 <div class="pagination">
                     <?php if ($page > 1): ?>
                         <a href="?tab=logs&page=<?= $page - 1 ?>">&lsaquo; Prev</a>
@@ -1895,30 +1895,30 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
         <div class="ug-wrap">
             <div class="ug-toolbar">
                 <input type="search" id="ugFilter" placeholder="Filter users…"
-                       style="padding:.45rem .8rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.85rem;width:220px">
-                <span style="color:#64748b;font-size:.82rem;margin-left:auto" id="ugCount">
+                       style="padding:.45rem .8rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;font-size:.85rem;width:220px">
+                <span style="color:var(--fg-64748b, #64748b);font-size:.82rem;margin-left:auto" id="ugCount">
                     <?= count($users) ?> user<?= count($users) !== 1 ? 's' : '' ?>
                 </span>
-                <span style="color:#64748b;font-size:.75rem">Click any cell to edit &bull; Changes save automatically</span>
+                <span style="color:var(--fg-64748b, #64748b);font-size:.75rem">Click any cell to edit &bull; Changes save automatically</span>
                 <a href="/admin_settings.php?action=export_users" class="btn btn-outline btn-sm" style="padding:.4rem .85rem;font-size:.82rem">&#8681; Export CSV</a>
                 <button class="btn btn-outline btn-sm" data-act="toggleUgImport" style="padding:.4rem .85rem;font-size:.82rem">&#8679; Import CSV</button>
                 <button class="btn btn-primary btn-sm" data-act="openUserModal" style="padding:.4rem .85rem;font-size:.82rem">+ New User</button>
             </div>
 
-            <div id="ugImportWrap" style="display:none;align-items:center;gap:.75rem;flex-wrap:wrap;padding:.75rem 1rem;border-bottom:1px solid #e2e8f0;background:#f8fafc">
+            <div id="ugImportWrap" style="display:none;align-items:center;gap:.75rem;flex-wrap:wrap;padding:.75rem 1rem;border-bottom:1px solid var(--bd-e2e8f0, #e2e8f0);background:var(--bg-f8fafc, #f8fafc)">
                 <form method="post" action="/admin_settings.php" enctype="multipart/form-data"
                       style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="import_users">
                     <input type="hidden" name="tab" value="users">
                     <input type="file" name="csv_file" accept=".csv" required
-                           style="font-size:.82rem;border:1.5px solid #e2e8f0;border-radius:7px;padding:.3rem .5rem;background:#fff">
+                           style="font-size:.82rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;padding:.3rem .5rem;background:var(--bg-ffffff, #ffffff)">
                     <button type="submit" class="btn btn-primary btn-sm" style="padding:.4rem .85rem;font-size:.82rem">Import</button>
                 </form>
-                <span style="font-size:.78rem;color:#64748b">
+                <span style="font-size:.78rem;color:var(--fg-64748b, #64748b)">
                     CSV columns: <code>username, email, phone, role, preferred_contact, notes</code>
                     &bull; Existing usernames are skipped &bull; Imported users must change password on first login
-                    &bull; <a href="/sample_users.csv" download style="color:#2563eb">Download sample CSV</a>
+                    &bull; <a href="/sample_users.csv" download style="color:var(--fg-2563eb, #2563eb)">Download sample CSV</a>
                 </span>
             </div>
 
@@ -1935,7 +1935,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="bulk_role">
                     <input type="hidden" name="tab" value="users">
-                    <select name="role" style="padding:.3rem .5rem;border:1px solid #bfdbfe;border-radius:6px;font-size:.82rem;background:#fff">
+                    <select name="role" style="padding:.3rem .5rem;border:1px solid var(--bd-bfdbfe, #bfdbfe);border-radius:6px;font-size:.82rem;background:var(--bg-ffffff, #ffffff)">
                         <option value="user">Set role: User</option>
                         <option value="admin">Set role: Admin</option>
                     </select>
@@ -2026,7 +2026,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                                 value="<?= htmlspecialchars($u['notes'] ?? '') ?>"
                                 placeholder="—"></td>
 
-                        <td style="padding:.45rem .6rem;color:#64748b;font-size:.8rem;white-space:nowrap">
+                        <td style="padding:.45rem .6rem;color:var(--fg-64748b, #64748b);font-size:.8rem;white-space:nowrap">
                             <?= htmlspecialchars($u['last_login'] ?? 'Never') ?>
                         </td>
 
@@ -2049,7 +2049,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($users)): ?>
-                    <tr><td colspan="12" style="text-align:center;color:#64748b;padding:2rem">No users found.</td></tr>
+                    <tr><td colspan="12" style="text-align:center;color:var(--fg-64748b, #64748b);padding:2rem">No users found.</td></tr>
                 <?php endif; ?>
                 </tbody>
             </table>
@@ -2192,9 +2192,9 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 width: 100%;
                 overflow-x: auto;
                 -webkit-overflow-scrolling: touch;
-                border: 1px solid #e2e8f0;
+                border: 1px solid var(--bd-e2e8f0, #e2e8f0);
                 border-radius: 10px;
-                background: #fff;
+                background: var(--bg-ffffff, #ffffff);
             }
             .ev-toolbar {
                 display: flex;
@@ -2202,8 +2202,8 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 gap: .75rem;
                 flex-wrap: wrap;
                 padding: .9rem 1rem;
-                border-bottom: 1px solid #e2e8f0;
-                background: #f8fafc;
+                border-bottom: 1px solid var(--bd-e2e8f0, #e2e8f0);
+                background: var(--bg-f8fafc, #f8fafc);
                 border-radius: 10px 10px 0 0;
             }
             #eventsGrid {
@@ -2212,31 +2212,31 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 font-size: .85rem;
             }
             #eventsGrid th {
-                background: #f1f5f9;
-                color: #475569;
+                background: var(--bg-f1f5f9, #f1f5f9);
+                color: var(--fg-475569, #475569);
                 font-weight: 600;
                 font-size: .78rem;
                 text-transform: uppercase;
                 letter-spacing: .04em;
                 padding: .6rem .75rem;
-                border-bottom: 2px solid #e2e8f0;
-                border-right: 1px solid #e2e8f0;
+                border-bottom: 2px solid var(--bd-e2e8f0, #e2e8f0);
+                border-right: 1px solid var(--bd-e2e8f0, #e2e8f0);
                 white-space: nowrap;
                 position: sticky;
                 top: 0;
                 z-index: 2;
             }
             #eventsGrid th a { color: inherit; text-decoration: none; }
-            #eventsGrid th a:hover { color: #2563eb; }
+            #eventsGrid th a:hover { color: var(--fg-2563eb, #2563eb); }
             #eventsGrid td {
                 padding: 0;
-                border-bottom: 1px solid #e2e8f0;
-                border-right: 1px solid #e2e8f0;
+                border-bottom: 1px solid var(--bd-e2e8f0, #e2e8f0);
+                border-right: 1px solid var(--bd-e2e8f0, #e2e8f0);
                 vertical-align: middle;
             }
             #eventsGrid tr:last-child td { border-bottom: none; }
             #eventsGrid td:last-child, #eventsGrid th:last-child { border-right: none; }
-            #eventsGrid tr:hover td { background: #f8fafc; }
+            #eventsGrid tr:hover td { background: var(--bg-f8fafc, #f8fafc); }
 
             /* Cell contents */
             .ev-cell {
@@ -2256,13 +2256,13 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 background: transparent;
                 font-size: .85rem;
                 font-family: inherit;
-                color: #1e293b;
+                color: var(--fg-1e293b, #1e293b);
                 box-sizing: border-box;
                 outline: none;
                 cursor: text;
             }
             .ev-cell-input:focus {
-                background: #eff6ff;
+                background: var(--bg-eff6ff, #eff6ff);
                 outline: 2px solid #2563eb;
                 outline-offset: -2px;
                 border-radius: 2px;
@@ -2275,36 +2275,36 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 background: transparent;
                 font-size: .85rem;
                 font-family: inherit;
-                color: #1e293b;
+                color: var(--fg-1e293b, #1e293b);
                 cursor: pointer;
                 box-sizing: border-box;
                 outline: none;
                 appearance: auto;
             }
             .ev-cell-select:focus {
-                background: #eff6ff;
+                background: var(--bg-eff6ff, #eff6ff);
                 outline: 2px solid #2563eb;
                 outline-offset: -2px;
                 border-radius: 2px;
             }
-            .ev-id-cell { color: #64748b; font-size: .78rem; text-align: center; width: 44px; }
-            .ev-invites-cell { text-align: center; width: 60px; color: #475569; }
-            .ev-creator-cell { color: #475569; }
+            .ev-id-cell { color: var(--fg-64748b, #64748b); font-size: .78rem; text-align: center; width: 44px; }
+            .ev-invites-cell { text-align: center; width: 60px; color: var(--fg-475569, #475569); }
+            .ev-creator-cell { color: var(--fg-475569, #475569); }
             .ev-del-cell { text-align: center; width: 44px; }
             .ev-open-cell { text-align: center; width: 44px; }
             .ev-open-btn {
                 background: none; border: none; cursor: pointer;
-                color: #2563eb; font-size: 1rem; padding: .3rem .5rem;
+                color: var(--fg-2563eb, #2563eb); font-size: 1rem; padding: .3rem .5rem;
                 border-radius: 5px; line-height: 1; text-decoration: none;
                 display: inline-block;
             }
-            .ev-open-btn:hover { background: #eff6ff; }
+            .ev-open-btn:hover { background: var(--bg-eff6ff, #eff6ff); }
             .ev-del-btn {
                 background: none; border: none; cursor: pointer;
-                color: #ef4444; font-size: 1rem; padding: .3rem .5rem;
+                color: var(--fg-ef4444, #ef4444); font-size: 1rem; padding: .3rem .5rem;
                 border-radius: 5px; line-height: 1;
             }
-            .ev-del-btn:hover { background: #fee2e2; }
+            .ev-del-btn:hover { background: var(--bg-fee2e2, #fee2e2); }
             .ev-save-indicator {
                 display: none;
                 position: fixed;
@@ -2344,16 +2344,16 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     <input type="hidden" name="ed" value="<?= htmlspecialchars($events_dir === 'DESC' ? 'desc' : 'asc') ?>">
                     <input type="search" name="ef" value="<?= htmlspecialchars($events_filter) ?>"
                            placeholder="Filter by title or creator…"
-                           style="padding:.45rem .8rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.85rem;width:240px">
+                           style="padding:.45rem .8rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;font-size:.85rem;width:240px">
                     <button type="submit" class="btn btn-outline" style="padding:.45rem .9rem;font-size:.85rem">Filter</button>
                     <?php if ($events_filter !== ''): ?>
                         <a href="/admin_settings.php?tab=events" class="btn btn-outline" style="padding:.45rem .9rem;font-size:.85rem">Clear</a>
                     <?php endif; ?>
                 </form>
-                <span style="color:#64748b;font-size:.82rem;margin-left:auto">
+                <span style="color:var(--fg-64748b, #64748b);font-size:.82rem;margin-left:auto">
                     <?= count($admin_events) ?> event<?= count($admin_events) !== 1 ? 's' : '' ?>
                 </span>
-                <span style="color:#64748b;font-size:.75rem">Click any cell to edit &bull; Changes save automatically</span>
+                <span style="color:var(--fg-64748b, #64748b);font-size:.75rem">Click any cell to edit &bull; Changes save automatically</span>
             </div>
 
             <table id="eventsGrid">
@@ -2421,7 +2421,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($admin_events)): ?>
-                    <tr><td colspan="10" style="text-align:center;color:#64748b;padding:2rem">No events found.</td></tr>
+                    <tr><td colspan="10" style="text-align:center;color:var(--fg-64748b, #64748b);padding:2rem">No events found.</td></tr>
                 <?php endif; ?>
                 </tbody>
             </table>
@@ -2492,19 +2492,19 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
     <div class="tab-panel <?= $tab === 'leagues' ? 'active' : '' ?>">
         <div class="card" style="max-width:100%">
             <h2>Leagues (<?= count($all_leagues) ?>)</h2>
-            <p style="color:#64748b;font-size:.875rem;margin:0 0 1rem">All leagues, including hidden ones. As an admin, clicking a league opens its normal management page, where you have full owner-level privileges regardless of your actual role.</p>
+            <p style="color:var(--fg-64748b, #64748b);font-size:.875rem;margin:0 0 1rem">All leagues, including hidden ones. As an admin, clicking a league opens its normal management page, where you have full owner-level privileges regardless of your actual role.</p>
             <?php if (empty($all_leagues)): ?>
-                <p style="color:#64748b;text-align:center;padding:1.5rem 0">No leagues have been created yet.</p>
+                <p style="color:var(--fg-64748b, #64748b);text-align:center;padding:1.5rem 0">No leagues have been created yet.</p>
             <?php else: ?>
             <div style="margin-bottom:.75rem">
                 <input type="search" id="adminLgSearch" placeholder="Search by name, description, or owner&hellip;" autocomplete="off"
                        data-act-input="filterAdminLeagues" data-input-a1="@value"
-                       style="width:100%;padding:.5rem .75rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit">
+                       style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--bd-cbd5e1, #cbd5e1);border-radius:6px;font:inherit">
             </div>
             <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse;font-size:.875rem" id="adminLeagueTbl">
                 <thead>
-                    <tr style="background:#f8fafc;border-bottom:1.5px solid #e2e8f0">
+                    <tr style="background:var(--bg-f8fafc, #f8fafc);border-bottom:1.5px solid var(--bd-e2e8f0, #e2e8f0)">
                         <th style="text-align:left;padding:.6rem .5rem">Name</th>
                         <th style="text-align:left;padding:.6rem .5rem">Owner</th>
                         <th style="text-align:center;padding:.6rem .5rem">Members</th>
@@ -2517,14 +2517,14 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 </thead>
                 <tbody>
                 <?php foreach ($all_leagues as $l): ?>
-                    <tr class="admin-lg-row" style="border-bottom:1px solid #f1f5f9"
+                    <tr class="admin-lg-row" style="border-bottom:1px solid var(--bd-f1f5f9, #f1f5f9)"
                         data-name="<?= htmlspecialchars(strtolower($l['name'])) ?>"
                         data-desc="<?= htmlspecialchars(strtolower($l['description'] ?? '')) ?>"
                         data-owner="<?= htmlspecialchars(strtolower($l['owner_username'] ?? '')) ?>">
                         <td style="padding:.55rem .5rem">
                             <strong><?= htmlspecialchars($l['name']) ?></strong>
                             <?php if (!empty($l['description'])): ?>
-                                <div style="color:#64748b;font-size:.78rem;margin-top:.15rem"><?= htmlspecialchars(mb_strimwidth($l['description'], 0, 80, '…')) ?></div>
+                                <div style="color:var(--fg-64748b, #64748b);font-size:.78rem;margin-top:.15rem"><?= htmlspecialchars(mb_strimwidth($l['description'], 0, 80, '…')) ?></div>
                             <?php endif; ?>
                         </td>
                         <td style="padding:.55rem .5rem"><?= htmlspecialchars($l['owner_username'] ?? '—') ?></td>
@@ -2541,7 +2541,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 <?php endforeach; ?>
                 </tbody>
             </table>
-            <div id="adminLgNoResults" style="display:none;text-align:center;color:#64748b;padding:1rem">No leagues match your search.</div>
+            <div id="adminLgNoResults" style="display:none;text-align:center;color:var(--fg-64748b, #64748b);padding:1rem">No leagues match your search.</div>
             </div>
             <?php endif; ?>
         </div>
@@ -2591,8 +2591,8 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         'From Name'  => defined('SMTP_FROM_NAME')   ? SMTP_FROM_NAME   : '',
                     ];
                     foreach ($cfg_rows as $label => $val): ?>
-                    <tr style="border-bottom:1px solid #f1f5f9">
-                        <td style="padding:.45rem .5rem .45rem 0;color:#64748b;white-space:nowrap;width:30%"><?= $label ?></td>
+                    <tr style="border-bottom:1px solid var(--bd-f1f5f9, #f1f5f9)">
+                        <td style="padding:.45rem .5rem .45rem 0;color:var(--fg-64748b, #64748b);white-space:nowrap;width:30%"><?= $label ?></td>
                         <td style="padding:.45rem 0;font-family:monospace;word-break:break-all"><?= $label === 'Password' ? $val : htmlspecialchars((string)$val) ?></td>
                     </tr>
                     <?php endforeach; ?>
@@ -2626,7 +2626,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         <input type="text" name="smtp_user" autocomplete="off" value="<?= htmlspecialchars(get_setting('smtp_user','')) ?>">
                     </div>
                     <div class="form-group">
-                        <label>Password <span style="color:#64748b;font-weight:400">(leave blank to keep current)</span></label>
+                        <label>Password <span style="color:var(--fg-64748b, #64748b);font-weight:400">(leave blank to keep current)</span></label>
                         <input type="password" name="smtp_pass" autocomplete="new-password">
                     </div>
                     <div class="form-group">
@@ -2641,7 +2641,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 </form>
                 <?php endif; ?>
 
-                <hr style="margin:1.5rem 0;border:none;border-top:1px solid #e2e8f0">
+                <hr style="margin:1.5rem 0;border:none;border-top:1px solid var(--bd-e2e8f0, #e2e8f0)">
 
                 <h3 style="margin-bottom:.75rem">Effective Settings (from DB)</h3>
                 <table style="width:100%;font-size:.8rem;border-collapse:collapse;margin-bottom:1rem">
@@ -2651,19 +2651,19 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     'Port'       => get_setting('smtp_port',''),
                     'Encryption' => get_setting('smtp_encryption',''),
                     'Username'   => get_setting('smtp_user',''),
-                    'Password'   => get_setting('smtp_pass','') !== '' ? str_repeat('•',10) : '<em style="color:#ef4444">not set</em>',
+                    'Password'   => get_setting('smtp_pass','') !== '' ? str_repeat('•',10) : '<em style="color:var(--fg-ef4444, #ef4444)">not set</em>',
                     'From'       => get_setting('smtp_from',''),
                     'From Name'  => get_setting('smtp_from_name',''),
                 ];
                 foreach ($diag as $label => $val): ?>
-                <tr style="border-bottom:1px solid #f1f5f9">
-                    <td style="padding:.3rem .5rem;color:#64748b;white-space:nowrap"><?= $label ?></td>
-                    <td style="padding:.3rem .5rem;font-family:monospace"><?= $val !== '' ? htmlspecialchars($val) : '<em style="color:#ef4444">not set</em>' ?></td>
+                <tr style="border-bottom:1px solid var(--bd-f1f5f9, #f1f5f9)">
+                    <td style="padding:.3rem .5rem;color:var(--fg-64748b, #64748b);white-space:nowrap"><?= $label ?></td>
+                    <td style="padding:.3rem .5rem;font-family:monospace"><?= $val !== '' ? htmlspecialchars($val) : '<em style="color:var(--fg-ef4444, #ef4444)">not set</em>' ?></td>
                 </tr>
                 <?php endforeach; ?>
                 </table>
 
-                <hr style="margin:1.5rem 0;border:none;border-top:1px solid #e2e8f0">
+                <hr style="margin:1.5rem 0;border:none;border-top:1px solid var(--bd-e2e8f0, #e2e8f0)">
 
                 <h3 style="margin-bottom:.75rem">Send Test Email</h3>
                 <form method="post" action="/admin_settings.php" style="display:flex;gap:.5rem">
@@ -2735,7 +2735,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     <div class="form-group">
                         <label for="sms_provider">Provider</label>
                         <select id="sms_provider" name="sms_provider"
-                                style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.95rem;background:#fff"
+                                style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:8px;font-size:.95rem;background:var(--bg-ffffff, #ffffff)"
                                 data-act-change="toggleSmsFields">
                             <?php foreach ($sms_providers as $key => $prov): ?>
                             <option value="<?= $key ?>"<?= $sms_provider === $key ? ' selected' : '' ?>><?= htmlspecialchars($prov['label']) ?></option>
@@ -2746,8 +2746,8 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     <?php $wh_auth = sms_webhook_auth_status(); ?>
                     <div style="margin:.75rem 0;padding:.6rem .75rem;border-radius:8px;font-size:.85rem;line-height:1.45;
                                 <?= $wh_auth['ok']
-                                    ? 'background:#f0fdf4;border:1px solid #bbf7d0;color:#166534'
-                                    : 'background:#fef2f2;border:1px solid #fecaca;color:#991b1b' ?>">
+                                    ? 'background:var(--bg-f0fdf4, #f0fdf4);border:1px solid var(--bd-bbf7d0, #bbf7d0);color:var(--fg-166534, #166534)'
+                                    : 'background:var(--bg-fef2f2, #fef2f2);border:1px solid var(--bd-fecaca, #fecaca);color:var(--fg-991b1b, #991b1b)' ?>">
                         <b><?= $wh_auth['ok'] ? '&#10003; Inbound texts authenticated' : '&#9888; Inbound texts are being rejected' ?></b><br>
                         <?= $wh_auth['msg'] /* fixed operator copy from sms_webhook_auth_status(), no user input */ ?>
                     </div>
@@ -2781,9 +2781,9 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     <div style="display:flex;align-items:center;gap:.75rem;margin-top:.25rem">
                         <button type="submit" class="btn btn-primary">Save Credentials</button>
                         <?php if ($sms_configured): ?>
-                            <span style="color:#16a34a;font-size:.8rem;font-weight:600">&#10003; Configured</span>
+                            <span style="color:var(--fg-16a34a, #16a34a);font-size:.8rem;font-weight:600">&#10003; Configured</span>
                         <?php else: ?>
-                            <span style="color:#dc2626;font-size:.8rem;font-weight:600">&#9679; Not configured</span>
+                            <span style="color:var(--fg-dc2626, #dc2626);font-size:.8rem;font-weight:600">&#9679; Not configured</span>
                         <?php endif; ?>
                     </div>
                 </form>
@@ -2832,7 +2832,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                                style="width:1.1rem;height:1.1rem;accent-color:#2563eb">
                         Automatically shorten URLs in outgoing notifications
                     </label>
-                    <p style="font-size:.8rem;color:#64748b;margin:0 0 .75rem">
+                    <p style="font-size:.8rem;color:var(--fg-64748b, #64748b);margin:0 0 .75rem">
                         When enabled, links in SMS messages and notification emails are shortened via Short.io. Also used for league invite links.
                     </p>
 
@@ -2866,7 +2866,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 <tbody>
                     <?php foreach ($prov['help'] as $row): ?>
                     <tr>
-                        <td style="color:#64748b;width:160px"><?= htmlspecialchars($row[0]) ?></td>
+                        <td style="color:var(--fg-64748b, #64748b);width:160px"><?= htmlspecialchars($row[0]) ?></td>
                         <td><?php
                             if (str_starts_with($row[1], 'http')) {
                                 echo '<a href="' . htmlspecialchars($row[1]) . '" target="_blank" rel="noopener">' . htmlspecialchars($row[1]) . '</a>';
@@ -2885,15 +2885,15 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
         <?php $webhook_url = get_site_url() . '/sms_webhook.php'; ?>
         <div class="table-card" style="margin-top:1.5rem;max-width:620px">
             <h3>Inbound Webhook URL</h3>
-            <p style="font-size:.85rem;color:#64748b;margin:.25rem 0 .75rem">
+            <p style="font-size:.85rem;color:var(--fg-64748b, #64748b);margin:.25rem 0 .75rem">
                 Paste this URL into your provider's inbound message webhook / messaging profile so incoming SMS replies are received by this app.
             </p>
             <div style="display:flex;gap:.5rem;align-items:center">
                 <input type="text" id="webhook-url-field" readonly value="<?= htmlspecialchars($webhook_url) ?>"
-                       style="flex:1;font-family:monospace;font-size:.85rem;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:7px;padding:.5rem .75rem;color:#1e293b;cursor:text">
+                       style="flex:1;font-family:monospace;font-size:.85rem;background:var(--bg-f1f5f9, #f1f5f9);border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;padding:.5rem .75rem;color:var(--fg-1e293b, #1e293b);cursor:text">
                 <button type="button" data-act="copyWebhookUrl" data-a1="@self" style="white-space:nowrap" class="btn btn-outline btn-sm">Copy</button>
             </div>
-            <p style="font-size:.78rem;color:#64748b;margin-top:.6rem">
+            <p style="font-size:.78rem;color:var(--fg-64748b, #64748b);margin-top:.6rem">
                 <strong>Telnyx:</strong> Messaging &rsaquo; Messaging Profiles &rsaquo; your profile &rsaquo; Inbound Settings &rsaquo; Webhook URL<br>
                 <strong>Twilio:</strong> Phone Numbers &rsaquo; your number &rsaquo; Messaging &rsaquo; Webhook (HTTP POST)<br>
                 <strong>Plivo:</strong> Phone Numbers &rsaquo; your number &rsaquo; Message URL<br>
@@ -2953,31 +2953,31 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 </form>
 
                 <!-- Session status + QR code area -->
-                <div style="border-top:1px solid #e2e8f0;padding-top:1rem">
+                <div style="border-top:1px solid var(--bd-e2e8f0, #e2e8f0);padding-top:1rem">
                     <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem">
                         <span style="font-weight:700;font-size:.9rem">Session Status:</span>
-                        <span id="wahaStatus" style="font-weight:600;font-size:.85rem;color:#64748b">Checking...</span>
+                        <span id="wahaStatus" style="font-weight:600;font-size:.85rem;color:var(--fg-64748b, #64748b)">Checking...</span>
                     </div>
                     <div id="wahaQrWrap" style="display:none;text-align:center;margin:1rem 0">
-                        <p style="font-size:.85rem;color:#64748b;margin-bottom:.75rem">Scan this QR code with your WhatsApp app:</p>
-                        <img id="wahaQrImg" src="" alt="QR Code" style="max-width:280px;border:2px solid #e2e8f0;border-radius:10px">
-                        <div style="text-align:left;max-width:320px;margin:1rem auto 0;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.75rem 1rem">
-                            <p style="font-size:.78rem;font-weight:700;color:#334155;margin-bottom:.4rem">How to scan:</p>
-                            <ol style="font-size:.75rem;color:#64748b;margin:0;padding-left:1.2rem;line-height:1.6">
+                        <p style="font-size:.85rem;color:var(--fg-64748b, #64748b);margin-bottom:.75rem">Scan this QR code with your WhatsApp app:</p>
+                        <img id="wahaQrImg" src="" alt="QR Code" style="max-width:280px;border:2px solid var(--bd-e2e8f0, #e2e8f0);border-radius:10px">
+                        <div style="text-align:left;max-width:320px;margin:1rem auto 0;background:var(--bg-f8fafc, #f8fafc);border:1px solid var(--bd-e2e8f0, #e2e8f0);border-radius:8px;padding:.75rem 1rem">
+                            <p style="font-size:.78rem;font-weight:700;color:var(--fg-334155, #334155);margin-bottom:.4rem">How to scan:</p>
+                            <ol style="font-size:.75rem;color:var(--fg-64748b, #64748b);margin:0;padding-left:1.2rem;line-height:1.6">
                                 <li>Open <strong>WhatsApp</strong> on your phone</li>
                                 <li>Tap <strong>Settings</strong> (gear icon, bottom right on iPhone &mdash; three dots, top right on Android)</li>
                                 <li>Tap <strong>Linked Devices</strong></li>
                                 <li>Tap <strong>Link a Device</strong></li>
                                 <li>Point your phone camera at the QR code above</li>
                             </ol>
-                            <p style="font-size:.72rem;color:#64748b;margin-top:.5rem;margin-bottom:0">Use a dedicated WhatsApp number for GameNight to keep your personal account separate.</p>
+                            <p style="font-size:.72rem;color:var(--fg-64748b, #64748b);margin-top:.5rem;margin-bottom:0">Use a dedicated WhatsApp number for GameNight to keep your personal account separate.</p>
                         </div>
                     </div>
                     <div style="display:flex;gap:.5rem;flex-wrap:wrap">
                         <button type="button" id="wahaStartBtn" class="btn btn-primary" data-act="wahaStart" style="display:none">Start Session</button>
-                        <button type="button" id="wahaStopBtn" class="btn btn-outline" data-act="wahaStop" style="display:none;color:#dc2626;border-color:#fca5a5">Disconnect</button>
+                        <button type="button" id="wahaStopBtn" class="btn btn-outline" data-act="wahaStop" style="display:none;color:var(--fg-dc2626, #dc2626);border-color:var(--bd-fca5a5, #fca5a5)">Disconnect</button>
                         <button type="button" class="btn btn-outline" data-act="wahaCheckStatus">Refresh Status</button>
-                        <button type="button" class="btn btn-outline" data-act="wahaReset" style="color:#dc2626;border-color:#fca5a5">Reset &amp; re-link</button>
+                        <button type="button" class="btn btn-outline" data-act="wahaReset" style="color:var(--fg-dc2626, #dc2626);border-color:var(--bd-fca5a5, #fca5a5)">Reset &amp; re-link</button>
                     </div>
                 </div>
             </div>
@@ -3013,7 +3013,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 
     function wahaCheckStatus() {
         document.getElementById('wahaStatus').textContent = 'Connecting to WAHA...';
-        document.getElementById('wahaStatus').style.color = '#2563eb';
+        document.getElementById('wahaStatus').style.color = 'var(--fg-2563eb, #2563eb)';
         fetch('/admin_settings_dl.php', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
@@ -3027,7 +3027,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             var qrWrap   = document.getElementById('wahaQrWrap');
             if (!j.ok) {
                 el.textContent = j.error || 'Cannot reach WAHA';
-                el.style.color = '#dc2626';
+                el.style.color = 'var(--fg-dc2626, #dc2626)';
                 startBtn.style.display = '';
                 stopBtn.style.display = 'none';
                 qrWrap.style.display = 'none';
@@ -3035,21 +3035,21 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             }
             if (j.status === 'WORKING') {
                 el.textContent = 'Connected \u2714';
-                el.style.color = '#16a34a';
+                el.style.color = 'var(--fg-16a34a, #16a34a)';
                 startBtn.style.display = 'none';
                 stopBtn.style.display = '';
                 qrWrap.style.display = 'none';
                 if (_wahaQrInterval) { clearInterval(_wahaQrInterval); _wahaQrInterval = null; }
             } else if (j.status === 'SCAN_QR_CODE') {
                 el.textContent = 'Waiting for QR scan...';
-                el.style.color = '#d97706';
+                el.style.color = 'var(--fg-d97706, #d97706)';
                 startBtn.style.display = 'none';
                 stopBtn.style.display = '';
                 qrWrap.style.display = '';
                 wahaLoadQr();
             } else if (j.status === 'STOPPED' || j.status === 'FAILED') {
                 el.textContent = j.status;
-                el.style.color = '#dc2626';
+                el.style.color = 'var(--fg-dc2626, #dc2626)';
                 startBtn.style.display = '';
                 stopBtn.style.display = 'none';
                 qrWrap.style.display = 'none';
@@ -3063,7 +3063,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
         })
         .catch(function() {
             document.getElementById('wahaStatus').textContent = 'Error contacting server';
-            document.getElementById('wahaStatus').style.color = '#dc2626';
+            document.getElementById('wahaStatus').style.color = 'var(--fg-dc2626, #dc2626)';
         });
     }
 
@@ -3072,7 +3072,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
     async function wahaReset() {
         if (!(await pkConfirm('Log out the current WhatsApp link and start over?<br><br>You will need to scan a new QR code (Linked Devices → Link a Device) to reconnect, and WhatsApp messages will not send until you do.'))) return;
         var el = document.getElementById('wahaStatus');
-        el.textContent = 'Resetting…'; el.style.color = '#2563eb';
+        el.textContent = 'Resetting…'; el.style.color = 'var(--fg-2563eb, #2563eb)';
         if (_wahaQrInterval) { clearInterval(_wahaQrInterval); _wahaQrInterval = null; }
         fetch('/admin_settings_dl.php', {
             method: 'POST',
@@ -3081,12 +3081,12 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
         })
         .then(function(r) { return r.json(); })
         .then(function(j) {
-            if (!j.ok) { el.textContent = j.error || 'Reset failed'; el.style.color = '#dc2626'; return; }
+            if (!j.ok) { el.textContent = j.error || 'Reset failed'; el.style.color = 'var(--fg-dc2626, #dc2626)'; return; }
             // WAHA needs a moment to drop into SCAN_QR_CODE; then refresh (loads the QR).
-            el.textContent = 'Preparing QR code…'; el.style.color = '#d97706';
+            el.textContent = 'Preparing QR code…'; el.style.color = 'var(--fg-d97706, #d97706)';
             setTimeout(wahaCheckStatus, 3000);
         })
-        .catch(function() { el.textContent = 'Error contacting server'; el.style.color = '#dc2626'; });
+        .catch(function() { el.textContent = 'Error contacting server'; el.style.color = 'var(--fg-dc2626, #dc2626)'; });
     }
 
     var _wahaQrInterval = null;
@@ -3125,7 +3125,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
         btn.disabled = true;
         btn.textContent = 'Starting... (this may take a minute)';
         document.getElementById('wahaStatus').textContent = 'Starting session...';
-        document.getElementById('wahaStatus').style.color = '#d97706';
+        document.getElementById('wahaStatus').style.color = 'var(--fg-d97706, #d97706)';
         fetch('/admin_settings_dl.php', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
@@ -3221,7 +3221,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
     <div class="tab-panel <?= $tab === 'cron' ? 'active' : '' ?>">
         <?php $cronToken = get_setting('cron_token', ''); ?>
         <?php if ($cronToken === ''): ?>
-        <div style="margin-bottom:1rem;padding:.6rem .75rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:.82rem;color:#dc2626;font-weight:600">
+        <div style="margin-bottom:1rem;padding:.6rem .75rem;background:var(--bg-fef2f2, #fef2f2);border:1px solid var(--bd-fca5a5, #fca5a5);border-radius:6px;font-size:.82rem;color:var(--fg-dc2626, #dc2626);font-weight:600">
             &#9888; No cron token set. Generate one below, or restart the container to auto-generate one.
         </div>
         <?php else: ?>
@@ -3236,15 +3236,15 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             }
         ?>
         <?php if ($lastCronRun <= 0): ?>
-        <div style="margin-bottom:1rem;padding:.6rem .75rem;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;font-size:.82rem;color:#b45309;font-weight:600">
+        <div style="margin-bottom:1rem;padding:.6rem .75rem;background:var(--bg-fffbeb, #fffbeb);border:1px solid var(--bd-fcd34d, #fcd34d);border-radius:6px;font-size:.82rem;color:var(--fg-b45309, #b45309);font-weight:600">
             &#9888; Cron token configured, but cron has <strong>never run</strong>. Check that the container's background scheduler (or your crontab entry) is actually hitting <code>/cron.php</code>.
         </div>
         <?php elseif ($cronAgeSec > 900): ?>
-        <div style="margin-bottom:1rem;padding:.6rem .75rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:.82rem;color:#dc2626;font-weight:600">
+        <div style="margin-bottom:1rem;padding:.6rem .75rem;background:var(--bg-fef2f2, #fef2f2);border:1px solid var(--bd-fca5a5, #fca5a5);border-radius:6px;font-size:.82rem;color:var(--fg-dc2626, #dc2626);font-weight:600">
             &#9888; Cron last ran <?= htmlspecialchars($cronAgeStr) ?> (<?= date('M j, g:i A', $lastCronRun) ?>) &mdash; expected every 5 minutes. The scheduler may be down; reminders and queued notifications are not being processed.
         </div>
         <?php else: ?>
-        <div style="margin-bottom:1rem;padding:.6rem .75rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:.82rem;color:#16a34a;font-weight:600">
+        <div style="margin-bottom:1rem;padding:.6rem .75rem;background:var(--bg-f0fdf4, #f0fdf4);border:1px solid var(--bd-bbf7d0, #bbf7d0);border-radius:6px;font-size:.82rem;color:var(--fg-16a34a, #16a34a);font-weight:600">
             &#10003; Scheduled tasks are active. Last run: <?= date('M j, g:i A', $lastCronRun) ?> (<?= htmlspecialchars($cronAgeStr) ?>).
         </div>
         <?php endif; ?>
@@ -3257,7 +3257,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 
                 <div style="margin-bottom:1.5rem">
                     <h3 style="font-size:.9rem;margin-bottom:.5rem">What does it do?</h3>
-                    <div style="font-size:.85rem;color:#475569;line-height:1.7">
+                    <div style="font-size:.85rem;color:var(--fg-475569, #475569);line-height:1.7">
                         <p><strong>Event Reminders</strong> &mdash; Sends the reminders set on each event (the site default, 2 days and 12 hours before, is under General &rarr; Event Reminders). Uses each person's preferred contact method (email, SMS, or WhatsApp). Each reminder only fires once per event per person.</p>
                         <p style="margin-top:.5rem"><strong>Database Maintenance</strong> &mdash; Cleans up stale data to keep the database lean:</p>
                         <ul style="margin:.25rem 0 0 1.25rem;padding:0">
@@ -3276,7 +3276,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 <h2>Cron Token</h2>
                 <p class="subtitle">A secret password that protects the cron endpoint from unauthorized access.</p>
 
-                <div style="margin-bottom:1rem;padding:.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:.82rem;color:#475569;line-height:1.6">
+                <div style="margin-bottom:1rem;padding:.75rem;background:var(--bg-f8fafc, #f8fafc);border:1px solid var(--bd-e2e8f0, #e2e8f0);border-radius:8px;font-size:.82rem;color:var(--fg-475569, #475569);line-height:1.6">
                     <strong>Why is this needed?</strong> The cron job runs by visiting a URL (<code>cron.php?token=...</code>). Without a token, anyone who guessed the URL could trigger reminder emails. The token acts like a password &mdash; only requests with the correct token are processed. Everything else is ignored.
                 </div>
 
@@ -3308,25 +3308,25 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             <h2>Setup Instructions</h2>
             <p class="subtitle">How to activate scheduled tasks on your server.</p>
 
-            <div style="padding:.75rem;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;margin-bottom:1rem">
-                <p style="font-size:.85rem;font-weight:700;color:#1e40af;margin-bottom:.4rem">&#128051; Docker Installation</p>
-                <p style="font-size:.82rem;color:#475569;line-height:1.6;margin:0">
+            <div style="padding:.75rem;background:var(--bg-eff6ff, #eff6ff);border:1px solid var(--bd-bfdbfe, #bfdbfe);border-radius:8px;margin-bottom:1rem">
+                <p style="font-size:.85rem;font-weight:700;color:var(--fg-1e40af, #1e40af);margin-bottom:.4rem">&#128051; Docker Installation</p>
+                <p style="font-size:.82rem;color:var(--fg-475569, #475569);line-height:1.6;margin:0">
                     <strong>No setup needed.</strong> The GameNight container has a built-in background scheduler that automatically runs every 5 minutes. On first start, it generates a secure cron token and saves it. The scheduler runs inside the container alongside Apache &mdash; no external cron job, no manual configuration. Just <code>docker compose up</code> and everything works.
                 </p>
-                <p style="font-size:.78rem;color:#64748b;margin-top:.4rem;margin-bottom:0">
+                <p style="font-size:.78rem;color:var(--fg-64748b, #64748b);margin-top:.4rem;margin-bottom:0">
                     Technical detail: <code>docker-entrypoint.sh</code> launches a background loop that curls <code>http://localhost/cron.php?token=...</code> every 300 seconds (5 min). The loop runs as a child process of the entrypoint and dies automatically when the container stops.
                 </p>
             </div>
 
-            <div style="padding:.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
-                <p style="font-size:.85rem;font-weight:700;color:#334155;margin-bottom:.4rem">&#128421; Manual Server (non-Docker)</p>
-                <p style="font-size:.82rem;color:#475569;line-height:1.6">
+            <div style="padding:.75rem;background:var(--bg-f8fafc, #f8fafc);border:1px solid var(--bd-e2e8f0, #e2e8f0);border-radius:8px">
+                <p style="font-size:.85rem;font-weight:700;color:var(--fg-334155, #334155);margin-bottom:.4rem">&#128421; Manual Server (non-Docker)</p>
+                <p style="font-size:.82rem;color:var(--fg-475569, #475569);line-height:1.6">
                     If you're running GameNight without Docker (e.g., on XAMPP, Laragon, or a bare Apache/PHP server), you need to set up a cron job manually. First, generate and save a token above. Then add this line to your server's crontab (<code>crontab -e</code> via SSH):
                 </p>
 
                 <pre style="background:#0f172a;color:#e2e8f0;border-radius:7px;padding:.75rem 1rem;font-size:.78rem;overflow-x:auto;margin:.75rem 0">*/5 * * * * curl -s "<?= htmlspecialchars(get_site_url()) ?>/cron.php?token=<?= htmlspecialchars(get_setting('cron_token','YOUR_TOKEN_HERE')) ?>" > /dev/null</pre>
 
-                <div style="font-size:.78rem;color:#64748b;line-height:1.6">
+                <div style="font-size:.78rem;color:var(--fg-64748b, #64748b);line-height:1.6">
                     <p><strong>What each part means:</strong></p>
                     <ul style="margin:.25rem 0 0 1.25rem;padding:0">
                         <li><code>*/5 * * * *</code> &mdash; Run every 5 minutes, 24/7</li>
@@ -3349,7 +3349,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             <!-- Download backup -->
             <div class="card" style="max-width:100%">
                 <h3 style="margin-top:0">Download Backup</h3>
-                <p style="font-size:.85rem;color:#64748b;margin-bottom:1rem">Download a copy of the entire database including all users, events, settings, and game data.</p>
+                <p style="font-size:.85rem;color:var(--fg-64748b, #64748b);margin-bottom:1rem">Download a copy of the entire database including all users, events, settings, and game data.</p>
                 <form method="post" action="/admin_settings.php?tab=backup">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                     <input type="hidden" name="action" value="backup_download">
@@ -3362,13 +3362,13 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         ? round($dbSize / 1024, 1) . ' KB'
                         : round($dbSize / (1024*1024), 2) . ' MB';
                 ?>
-                <p style="font-size:.75rem;color:#64748b;margin-top:.75rem">Database size: <?= $dbSizeStr ?></p>
+                <p style="font-size:.75rem;color:var(--fg-64748b, #64748b);margin-top:.75rem">Database size: <?= $dbSizeStr ?></p>
             </div>
 
             <!-- Restore backup -->
-            <div class="card" style="max-width:100%;border-color:#fca5a5">
-                <h3 style="margin-top:0;color:#dc2626">Restore from Backup</h3>
-                <p style="font-size:.85rem;color:#64748b;margin-bottom:1rem">Upload a previously downloaded <code>.db</code> backup file. This will <strong>replace all current data</strong>.</p>
+            <div class="card" style="max-width:100%;border-color:var(--bd-fca5a5, #fca5a5)">
+                <h3 style="margin-top:0;color:var(--fg-dc2626, #dc2626)">Restore from Backup</h3>
+                <p style="font-size:.85rem;color:var(--fg-64748b, #64748b);margin-bottom:1rem">Upload a previously downloaded <code>.db</code> backup file. This will <strong>replace all current data</strong>.</p>
                 <form method="post" action="/admin_settings.php?tab=backup" enctype="multipart/form-data"
                       data-confirm="This will REPLACE ALL current data with the backup. The current database will be saved as a safety copy. Continue?" data-confirm-ok="Restore" data-confirm-danger="1">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
@@ -3376,12 +3376,12 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     <input type="hidden" name="tab" value="backup">
                     <div class="form-group" style="margin-bottom:1rem">
                         <input type="file" name="backup_file" accept=".db" required
-                               style="width:100%;padding:.4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.85rem">
+                               style="width:100%;padding:.4rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:6px;font-size:.85rem">
                     </div>
                     <button type="submit" class="btn" style="width:100%;background:#dc2626;color:#fff;border:none">Restore Backup</button>
                 </form>
                 <?php if (file_exists(DB_PATH . '.before_restore')): ?>
-                <p style="font-size:.75rem;color:#64748b;margin-top:.75rem">Pre-restore backup saved: <?= date('Y-m-d H:i:s', filemtime(DB_PATH . '.before_restore')) ?></p>
+                <p style="font-size:.75rem;color:var(--fg-64748b, #64748b);margin-top:.75rem">Pre-restore backup saved: <?= date('Y-m-d H:i:s', filemtime(DB_PATH . '.before_restore')) ?></p>
                 <?php endif; ?>
             </div>
         </div>
@@ -3428,7 +3428,7 @@ function updatePreview() {
     const accentEl = document.getElementById('previewAccent');
     if (top)      top.style.background = /^#[0-9a-fA-F]{6}$/.test(bg)   ? bg   : '#0f172a';
     if (brand)    brand.style.color    = /^#[0-9a-fA-F]{6}$/.test(text) ? text : '#ffffff';
-    if (accentEl) accentEl.style.color = /^#[0-9a-fA-F]{6}$/.test(acc)  ? acc  : '#2563eb';
+    if (accentEl) accentEl.style.color = /^#[0-9a-fA-F]{6}$/.test(acc)  ? acc  : 'var(--fg-2563eb, #2563eb)';
 }
 </script>
 <script src="/_phone_input.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/_phone_input.js') ?: 0)) ?>"></script>

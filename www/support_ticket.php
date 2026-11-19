@@ -48,18 +48,18 @@ $utc_tz    = new DateTimeZone('UTC');
     <style>
         .st-wrap { max-width: 680px; margin: 1.25rem auto 2rem; padding: 0 1rem; }
         .st-head { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-bottom: .35rem; }
-        .st-head h1 { font-size: 1.15rem; font-weight: 800; color: #1e293b; margin: 0; flex: 1; min-width: 0; }
+        .st-head h1 { font-size: 1.15rem; font-weight: 800; color: var(--fg-1e293b, #1e293b); margin: 0; flex: 1; min-width: 0; }
         .sp-chip { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; border-radius: 5px; padding: .1rem .45rem; }
-        .sp-open { color: #92400e; background: #fef3c7; border: 1px solid #fde68a; }
-        .sp-resolved { color: #166534; background: #dcfce7; border: 1px solid #bbf7d0; }
-        .st-msg { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: .65rem .85rem; margin-bottom: .55rem; }
-        .st-msg.admin { background: #eff6ff; border-color: #bfdbfe; }
-        .st-meta { display: flex; gap: .5rem; align-items: baseline; font-size: .75rem; color: #64748b; margin-bottom: .3rem; }
-        .st-meta .who { font-weight: 700; color: #334155; }
-        .st-admin-tag { font-size: .62rem; font-weight: 700; text-transform: uppercase; color: #1e40af; background: #dbeafe; border-radius: 4px; padding: .05rem .3rem; }
-        .st-body { font-size: .9rem; color: #334155; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
-        .st-shot { display: block; max-width: 220px; max-height: 160px; border-radius: 8px; border: 1.5px solid #e2e8f0; margin-top: .5rem; }
-        .st-reply textarea { width: 100%; padding: .5rem .65rem; border: 1.5px solid #cbd5e1; border-radius: 8px; font: inherit; box-sizing: border-box; }
+        .sp-open { color: var(--fg-92400e, #92400e); background: var(--bg-fef3c7, #fef3c7); border: 1px solid var(--bd-fde68a, #fde68a); }
+        .sp-resolved { color: var(--fg-166534, #166534); background: var(--bg-dcfce7, #dcfce7); border: 1px solid var(--bd-bbf7d0, #bbf7d0); }
+        .st-msg { background: var(--bg-ffffff, #ffffff); border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; padding: .65rem .85rem; margin-bottom: .55rem; }
+        .st-msg.admin { background: var(--bg-eff6ff, #eff6ff); border-color: var(--bd-bfdbfe, #bfdbfe); }
+        .st-meta { display: flex; gap: .5rem; align-items: baseline; font-size: .75rem; color: var(--fg-64748b, #64748b); margin-bottom: .3rem; }
+        .st-meta .who { font-weight: 700; color: var(--fg-334155, #334155); }
+        .st-admin-tag { font-size: .62rem; font-weight: 700; text-transform: uppercase; color: var(--fg-1e40af, #1e40af); background: var(--bg-dbeafe, #dbeafe); border-radius: 4px; padding: .05rem .3rem; }
+        .st-body { font-size: .9rem; color: var(--fg-334155, #334155); line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
+        .st-shot { display: block; max-width: 220px; max-height: 160px; border-radius: 8px; border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); margin-top: .5rem; }
+        .st-reply textarea { width: 100%; padding: .5rem .65rem; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 8px; font: inherit; box-sizing: border-box; }
     </style>
 </head>
 <body>
@@ -74,7 +74,7 @@ $utc_tz    = new DateTimeZone('UTC');
                 data-act="toggleStatus" data-a1="@self"><?= $ticket['status'] === 'open' ? 'Mark resolved' : 'Reopen' ?></button>
         <?php endif; ?>
     </div>
-    <p style="font-size:.78rem;color:#64748b;margin:0 0 1rem">Opened by <?= htmlspecialchars($ticket['owner_name']) ?></p>
+    <p style="font-size:.78rem;color:var(--fg-64748b, #64748b);margin:0 0 1rem">Opened by <?= htmlspecialchars($ticket['owner_name']) ?></p>
 
     <?php foreach ($messages as $m):
         try { $when = (new DateTime((string)$m['created_at'], $utc_tz))->setTimezone($viewer_tz)->format('M j, g:i A'); }
@@ -97,12 +97,12 @@ $utc_tz    = new DateTimeZone('UTC');
         <textarea id="stBody" rows="3" maxlength="5000" placeholder="Write a reply&hellip;"></textarea>
         <div style="display:flex;align-items:center;gap:.6rem;margin-top:.5rem;flex-wrap:wrap">
             <button class="btn btn-primary" type="button" data-act="sendReply" data-a1="@self">Reply</button>
-            <label style="font-size:.8rem;color:#64748b">&#128247; Attach screenshot
+            <label style="font-size:.8rem;color:var(--fg-64748b, #64748b)">&#128247; Attach screenshot
                 <input type="file" id="stShot" accept="image/*" style="font-size:.8rem">
             </label>
         </div>
         <?php if ($ticket['status'] === 'resolved' && !$isAdmin): ?>
-        <p style="font-size:.78rem;color:#64748b;margin-top:.4rem">This ticket is resolved — replying will reopen it.</p>
+        <p style="font-size:.78rem;color:var(--fg-64748b, #64748b);margin-top:.4rem">This ticket is resolved — replying will reopen it.</p>
         <?php endif; ?>
     </div>
 </div>

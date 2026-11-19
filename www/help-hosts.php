@@ -21,7 +21,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
     <style>
         .help-wrap { max-width: 760px; margin: 2rem auto 4rem; padding: 0 1.5rem; }
         .help-wrap h1 { font-size: 2rem; margin-bottom: .5rem; }
-        .help-wrap .subtitle { color: #64748b; margin-bottom: 2.5rem; font-size: 1.05rem; }
+        .help-wrap .subtitle { color: var(--fg-64748b, #64748b); margin-bottom: 2.5rem; font-size: 1.05rem; }
         .help-step { margin-bottom: 2.5rem; }
         .help-step h2 { font-size: 1.35rem; margin: 0 0 .75rem; display: flex; align-items: center; gap: .6rem; }
         .help-step .step-num {
@@ -30,24 +30,24 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
             background: var(--accent, #2563eb); color: #fff;
             font-size: .95rem; font-weight: 600; flex-shrink: 0;
         }
-        .help-step p { margin: .5rem 0; line-height: 1.6; color: #334155; }
-        .help-step ul { margin: .5rem 0 .5rem 1.25rem; line-height: 1.6; color: #334155; }
+        .help-step p { margin: .5rem 0; line-height: 1.6; color: var(--fg-334155, #334155); }
+        .help-step ul { margin: .5rem 0 .5rem 1.25rem; line-height: 1.6; color: var(--fg-334155, #334155); }
         .help-step .hint {
-            background: #f1f5f9; border-left: 3px solid #94a3b8;
-            padding: .75rem 1rem; margin: .75rem 0; font-size: .92rem; color: #475569;
+            background: var(--bg-f1f5f9, #f1f5f9); border-left: 3px solid #94a3b8;
+            padding: .75rem 1rem; margin: .75rem 0; font-size: .92rem; color: var(--fg-475569, #475569);
             border-radius: 4px;
         }
         .help-step img.help-shot {
-            max-width: 100%; height: auto; border: 1px solid #e2e8f0; border-radius: 6px;
+            max-width: 100%; height: auto; border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 6px;
             margin: .75rem 0; display: block;
         }
         .help-cta {
             text-align: center; padding: 2.5rem 1rem;
-            background: #f8fafc; border-radius: 8px; margin-top: 2rem;
+            background: var(--bg-f8fafc, #f8fafc); border-radius: 8px; margin-top: 2rem;
         }
-        .help-cta p { color: #475569; margin-bottom: 1.25rem; }
-        .help-back { display: inline-block; margin-bottom: 1rem; color: #64748b; text-decoration: none; font-size: .9rem; }
-        .help-back:hover { color: #2563eb; }
+        .help-cta p { color: var(--fg-475569, #475569); margin-bottom: 1.25rem; }
+        .help-back { display: inline-block; margin-bottom: 1rem; color: var(--fg-64748b, #64748b); text-decoration: none; font-size: .9rem; }
+        .help-back:hover { color: var(--fg-2563eb, #2563eb); }
     </style>
 </head>
 <body>
@@ -60,7 +60,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
     <div class="hint" style="margin-bottom:1.5rem"><strong>New here?</strong> The home page shows a <em>Your first game night</em> card with the four steps that matter, each ticking itself off as you go, and the pages it points to carry short tips of their own. This guide is the long version of the same path.</div>
 
     <div class="help-step">
-        <h2><span class="step-num">1</span> Set up your league <em style="font-weight:400;color:#64748b;font-size:1rem">(optional)</em></h2>
+        <h2><span class="step-num">1</span> Set up your league <em style="font-weight:400;color:var(--fg-64748b, #64748b);font-size:1rem">(optional)</em></h2>
         <p>A <strong>league</strong> is your private group &mdash; your poker crew, board game club, or any circle. It scopes events, contacts, and stats so different groups don't see each other's stuff.</p>
         <p>From the home page, open <a href="/leagues.php"><strong>Leagues</strong></a> in the nav and create one. Give it a name and you're done.</p>
         <p><strong>Known as.</strong> Members show up under their screen names. On the league's <strong>Members</strong> tab, owners and managers can give each member a <em>Known as</em> name ("Mike R." for pokerking77) that everyone in the league then sees on the standings, the player pages and the guest picker. A name you typed when adding a contact becomes their known-as name on its own once they link their account.</p>
@@ -69,7 +69,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
     </div>
 
     <div class="help-step">
-        <h2><span class="step-num">2</span> Add your roster <em style="font-weight:400;color:#64748b;font-size:1rem">(optional, but recommended)</em></h2>
+        <h2><span class="step-num">2</span> Add your roster <em style="font-weight:400;color:var(--fg-64748b, #64748b);font-size:1rem">(optional, but recommended)</em></h2>
         <p>Open <a href="/contacts.php"><strong>Contacts</strong></a> and add the people you'll invite. You can add them by name plus email or phone &mdash; <em>they don't need to sign up first</em>.</p>
         <ul>
             <li>Bulk-add with <strong>Import CSV</strong>: a file of names and emails, one per line (<strong>Export CSV</strong> gives you the shape)</li>
@@ -169,7 +169,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
     </div>
 
     <div class="help-step">
-        <h2><span class="step-num">9</span> Put a video on the display <em style="font-weight:400;color:#64748b;font-size:1rem">(optional)</em></h2>
+        <h2><span class="step-num">9</span> Put a video on the display <em style="font-weight:400;color:var(--fg-64748b, #64748b);font-size:1rem">(optional)</em></h2>
         <p>A layout cell can hold video &mdash; the ball game, a stream, a movie &mdash; alongside the clock and blinds. In the layout editor, pick a cell, choose <strong>Use a video stream instead</strong>, and paste a link. YouTube, Twitch, Vimeo and Kick work as-is.</p>
         <p>For anything else, GameNight needs one thing: <strong>a public https address ending in <code>.m3u8</code> or <code>.mp4</code></strong>. No approval, no admin, no allow-list &mdash; paste it and it plays. <code>.m3u8</code> is the format live streams use; <code>.mp4</code> is a plain file.</p>
         <p>How you get that address depends on your source:</p>

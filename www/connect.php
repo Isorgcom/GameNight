@@ -142,12 +142,12 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
     <meta name="robots" content="noindex">
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
-        .sso-who { display:flex; align-items:center; gap:.85rem; padding:.85rem 1rem; border:1.5px solid #e2e8f0; border-radius:10px; background:#f8fafc; margin:1rem 0 1.25rem; }
-        .sso-who .sso-name { font-weight:700; color:#1e293b; }
-        .sso-who .sso-sub { font-size:.8rem; color:#64748b; }
+        .sso-who { display:flex; align-items:center; gap:.85rem; padding:.85rem 1rem; border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:10px; background:var(--bg-f8fafc, #f8fafc); margin:1rem 0 1.25rem; }
+        .sso-who .sso-name { font-weight:700; color:var(--fg-1e293b, #1e293b); }
+        .sso-who .sso-sub { font-size:.8rem; color:var(--fg-64748b, #64748b); }
         .sso-actions { display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; }
-        .sso-switch { background:none; border:none; padding:.4rem .2rem; font-size:.8rem; color:#64748b; text-decoration:underline; cursor:pointer; }
-        .sso-note { font-size:.8rem; color:#64748b; margin-top:1rem; line-height:1.5; }
+        .sso-switch { background:none; border:none; padding:.4rem .2rem; font-size:.8rem; color:var(--fg-64748b, #64748b); text-decoration:underline; cursor:pointer; }
+        .sso-note { font-size:.8rem; color:var(--fg-64748b, #64748b); margin-top:1rem; line-height:1.5; }
     </style>
 </head>
 <body>

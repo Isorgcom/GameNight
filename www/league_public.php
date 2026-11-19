@@ -46,18 +46,18 @@ if ($slug === '') {
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .ld-layout { max-width: 860px; margin: 0 auto; padding: 0 1.25rem 3rem; }
-        .ld-head { margin: 1.75rem 0 .35rem; font-size: 1.8rem; font-weight: 800; color: #0f172a; }
-        .ld-sub { color: #64748b; font-size: .92rem; margin-bottom: 1.5rem; }
-        .ld-card { display: block; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: .9rem; text-decoration: none; overflow: hidden; transition: border-color .15s; }
-        .ld-card:hover { border-color: #93c5fd; }
-        .ld-banner { background: #f1f5f9; }
+        .ld-head { margin: 1.75rem 0 .35rem; font-size: 1.8rem; font-weight: 800; color: var(--fg-0f172a, #0f172a); }
+        .ld-sub { color: var(--fg-64748b, #64748b); font-size: .92rem; margin-bottom: 1.5rem; }
+        .ld-card { display: block; background: var(--bg-ffffff, #ffffff); border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 12px; margin-bottom: .9rem; text-decoration: none; overflow: hidden; transition: border-color .15s; }
+        .ld-card:hover { border-color: var(--bd-93c5fd, #93c5fd); }
+        .ld-banner { background: var(--bg-f1f5f9, #f1f5f9); }
         .ld-banner img { display: block; width: 100%; height: 120px; object-fit: cover; }
         .ld-banner.fit img { object-fit: contain; }
         .ld-body { padding: 1rem 1.25rem; }
-        .ld-name { font-size: 1.15rem; font-weight: 700; color: #0f172a; margin-bottom: .25rem; }
-        .ld-desc { color: #475569; font-size: .9rem; line-height: 1.55; margin-bottom: .5rem; }
-        .ld-meta { display: flex; gap: .9rem; flex-wrap: wrap; color: #64748b; font-size: .82rem; }
-        .ld-empty { color: #64748b; font-size: .9rem; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 1.25rem; }
+        .ld-name { font-size: 1.15rem; font-weight: 700; color: var(--fg-0f172a, #0f172a); margin-bottom: .25rem; }
+        .ld-desc { color: var(--fg-475569, #475569); font-size: .9rem; line-height: 1.55; margin-bottom: .5rem; }
+        .ld-meta { display: flex; gap: .9rem; flex-wrap: wrap; color: var(--fg-64748b, #64748b); font-size: .82rem; }
+        .ld-empty { color: var(--fg-64748b, #64748b); font-size: .9rem; background: var(--bg-f8fafc, #f8fafc); border: 1px dashed var(--bd-cbd5e1, #cbd5e1); border-radius: 10px; padding: 1.25rem; }
     </style>
 </head>
 <body>
@@ -142,11 +142,11 @@ if (!$league) {
         <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     </head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:1rem">
         <div style="max-width:480px;width:100%;text-align:center">
-            <div style="background:#fef2f2;border:2px solid #dc2626;border-radius:12px;padding:2rem 1.5rem;margin-bottom:1.5rem">
-                <h1 style="font-size:1.5rem;color:#dc2626;margin:0 0 .75rem">League Not Found</h1>
-                <div style="font-size:1rem;color:#334155;line-height:1.6">There is no public league page at this address. The link may be outdated, or the league's public page may have been turned off.</div>
+            <div style="background:var(--bg-fef2f2, #fef2f2);border:2px solid #dc2626;border-radius:12px;padding:2rem 1.5rem;margin-bottom:1.5rem">
+                <h1 style="font-size:1.5rem;color:var(--fg-dc2626, #dc2626);margin:0 0 .75rem">League Not Found</h1>
+                <div style="font-size:1rem;color:var(--fg-334155, #334155);line-height:1.6">There is no public league page at this address. The link may be outdated, or the league's public page may have been turned off.</div>
             </div>
-            <a href="/" style="color:#2563eb;text-decoration:none;font-size:.9rem">Go to <?= htmlspecialchars($site_name) ?></a>
+            <a href="/" style="color:var(--fg-2563eb, #2563eb);text-decoration:none;font-size:.9rem">Go to <?= htmlspecialchars($site_name) ?></a>
         </div>
     </body></html>
     <?php
@@ -284,41 +284,41 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .lp-layout { max-width: 860px; margin: 0 auto; padding: 0 1.25rem 3rem; }
-        .lp-hero { margin: 1.5rem 0 0; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; background: #f1f5f9; }
+        .lp-hero { margin: 1.5rem 0 0; border-radius: 12px; overflow: hidden; border: 1px solid var(--bd-e2e8f0, #e2e8f0); background: var(--bg-f1f5f9, #f1f5f9); }
         .lp-hero img { display: block; width: 100%; height: 280px; object-fit: cover; }
         /* "Fit" mode: show the whole image, letterboxed against the card background,
            and never blow a small logo up past its natural size. */
         .lp-hero.fit img { object-fit: contain; max-height: 280px; height: auto; }
-        .lp-head { margin: 1.5rem 0 .35rem; font-size: 2rem; font-weight: 800; color: #0f172a; }
-        .lp-sub { color: #64748b; font-size: .9rem; margin-bottom: 1rem; display: flex; gap: .9rem; flex-wrap: wrap; }
-        .lp-desc { color: #334155; line-height: 1.7; margin-bottom: 1.4rem; max-width: 62ch; }
+        .lp-head { margin: 1.5rem 0 .35rem; font-size: 2rem; font-weight: 800; color: var(--fg-0f172a, #0f172a); }
+        .lp-sub { color: var(--fg-64748b, #64748b); font-size: .9rem; margin-bottom: 1rem; display: flex; gap: .9rem; flex-wrap: wrap; }
+        .lp-desc { color: var(--fg-334155, #334155); line-height: 1.7; margin-bottom: 1.4rem; max-width: 62ch; }
         .lp-join { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin-bottom: 2rem; }
         .lp-btn { display: inline-block; border: none; cursor: pointer; background: #2563eb; color: #fff; font-weight: 700; font-size: .95rem; padding: .6rem 1.4rem; border-radius: 8px; text-decoration: none; }
-        .lp-btn.secondary { background: #fff; color: #2563eb; border: 1px solid #93c5fd; }
-        .lp-pill { background: #fef9c3; border: 1px solid #fde047; color: #854d0e; font-weight: 600; font-size: .85rem; padding: .45rem 1rem; border-radius: 999px; }
-        .lp-note { color: #64748b; font-size: .82rem; }
+        .lp-btn.secondary { background: var(--bg-ffffff, #ffffff); color: var(--fg-2563eb, #2563eb); border: 1px solid var(--bd-93c5fd, #93c5fd); }
+        .lp-pill { background: var(--bg-fef9c3, #fef9c3); border: 1px solid var(--bd-fde047, #fde047); color: var(--fg-854d0e, #854d0e); font-weight: 600; font-size: .85rem; padding: .45rem 1rem; border-radius: 999px; }
+        .lp-note { color: var(--fg-64748b, #64748b); font-size: .82rem; }
         .lp-section { margin: 0 0 2rem; }
-        .lp-section h2 { font-size: 1.15rem; font-weight: 700; color: #0f172a; margin-bottom: .8rem; display: flex; align-items: center; gap: .5rem; }
-        .lp-ev { display: flex; gap: 1rem; align-items: baseline; padding: .7rem .9rem; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; margin-bottom: .55rem; flex-wrap: wrap; }
-        .lp-ev-date { font-weight: 700; color: #1e40af; white-space: nowrap; font-size: .9rem; }
-        .lp-ev-title { font-weight: 600; color: #0f172a; }
-        .lp-ev-meta { color: #64748b; font-size: .85rem; }
-        .lp-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
-        .lp-table th { text-align: left; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: #64748b; background: #f8fafc; padding: .55rem .8rem; border-bottom: 1px solid #e2e8f0; }
-        .lp-table td { padding: .55rem .8rem; border-bottom: 1px solid #f1f5f9; font-size: .92rem; color: #334155; }
+        .lp-section h2 { font-size: 1.15rem; font-weight: 700; color: var(--fg-0f172a, #0f172a); margin-bottom: .8rem; display: flex; align-items: center; gap: .5rem; }
+        .lp-ev { display: flex; gap: 1rem; align-items: baseline; padding: .7rem .9rem; border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; background: var(--bg-ffffff, #ffffff); margin-bottom: .55rem; flex-wrap: wrap; }
+        .lp-ev-date { font-weight: 700; color: var(--fg-1e40af, #1e40af); white-space: nowrap; font-size: .9rem; }
+        .lp-ev-title { font-weight: 600; color: var(--fg-0f172a, #0f172a); }
+        .lp-ev-meta { color: var(--fg-64748b, #64748b); font-size: .85rem; }
+        .lp-table { width: 100%; border-collapse: collapse; background: var(--bg-ffffff, #ffffff); border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; overflow: hidden; }
+        .lp-table th { text-align: left; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-64748b, #64748b); background: var(--bg-f8fafc, #f8fafc); padding: .55rem .8rem; border-bottom: 1px solid var(--bd-e2e8f0, #e2e8f0); }
+        .lp-table td { padding: .55rem .8rem; border-bottom: 1px solid var(--bd-f1f5f9, #f1f5f9); font-size: .92rem; color: var(--fg-334155, #334155); }
         .lp-table tr:last-child td { border-bottom: none; }
-        .lp-empty { color: #64748b; font-size: .9rem; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 1rem; }
-        .lp-cal { margin: 0 0 1.25rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; }
+        .lp-empty { color: var(--fg-64748b, #64748b); font-size: .9rem; background: var(--bg-f8fafc, #f8fafc); border: 1px dashed var(--bd-cbd5e1, #cbd5e1); border-radius: 10px; padding: 1rem; }
+        .lp-cal { margin: 0 0 1.25rem; background: var(--bg-f8fafc, #f8fafc); border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; padding: 1rem; }
         .lp-cal[hidden] { display: none; }
         .lp-cal-row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
-        .lp-cal-row input { flex: 1; min-width: 220px; padding: .5rem .6rem; border: 1px solid #cbd5e1; border-radius: 6px; font-family: ui-monospace, monospace; font-size: .78rem; background: #fff; color: #334155; }
-        .lp-post { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.1rem 1.25rem; margin-bottom: .75rem; }
-        .lp-post-meta { font-size: .75rem; color: #64748b; margin-bottom: .35rem; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
-        .lp-post-title { font-weight: 700; color: #0f172a; margin-bottom: .5rem; font-size: 1.05rem; }
-        .lp-post-body { line-height: 1.65; color: #334155; font-size: .92rem; overflow: hidden; }
+        .lp-cal-row input { flex: 1; min-width: 220px; padding: .5rem .6rem; border: 1px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 6px; font-family: ui-monospace, monospace; font-size: .78rem; background: var(--bg-ffffff, #ffffff); color: var(--fg-334155, #334155); }
+        .lp-post { background: var(--bg-ffffff, #ffffff); border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; padding: 1.1rem 1.25rem; margin-bottom: .75rem; }
+        .lp-post-meta { font-size: .75rem; color: var(--fg-64748b, #64748b); margin-bottom: .35rem; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+        .lp-post-title { font-weight: 700; color: var(--fg-0f172a, #0f172a); margin-bottom: .5rem; font-size: 1.05rem; }
+        .lp-post-body { line-height: 1.65; color: var(--fg-334155, #334155); font-size: .92rem; overflow: hidden; }
         .lp-post-body img { max-width: 100%; height: auto; border-radius: 6px; }
-        .lp-post-body a { color: #2563eb; }
-        .lp-pin { font-size: .68rem; font-weight: 600; color: #92400e; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 999px; padding: .1rem .5rem; }
+        .lp-post-body a { color: var(--fg-2563eb, #2563eb); }
+        .lp-pin { font-size: .68rem; font-weight: 600; color: var(--fg-92400e, #92400e); background: var(--bg-fef3c7, #fef3c7); border: 1px solid var(--bd-fcd34d, #fcd34d); border-radius: 999px; padding: .1rem .5rem; }
     </style>
 </head>
 <body>
@@ -357,7 +357,7 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
         <span>&#128101; <?= $memberCount ?> member<?= $memberCount !== 1 ? 's' : '' ?></span>
         <span><?= $league['approval_mode'] === 'auto' ? '&#9989; Open to join' : '&#128274; Join by approval' ?></span>
         <span>&#128197; <a href="#" id="lp-cal-toggle" role="button" aria-expanded="false" aria-controls="lp-cal"
-                          data-act="lpToggleCal" style="color:#2563eb;text-decoration:none">Subscribe to calendar <span id="lp-cal-caret">&#9662;</span></a></span>
+                          data-act="lpToggleCal" style="color:var(--fg-2563eb, #2563eb);text-decoration:none">Subscribe to calendar <span id="lp-cal-caret">&#9662;</span></a></span>
     </div>
 
     <div class="lp-cal" id="lp-cal" hidden>
@@ -372,7 +372,7 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
         <div class="lp-cal-row">
             <input type="text" id="lp-cal-url" readonly value="<?= htmlspecialchars($icsUrl) ?>" data-select-all-on-focus="1">
             <button class="lp-btn secondary" type="button" data-act="lpCopyCal">Copy link</button>
-            <span class="lp-note" id="lp-cal-copied" style="display:none;color:#16a34a">&#10003; Copied</span>
+            <span class="lp-note" id="lp-cal-copied" style="display:none;color:var(--fg-16a34a, #16a34a)">&#10003; Copied</span>
         </div>
         <div class="lp-note" style="margin-top:.45rem">
             For Google Calendar, paste that link into <em>Other calendars &rarr; From URL</em>.
@@ -429,7 +429,7 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
             <div class="lp-post-title"><?= htmlspecialchars($p['title']) ?></div>
             <div class="lp-post-body"><?= sanitize_html($p['content']) ?></div>
             <div style="margin-top:.6rem">
-                <a href="/post_public.php?token=<?= urlencode($p['share_token']) ?>" style="color:#2563eb;text-decoration:none;font-size:.85rem;font-weight:600">Comments &rarr;</a>
+                <a href="/post_public.php?token=<?= urlencode($p['share_token']) ?>" style="color:var(--fg-2563eb, #2563eb);text-decoration:none;font-size:.85rem;font-weight:600">Comments &rarr;</a>
             </div>
         </div>
         <?php endforeach; ?>

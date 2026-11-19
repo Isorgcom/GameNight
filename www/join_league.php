@@ -59,7 +59,7 @@ if (league_role($league_id, $uid) !== null) {
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !csrf_verify()) {
     $auto = $league['approval_mode'] === 'auto';
     $body = '<p>You have been invited to join <strong>' . htmlspecialchars($league['name']) . '</strong>.</p>'
-          . '<p style="color:#64748b;font-size:.9rem">'
+          . '<p style="color:var(--fg-64748b, #64748b);font-size:.9rem">'
           . ($auto ? 'Joining adds you to the league straight away.'
                    : 'Your request will be sent to the league owner for approval.')
           . ' The owner will be able to see your account\'s email address and phone number.</p>'
@@ -149,9 +149,9 @@ function render_page(string $site, string $title, string $body_html, string $act
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .jl-wrap { max-width: 520px; margin: 3rem auto; padding: 0 1rem; }
-        .jl-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 1.75rem; text-align: center; }
+        .jl-card { background: var(--bg-ffffff, #ffffff); border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; padding: 1.75rem; text-align: center; }
         .jl-card h1 { margin: 0 0 .75rem; font-size: 1.3rem; }
-        .jl-card p  { color: #475569; margin: 0 0 1rem; }
+        .jl-card p  { color: var(--fg-475569, #475569); margin: 0 0 1rem; }
         .jl-btn { background: #2563eb; color: #fff; padding: .55rem 1.2rem; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block; }
     </style>
 </head>

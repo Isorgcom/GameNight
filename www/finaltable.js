@@ -90,7 +90,7 @@
             parts.push('Called off' + (g.reason ? ': ' + esc(g.reason) : ''));
         }
         var s = parts.join(' &middot; ');
-        if (err) s += '<div class="ft-note" style="color:#b45309">' + esc(err) + '</div>';
+        if (err) s += '<div class="ft-note" style="color:var(--fg-b45309, #b45309)">' + esc(err) + '</div>';
         return s;
     }
 

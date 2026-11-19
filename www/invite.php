@@ -143,29 +143,29 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
     endif; ?>
     <link rel="stylesheet" href="/style.css?v=<?= $h(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
-        body { background: var(--bg, #f8fafc); }
+        body { background: var(--bg, var(--bg-f8fafc, #f8fafc)); }
         .iv-wrap { min-height:100vh;min-height:100dvh; display: flex; align-items: center; justify-content: center; padding: 1.5rem 1rem; box-sizing: border-box; }
-        .iv-card { background: #fff; border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,.12); padding: 1.75rem 1.5rem 1.5rem; width: 100%; max-width: 440px; box-sizing: border-box; }
-        .iv-site { text-align: center; font-size: .85rem; color: #64748b; margin-bottom: 1rem; }
+        .iv-card { background: var(--bg-ffffff, #ffffff); border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,.12); padding: 1.75rem 1.5rem 1.5rem; width: 100%; max-width: 440px; box-sizing: border-box; }
+        .iv-site { text-align: center; font-size: .85rem; color: var(--fg-64748b, #64748b); margin-bottom: 1rem; }
         .iv-site img { max-height: 48px; }
-        .iv-kicker { font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #2563eb; margin: 0 0 .3rem; }
-        .iv-title { font-size: 1.35rem; font-weight: 800; color: #0f172a; margin: 0 0 .6rem; line-height: 1.25; overflow-wrap: anywhere; }
-        .iv-meta { list-style: none; margin: 0 0 1rem; padding: 0; font-size: .92rem; color: #334155; }
+        .iv-kicker { font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-2563eb, #2563eb); margin: 0 0 .3rem; }
+        .iv-title { font-size: 1.35rem; font-weight: 800; color: var(--fg-0f172a, #0f172a); margin: 0 0 .6rem; line-height: 1.25; overflow-wrap: anywhere; }
+        .iv-meta { list-style: none; margin: 0 0 1rem; padding: 0; font-size: .92rem; color: var(--fg-334155, #334155); }
         .iv-meta li { padding: .18rem 0; }
-        .iv-desc { font-size: .9rem; color: #475569; line-height: 1.55; margin: 0 0 1rem; overflow-wrap: anywhere; }
+        .iv-desc { font-size: .9rem; color: var(--fg-475569, #475569); line-height: 1.55; margin: 0 0 1rem; overflow-wrap: anywhere; }
         .iv-seats { font-size: .88rem; font-weight: 600; border-radius: 8px; padding: .5rem .75rem; margin-bottom: 1.1rem; }
-        .iv-seats.open { background: #f0fdf4; color: #166534; }
-        .iv-seats.full { background: #fffbeb; color: #92400e; border: 1px solid #f59e0b; }
-        .iv-note { font-size: .82rem; color: #64748b; margin: 0 0 .8rem; }
-        .iv-ok { background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 1rem 1.1rem; color: #166534; line-height: 1.5; margin-bottom: 1rem; }
-        .iv-wait { background: #fffbeb; border: 1.5px solid #f59e0b; border-radius: 8px; padding: 1rem 1.1rem; color: #92400e; line-height: 1.5; margin-bottom: 1rem; }
-        .iv-err { background: #fef2f2; border: 1.5px solid #fca5a5; border-radius: 8px; padding: .75rem 1rem; color: #991b1b; font-size: .88rem; margin-bottom: 1rem; }
-        .iv-gone { text-align: center; color: #475569; padding: 1rem 0 .25rem; }
-        .iv-gone h1 { font-size: 1.2rem; color: #0f172a; margin: 0 0 .5rem; }
+        .iv-seats.open { background: var(--bg-f0fdf4, #f0fdf4); color: var(--fg-166534, #166534); }
+        .iv-seats.full { background: var(--bg-fffbeb, #fffbeb); color: var(--fg-92400e, #92400e); border: 1px solid #f59e0b; }
+        .iv-note { font-size: .82rem; color: var(--fg-64748b, #64748b); margin: 0 0 .8rem; }
+        .iv-ok { background: var(--bg-f0fdf4, #f0fdf4); border: 1.5px solid var(--bd-86efac, #86efac); border-radius: 8px; padding: 1rem 1.1rem; color: var(--fg-166534, #166534); line-height: 1.5; margin-bottom: 1rem; }
+        .iv-wait { background: var(--bg-fffbeb, #fffbeb); border: 1.5px solid #f59e0b; border-radius: 8px; padding: 1rem 1.1rem; color: var(--fg-92400e, #92400e); line-height: 1.5; margin-bottom: 1rem; }
+        .iv-err { background: var(--bg-fef2f2, #fef2f2); border: 1.5px solid var(--bd-fca5a5, #fca5a5); border-radius: 8px; padding: .75rem 1rem; color: var(--fg-991b1b, #991b1b); font-size: .88rem; margin-bottom: 1rem; }
+        .iv-gone { text-align: center; color: var(--fg-475569, #475569); padding: 1rem 0 .25rem; }
+        .iv-gone h1 { font-size: 1.2rem; color: var(--fg-0f172a, #0f172a); margin: 0 0 .5rem; }
         .iv-btn { width: 100%; padding: .75rem; font-size: 1rem; margin-top: .4rem; }
-        .iv-alt { text-align: center; font-size: .85rem; color: #64748b; margin: 1rem 0 0; }
+        .iv-alt { text-align: center; font-size: .85rem; color: var(--fg-64748b, #64748b); margin: 1rem 0 0; }
         .sr-only { position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0; }
-        .iv-verify { margin-top: 1rem; padding: 1rem; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; font-size: .88rem; color: #334155; line-height: 1.5; }
+        .iv-verify { margin-top: 1rem; padding: 1rem; background: var(--bg-f8fafc, #f8fafc); border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; font-size: .88rem; color: var(--fg-334155, #334155); line-height: 1.5; }
     </style>
 </head>
 <body>
@@ -216,7 +216,7 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
                     <input type="hidden" name="csrf_token" value="<?= $h($csrf) ?>">
                     <label for="iv_code" class="sr-only">Code</label>
                     <input type="text" id="iv_code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\d{6}" required placeholder="123456"
-                           style="flex:1;min-width:130px;padding:.55rem .75rem;border:1.5px solid #cbd5e1;border-radius:6px;font-size:1.1rem;letter-spacing:.3em;text-align:center">
+                           style="flex:1;min-width:130px;padding:.55rem .75rem;border:1.5px solid var(--bd-cbd5e1, #cbd5e1);border-radius:6px;font-size:1.1rem;letter-spacing:.3em;text-align:center">
                     <button type="submit" class="btn btn-primary">Verify</button>
                 </form>
             </div>

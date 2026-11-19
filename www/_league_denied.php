@@ -21,16 +21,16 @@ $reason = $denyReason ?? 'hidden_non_member';
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .deny-wrap { max-width: 640px; margin: 2.5rem auto; padding: 0 1rem; }
-        .deny-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 2rem 1.75rem; text-align: center; }
+        .deny-card { background: var(--bg-ffffff, #ffffff); border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 12px; padding: 2rem 1.75rem; text-align: center; }
         .deny-icon { font-size: 2.5rem; margin-bottom: .5rem; }
-        .deny-card h1 { font-size: 1.4rem; font-weight: 700; margin: 0 0 .75rem; color: #0f172a; }
-        .deny-card p { color: #475569; line-height: 1.6; margin: 0 0 1rem; }
+        .deny-card h1 { font-size: 1.4rem; font-weight: 700; margin: 0 0 .75rem; color: var(--fg-0f172a, #0f172a); }
+        .deny-card p { color: var(--fg-475569, #475569); line-height: 1.6; margin: 0 0 1rem; }
         .deny-actions { display: flex; gap: .6rem; justify-content: center; flex-wrap: wrap; margin-top: 1.25rem; }
         .deny-btn { display: inline-block; padding: .55rem 1.25rem; border-radius: 8px; font-weight: 600; font-size: .9rem; text-decoration: none; }
         .deny-btn-primary { background: #2563eb; color: #fff; }
         .deny-btn-primary:hover { background: #1d4ed8; }
-        .deny-btn-ghost { background: #fff; color: #475569; border: 1.5px solid #cbd5e1; }
-        .deny-btn-ghost:hover { background: #f8fafc; }
+        .deny-btn-ghost { background: var(--bg-ffffff, #ffffff); color: var(--fg-475569, #475569); border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); }
+        .deny-btn-ghost:hover { background: var(--bg-f8fafc, #f8fafc); }
     </style>
 </head>
 <body>
@@ -47,7 +47,7 @@ $reason = $denyReason ?? 'hidden_non_member';
             list and can't be joined directly &mdash; you need an invite from one of the
             league's owners or managers.
         </p>
-        <p style="font-size:.875rem;color:#64748b">
+        <p style="font-size:.875rem;color:var(--fg-64748b, #64748b)">
             If you think you should have access, ask the league owner to add you, or
             check that you're signed in with the right account.
         </p>

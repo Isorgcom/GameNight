@@ -10,15 +10,15 @@ body.tbe-body .es-wrap { flex: 0 0 auto; width: 100%; box-sizing: border-box; pa
 
 /* ── Header strip ── */
 .es-head { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; margin-bottom: .9rem; }
-.es-back { font-size: 1.15rem; text-decoration: none; color: #475569; padding: .25rem .55rem; border: 1.5px solid #cbd5e1; border-radius: 8px; background: #fff; }
-.es-back:hover { background: #f8fafc; }
-.es-title { font-size: 1.2rem; font-weight: 800; color: #0f172a; margin: 0; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.es-back { font-size: 1.15rem; text-decoration: none; color: var(--fg-475569, #475569); padding: .25rem .55rem; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 8px; background: var(--bg-ffffff, #ffffff); }
+.es-back:hover { background: var(--bg-f8fafc, #f8fafc); }
+.es-title { font-size: 1.2rem; font-weight: 800; color: var(--fg-0f172a, #0f172a); margin: 0; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .es-head .pk-seg button { font-size: .82rem; padding: .42rem .95rem; }
 
 /* ── Cards ── */
-.es-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: .9rem; margin-bottom: 1rem; }
-.es-card-title { font-weight: 700; font-size: .9rem; color: #0f172a; margin: 0 0 .6rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
-.es-note { font-size: .74rem; color: #64748b; line-height: 1.4; }
+.es-card { background: var(--bg-ffffff, #ffffff); border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; padding: .9rem; margin-bottom: 1rem; }
+.es-card-title { font-weight: 700; font-size: .9rem; color: var(--fg-0f172a, #0f172a); margin: 0 0 .6rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.es-note { font-size: .74rem; color: var(--fg-64748b, #64748b); line-height: 1.4; }
 
 /* ── Blind editor layout: status + controls rail, rounds table right ── */
 .es-blinds-flex { display: flex; gap: 1rem; align-items: flex-start; }
@@ -62,14 +62,14 @@ body.tbe-body .es-wrap { flex: 0 0 auto; width: 100%; box-sizing: border-box; pa
 }
 
 .es-status { display: grid; grid-template-columns: auto auto; gap: .3rem .8rem; font-size: .82rem; }
-.es-status-k { color: #64748b; font-weight: 600; }
-.es-status-v { text-align: right; font-weight: 700; color: #0f172a; font-variant-numeric: tabular-nums; }
+.es-status-k { color: var(--fg-64748b, #64748b); font-weight: 600; }
+.es-status-v { text-align: right; font-weight: 700; color: var(--fg-0f172a, #0f172a); font-variant-numeric: tabular-nums; }
 
 .es-ctrls { display: flex; flex-direction: column; gap: .45rem; }
-.es-ctrls .es-divider { border-top: 1.5px solid #e2e8f0; margin: .3rem 0; }
-.es-ctrls select { width: 100%; padding: .38rem .45rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: .8rem; background: #fff; box-sizing: border-box; }
+.es-ctrls .es-divider { border-top: 1.5px solid var(--bd-e2e8f0, #e2e8f0); margin: .3rem 0; }
+.es-ctrls select { width: 100%; padding: .38rem .45rem; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 6px; font-size: .8rem; background: var(--bg-ffffff, #ffffff); box-sizing: border-box; }
 .es-saverow { min-height: 1.1rem; }
-.es-toggle { display: flex; align-items: center; gap: .45rem; font-size: .84rem; font-weight: 600; color: #334155; cursor: pointer; }
+.es-toggle { display: flex; align-items: center; gap: .45rem; font-size: .84rem; font-weight: 600; color: var(--fg-334155, #334155); cursor: pointer; }
 .es-toggle input { width: 17px; height: 17px; }
 
 /* ── Rounds table ── */
@@ -82,24 +82,24 @@ body.tbe-body .es-wrap { flex: 0 0 auto; width: 100%; box-sizing: border-box; pa
 .es-table th:nth-child(4) { width: 16%; }
 .es-table th:nth-child(5) { width: 16%; }
 .es-table th:nth-child(6) { width: 24%; }
-.es-table th { text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #64748b; padding: .38rem .55rem; border-bottom: 1.5px solid #e2e8f0; }
+.es-table th { text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-64748b, #64748b); padding: .38rem .55rem; border-bottom: 1.5px solid var(--bd-e2e8f0, #e2e8f0); }
 /* Fixed row height: a row must not change size when it flips between read
    and edit mode, or the table below it jumps as inputs appear. */
-.es-table td { height: 2.5rem; padding: .1rem .55rem; border-bottom: 1px solid #f1f5f9; box-sizing: border-box; }
+.es-table td { height: 2.5rem; padding: .1rem .55rem; border-bottom: 1px solid var(--bd-f1f5f9, #f1f5f9); box-sizing: border-box; }
 .es-table tbody tr:not(.es-row-edit) { cursor: pointer; }
-.es-table tbody tr:not(.es-row-edit):hover td { background: #f8fafc; }
-.es-table input[type=number] { width: 100%; max-width: 7em; box-sizing: border-box; padding: .3rem .45rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: .85rem; }
+.es-table tbody tr:not(.es-row-edit):hover td { background: var(--bg-f8fafc, #f8fafc); }
+.es-table input[type=number] { width: 100%; max-width: 7em; box-sizing: border-box; padding: .3rem .45rem; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 6px; font-size: .85rem; }
 .es-table input[type=checkbox] { width: 17px; height: 17px; vertical-align: middle; }
 th.es-th-num, .es-cell-num { text-align: right; font-variant-numeric: tabular-nums; }
 /* Edit-mode inputs sit where the read-mode number sat: pinned right. */
 .es-cell-num input[type=number] { margin-left: auto; display: block; text-align: right; }
-.es-round-label { font-weight: 700; color: #0f172a; white-space: nowrap; }
-.es-start { color: #64748b; }
-.es-row-break td { background: #fffbeb; }
-.es-row-break .es-round-label { color: #92400e; }
+.es-round-label { font-weight: 700; color: var(--fg-0f172a, #0f172a); white-space: nowrap; }
+.es-start { color: var(--fg-64748b, #64748b); }
+.es-row-break td { background: var(--bg-fffbeb, #fffbeb); }
+.es-row-break .es-round-label { color: var(--fg-92400e, #92400e); }
 .es-row-current td { box-shadow: inset 3px 0 0 #2563eb; }
-.es-cur-arrow { margin-right: .35rem; color: #2563eb; }
-.es-row-edit td { background: #eff6ff; }
+.es-cur-arrow { margin-right: .35rem; color: var(--fg-2563eb, #2563eb); }
+.es-row-edit td { background: var(--bg-eff6ff, #eff6ff); }
 .es-rowact { display: flex; gap: .3rem; justify-content: flex-end; align-items: center; white-space: nowrap; }
 
 /* ── Spreadsheet grid (.es-grid) ──
@@ -125,13 +125,13 @@ th.es-th-num, .es-cell-num { text-align: right; font-variant-numeric: tabular-nu
 .es-grid td:nth-child(2) input { text-align: right; max-width: 4.5em; }
 .es-grid tbody tr { cursor: default; }
 .es-grid tbody tr:hover td { background: none; }
-.es-grid tbody tr.es-row-break:hover td { background: #fffbeb; }
+.es-grid tbody tr.es-row-break:hover td { background: var(--bg-fffbeb, #fffbeb); }
 /* Inputs size to the number, not to the column. A full-bleed box left every
    cell looking mostly empty AND forced the table to a 660px floor, which is
    what pushed Start Time off the edge on a tablet. */
 .es-grid input[type=number] { max-width: 6em; margin-left: auto; display: block; background: transparent; border-color: transparent; padding: .34rem .4rem; }
-.es-grid input[type=number]:hover:not(:disabled) { border-color: #e2e8f0; background: #fff; }
-.es-grid input[type=number]:focus { border-color: #2563eb; background: #fff; box-shadow: 0 0 0 2px rgba(37, 99, 235, .16); }
+.es-grid input[type=number]:hover:not(:disabled) { border-color: var(--bd-e2e8f0, #e2e8f0); background: var(--bg-ffffff, #ffffff); }
+.es-grid input[type=number]:focus { border-color: #2563eb; background: var(--bg-ffffff, #ffffff); box-shadow: 0 0 0 2px rgba(37, 99, 235, .16); }
 .es-grid input[type=number]:disabled { background: transparent; }
 /* Steppers would double the visual noise across five columns; arrow keys and
    Alt+arrow row moves cover the same ground. */
@@ -149,10 +149,10 @@ th.es-th-num, .es-cell-num { text-align: right; font-variant-numeric: tabular-nu
 .es-grid .es-lbl { overflow: hidden; text-overflow: ellipsis; }
 .es-drag { color: #cbd5e1; cursor: grab; font-size: .95rem; line-height: 1; letter-spacing: -.05em; padding: .15rem .1rem; }
 .es-drag:active { cursor: grabbing; }
-.es-grid tbody tr:hover .es-drag { color: #64748b; }
+.es-grid tbody tr:hover .es-drag { color: var(--fg-64748b, #64748b); }
 
-.es-row-sel td { background: #eff6ff; }
-.es-row-sel.es-row-break td { background: #fef3c7; }
+.es-row-sel td { background: var(--bg-eff6ff, #eff6ff); }
+.es-row-sel.es-row-break td { background: var(--bg-fef3c7, #fef3c7); }
 .es-row-sel .es-round-label { box-shadow: inset 3px 0 0 #2563eb; }
 .es-dragging td { opacity: .45; }
 /* Drop marker rides the cell border so it lands between two rows. */
@@ -162,44 +162,44 @@ th.es-th-num, .es-cell-num { text-align: right; font-variant-numeric: tabular-nu
 /* Empty grid: the row menu needs a row, so the way back in lives here. */
 .es-empty-row td { height: auto; border-bottom: none; }
 .es-empty { display: flex; flex-direction: column; align-items: center; gap: .6rem; padding: 1.6rem .8rem; text-align: center; }
-.es-empty-msg { font-size: .9rem; font-weight: 600; color: #64748b; }
+.es-empty-msg { font-size: .9rem; font-weight: 600; color: var(--fg-64748b, #64748b); }
 .es-empty-acts { display: flex; gap: .4rem; flex-wrap: wrap; justify-content: center; }
 
 /* ── Row context menu (body-level: the grid scrolls horizontally) ── */
-.es-menu { display: none; position: fixed; z-index: 4000; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 9px; box-shadow: 0 10px 28px rgba(15, 23, 42, .18); padding: .3rem; min-width: 200px; }
-.es-menu-item { display: block; width: 100%; text-align: left; padding: .4rem .6rem; border: 0; background: none; font-size: .82rem; color: #334155; border-radius: 6px; cursor: pointer; }
-.es-menu-item:hover { background: #f1f5f9; }
-.es-menu-danger { color: #b91c1c; }
-.es-menu-danger:hover { background: #fef2f2; }
-.es-menu-sep { border-top: 1px solid #e2e8f0; margin: .25rem .3rem; }
+.es-menu { display: none; position: fixed; z-index: 4000; background: var(--bg-ffffff, #ffffff); border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 9px; box-shadow: 0 10px 28px rgba(15, 23, 42, .18); padding: .3rem; min-width: 200px; }
+.es-menu-item { display: block; width: 100%; text-align: left; padding: .4rem .6rem; border: 0; background: none; font-size: .82rem; color: var(--fg-334155, #334155); border-radius: 6px; cursor: pointer; }
+.es-menu-item:hover { background: var(--bg-f1f5f9, #f1f5f9); }
+.es-menu-danger { color: var(--fg-b91c1c, #b91c1c); }
+.es-menu-danger:hover { background: var(--bg-fef2f2, #fef2f2); }
+.es-menu-sep { border-top: 1px solid var(--bd-e2e8f0, #e2e8f0); margin: .25rem .3rem; }
 
 /* ── Buttons (match .tbe-btn / .tbe-mini feel without importing that sheet) ── */
-.es-btn { padding: .48rem .85rem; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #fff; color: #334155; font-size: .84rem; font-weight: 600; cursor: pointer; }
-.es-btn:hover { background: #f8fafc; }
+.es-btn { padding: .48rem .85rem; border-radius: 8px; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); background: var(--bg-ffffff, #ffffff); color: var(--fg-334155, #334155); font-size: .84rem; font-weight: 600; cursor: pointer; }
+.es-btn:hover { background: var(--bg-f8fafc, #f8fafc); }
 .es-btn-primary { background: #2563eb; border-color: #2563eb; color: #fff; }
 .es-btn-primary:hover { background: #1d4ed8; }
-.es-mini { padding: .3rem .55rem; border-radius: 6px; border: 1.5px solid #cbd5e1; background: #fff; font-size: .76rem; cursor: pointer; color: #334155; min-height: 32px; }
-.es-mini:hover { background: #f1f5f9; }
-.es-mini:disabled { opacity: .4; cursor: default; background: #fff; }
-.es-mini-danger { color: #b91c1c; border-color: #fecaca; }
+.es-mini { padding: .3rem .55rem; border-radius: 6px; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); background: var(--bg-ffffff, #ffffff); font-size: .76rem; cursor: pointer; color: var(--fg-334155, #334155); min-height: 32px; }
+.es-mini:hover { background: var(--bg-f1f5f9, #f1f5f9); }
+.es-mini:disabled { opacity: .4; cursor: default; background: var(--bg-ffffff, #ffffff); }
+.es-mini-danger { color: var(--fg-b91c1c, #b91c1c); border-color: var(--bd-fecaca, #fecaca); }
 .es-undorow { display: flex; gap: .4rem; }
 .es-undorow .es-mini { flex: 1 1 0; }
 
 .es-addbar { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .6rem; }
 .es-savebar { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-top: .9rem; }
-.es-dirty { color: #f59e0b; font-size: 1.1rem; display: none; }
-.es-saved { color: #16a34a; font-size: .82rem; display: none; }
+.es-dirty { color: var(--fg-f59e0b, #f59e0b); font-size: 1.1rem; display: none; }
+.es-saved { color: var(--fg-16a34a, #16a34a); font-size: .82rem; display: none; }
 
 /* ── Generator ── */
-.es-gen { display: none; border-top: 1.5px solid #e2e8f0; margin-top: .7rem; padding-top: .7rem; }
+.es-gen { display: none; border-top: 1.5px solid var(--bd-e2e8f0, #e2e8f0); margin-top: .7rem; padding-top: .7rem; }
 .es-gen.open { display: block; }
 .es-gen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .55rem; margin-bottom: .6rem; }
-.es-gen-grid label { display: flex; flex-direction: column; gap: .22rem; font-size: .74rem; font-weight: 600; color: #475569; }
-.es-gen-grid input { padding: .35rem .45rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: .84rem; }
+.es-gen-grid label { display: flex; flex-direction: column; gap: .22rem; font-size: .74rem; font-weight: 600; color: var(--fg-475569, #475569); }
+.es-gen-grid input { padding: .35rem .45rem; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 6px; font-size: .84rem; }
 
 /* ── Timer Display page: binding bar above the editor ── */
 .es-displaybar { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
-.es-displaybar select { flex: 0 1 320px; min-width: 170px; padding: .4rem .5rem; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: .85rem; background: #fff; }
+.es-displaybar select { flex: 0 1 320px; min-width: 170px; padding: .4rem .5rem; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 7px; font-size: .85rem; background: var(--bg-ffffff, #ffffff); }
 
 @media (pointer: coarse) {
     .es-mini, .es-btn { min-height: 44px; }
@@ -207,7 +207,7 @@ th.es-th-num, .es-cell-num { text-align: right; font-variant-numeric: tabular-nu
     /* Row height must still cover the bigger touch inputs in edit mode. */
     .es-table td { height: 3rem; }
     .es-table .es-rowact .es-mini { min-height: 34px; }
-    .es-grid input[type=number] { border-color: #e2e8f0; background: #fff; }
+    .es-grid input[type=number] { border-color: var(--bd-e2e8f0, #e2e8f0); background: var(--bg-ffffff, #ffffff); }
     /* Kill iOS's long-press callout over a cell so the row menu is what comes
        up, matching a desktop right-click. Selection itself is suppressed in JS
        for the length of the press only — see buildRow(). */

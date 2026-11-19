@@ -101,12 +101,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         // ask too (the select always posts a value), which is
                         // fine: the setting has been seen.
                         $beta_timer = (int)($_POST['beta_timer'] ?? 0) === 1 ? 1 : 0;
+                        $theme_in   = $_POST['theme'] ?? '';
+                        $theme      = in_array($theme_in, ['light', 'dark'], true) ? $theme_in : null;   // null = follow the device
                         // The email is NOT written here: a new address takes effect only
                         // when the confirmation link sent to it is used (verify_email.php),
                         // so an account can never be pointed at an address its holder
                         // does not control. A changed phone starts out unverified.
-                        $db->prepare('UPDATE users SET username = ?, phone = ?, preferred_contact = ?, my_events_past_days = ?, timezone = ?, beta_timer = ?, phone_verified = CASE WHEN ? THEN 0 ELSE phone_verified END WHERE id = ?')
-                           ->execute([$username, $phone ?: null, $pref_contact, $past_days, $timezone !== '' ? $timezone : null, $beta_timer, $phoneChanged ? 1 : 0, $current['id']]);
+                        $db->prepare('UPDATE users SET username = ?, phone = ?, preferred_contact = ?, my_events_past_days = ?, timezone = ?, beta_timer = ?, theme = ?, phone_verified = CASE WHEN ? THEN 0 ELSE phone_verified END WHERE id = ?')
+                           ->execute([$username, $phone ?: null, $pref_contact, $past_days, $timezone !== '' ? $timezone : null, $beta_timer, $theme, $phoneChanged ? 1 : 0, $current['id']]);
                         // The roster name on this account's own invite rows follows a
                         // rename: identity is the id, this is what hosts see.
                         if ($usernameChanged) {
@@ -362,7 +364,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Reload fresh user data after possible username change
-$me = $db->prepare('SELECT username, email, pending_email, phone, preferred_contact, my_events_past_days, my_events_future_days, phone_verified, role, created_at, last_login, timezone, mfa_enabled, mfa_method, notify_prefs, beta_timer FROM users WHERE id = ?');
+$me = $db->prepare('SELECT username, email, pending_email, phone, preferred_contact, my_events_past_days, my_events_future_days, phone_verified, role, created_at, last_login, timezone, mfa_enabled, mfa_method, notify_prefs, beta_timer, theme FROM users WHERE id = ?');
 $me->execute([$current['id']]);
 $me = $me->fetch();
 
@@ -489,34 +491,34 @@ $site_name = get_setting('site_name', 'Game Night');
         .st-wrap .form-group { margin-block-end: 1.1rem; }
         .st-wrap .form-group label { margin-block-end: .3rem; }
         .st-select, .st-wrap .form-group input:not([type=checkbox]) { font: inherit; font-size: max(1rem, 1em); min-block-size: 44px; box-sizing: border-box; }
-        .st-select { inline-size: 100%; padding: .5rem .75rem; border: 1.5px solid var(--border); border-radius: 8px; background: #fff; }
+        .st-select { inline-size: 100%; padding: .5rem .75rem; border: 1.5px solid var(--border); border-radius: 8px; background: var(--bg-ffffff, #ffffff); }
         .st-wrap :is(input, select):focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
         .st-wrap .hint { font-size: .8rem; line-height: 1.45; color: var(--muted); margin-top: .3rem; }
         .st-actions { display: flex; justify-content: flex-start; gap: .6rem; flex-wrap: wrap; margin-top: .75rem; }
         .st-actions .btn { min-inline-size: 11rem; min-block-size: 44px; }
-        .st-photo { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; padding-bottom: 1.25rem; border-bottom: 1px solid #f1f5f9; }
+        .st-photo { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--bd-f1f5f9, #f1f5f9); }
         .st-fieldset { border: 0; padding: 0; margin: .25rem 0 0; min-inline-size: 0; }
         .st-fieldset legend { font-size: .85rem; font-weight: 600; padding: 0; }
         /* Rows: a label on the left, a control or value on the right. */
         .st-rows { display: flex; flex-direction: column; }
-        .st-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .7rem 0; border-bottom: 1px solid #f1f5f9; min-block-size: 48px; }
+        .st-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .7rem 0; border-bottom: 1px solid var(--bd-f1f5f9, #f1f5f9); min-block-size: 48px; }
         .st-rows > .st-row:last-child { border-bottom: none; }
         .st-row-main { min-inline-size: 0; }
-        .st-row-title { display: block; font-size: .92rem; font-weight: 600; color: #1e293b; overflow-wrap: break-word; }
+        .st-row-title { display: block; font-size: .92rem; font-weight: 600; color: var(--fg-1e293b, #1e293b); overflow-wrap: break-word; }
         a.st-row-title { color: var(--accent); overflow-wrap: anywhere; }
         .st-row-sub { display: block; font-size: .8rem; color: var(--muted); margin-top: .1rem; }
-        .st-row-val { flex: none; font-size: .9rem; color: #334155; text-align: end; }
+        .st-row-val { flex: none; font-size: .9rem; color: var(--fg-334155, #334155); text-align: end; }
         label.st-row { cursor: pointer; }
         /* A checkbox drawn as a switch. It stays a real checkbox: it submits,
            takes Space, and is announced as a switch. */
         .st-switch { appearance: none; -webkit-appearance: none; flex: none; inline-size: 44px; block-size: 26px; margin: 0; border-radius: 13px; background: #94a3b8; position: relative; cursor: pointer; transition: background .15s; accent-color: var(--accent); }
-        .st-switch::after { content: ""; position: absolute; inset-block-start: 3px; inset-inline-start: 3px; inline-size: 20px; block-size: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.3); transition: translate .15s; }
+        .st-switch::after { content: ""; position: absolute; inset-block-start: 3px; inset-inline-start: 3px; inline-size: 20px; block-size: 20px; border-radius: 50%; background: var(--bg-ffffff, #ffffff); box-shadow: 0 1px 2px rgba(15,23,42,.3); transition: translate .15s; }
         .st-switch:checked { background: var(--accent); }
         .st-switch:checked::after { translate: 18px 0; }
         .st-switch:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 3px; }
         .st-switch:disabled { opacity: .55; cursor: default; }
         /* A token: its row, then a disclosure with what it has been doing. */
-        .st-token { border-bottom: 1px solid #f1f5f9; }
+        .st-token { border-bottom: 1px solid var(--bd-f1f5f9, #f1f5f9); }
         .st-token:last-child { border-bottom: none; }
         .st-token > .st-row { border-bottom: none; }
         .st-activity { margin: 0 0 .75rem; }
@@ -526,20 +528,20 @@ $site_name = get_setting('site_name', 'Game Night');
         .st-activity[open] summary::before { rotate: 45deg; }
         .st-activity summary:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; border-radius: 4px; }
         .st-activity-list { list-style: none; margin: .4rem 0 0; padding: 0; border: 1px solid var(--border); border-radius: 8px; max-block-size: 22rem; overflow-y: auto; }
-        .st-activity-list li { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr) auto; gap: .15rem .9rem; align-items: baseline; padding: .5rem .75rem; border-bottom: 1px solid #f1f5f9; font-size: .82rem; }
+        .st-activity-list li { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr) auto; gap: .15rem .9rem; align-items: baseline; padding: .5rem .75rem; border-bottom: 1px solid var(--bd-f1f5f9, #f1f5f9); font-size: .82rem; }
         .st-activity-list li:last-child { border-bottom: none; }
         .st-activity-list time { color: var(--muted); font-variant-numeric: tabular-nums; }
         .st-activity-list code { font-size: .8rem; overflow-wrap: anywhere; }
-        .st-activity-status { color: #166534; font-weight: 600; text-align: end; }
-        .st-activity-status.is-refused { color: #991b1b; }
+        .st-activity-status { color: var(--fg-166534, #166534); font-weight: 600; text-align: end; }
+        .st-activity-status.is-refused { color: var(--fg-991b1b, #991b1b); }
         .st-activity-ip { grid-column: 2 / -1; color: var(--muted); font-size: .76rem; }
         .st-note { font-size: .8rem; color: var(--muted); margin: .75rem 0 0; }
-        .st-token-new { background: #fffbeb; border: 1.5px solid #f59e0b; border-radius: 8px; padding: .85rem 1rem; margin-bottom: 1rem; }
-        .st-token-new code { display: block; overflow-wrap: anywhere; background: #fff; border: 1px solid #fde68a; border-radius: 6px; padding: .5rem .6rem; font-size: .8rem; }
-        .st-danger { border-color: #fca5a5 !important; }
-        .st-danger h2 { color: #dc2626; }
+        .st-token-new { background: var(--bg-fffbeb, #fffbeb); border: 1.5px solid #f59e0b; border-radius: 8px; padding: .85rem 1rem; margin-bottom: 1rem; }
+        .st-token-new code { display: block; overflow-wrap: anywhere; background: var(--bg-ffffff, #ffffff); border: 1px solid var(--bd-fde68a, #fde68a); border-radius: 6px; padding: .5rem .6rem; font-size: .8rem; }
+        .st-danger { border-color: var(--bd-fca5a5, #fca5a5) !important; }
+        .st-danger h2 { color: var(--fg-dc2626, #dc2626); }
         .btn-danger { background: #dc2626; color: #fff; }
-        .btn-danger-outline { background: transparent; border: 1.5px solid #fca5a5; color: #dc2626; }
+        .btn-danger-outline { background: transparent; border: 1.5px solid var(--bd-fca5a5, #fca5a5); color: var(--fg-dc2626, #dc2626); }
 
         /* Layout answers to the width of the settings column, not the window. */
         @container settings (inline-size < 44rem) {
@@ -630,7 +632,7 @@ $site_name = get_setting('site_name', 'Game Night');
             <div class="st-photo">
                 <span id="stAvatarPreview"><?= avatar_html($current['username'], $current['avatar_path'] ?? null, 64) ?></span>
                 <div>
-                    <div style="font-size:.85rem;font-weight:600;color:#475569;margin-bottom:.35rem">Profile photo</div>
+                    <div style="font-size:.85rem;font-weight:600;color:var(--fg-475569, #475569);margin-bottom:.35rem">Profile photo</div>
                     <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
                         <button type="button" class="btn btn-outline" style="font-size:.82rem" data-click-file="stAvatarFile">Upload photo</button>
                         <input type="file" id="stAvatarFile" accept="image/*" style="display:none">
@@ -638,11 +640,11 @@ $site_name = get_setting('site_name', 'Game Night');
                         <form method="post" action="/settings.php" style="margin:0" data-confirm="Remove your profile photo?" data-confirm-ok="Remove" data-confirm-danger="1">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="profile">
                             <input type="hidden" name="action" value="remove_avatar">
-                            <button type="submit" class="btn btn-outline" style="font-size:.82rem;color:#dc2626;border-color:#fecaca">Remove</button>
+                            <button type="submit" class="btn btn-outline" style="font-size:.82rem;color:var(--fg-dc2626, #dc2626);border-color:var(--bd-fecaca, #fecaca)">Remove</button>
                         </form>
                         <?php endif; ?>
                     </div>
-                    <div style="font-size:.75rem;color:#64748b;margin-top:.3rem">JPEG/PNG/GIF/WebP. Big pictures are shrunk to 256&nbsp;px when you upload them. No photo shows your initial in a colored circle.</div>
+                    <div style="font-size:.75rem;color:var(--fg-64748b, #64748b);margin-top:.3rem">JPEG/PNG/GIF/WebP. Big pictures are shrunk to 256&nbsp;px when you upload them. No photo shows your initial in a colored circle.</div>
                 </div>
             </div>
             <form id="stAvatarForm" method="post" action="/settings.php" style="display:none">
@@ -714,13 +716,13 @@ $site_name = get_setting('site_name', 'Game Night');
                            value="<?= htmlspecialchars($me['username']) ?>">
                 </div>
                 <div class="form-group">
-                    <label for="email">Email <span style="color:#64748b;font-size:.8rem;font-weight:400">(used to sign in)</span></label>
+                    <label for="email">Email <span style="color:var(--fg-64748b, #64748b);font-size:.8rem;font-weight:400">(used to sign in)</span></label>
                     <input type="email" id="email" name="email"
                            autocomplete="email" autocorrect="off" autocapitalize="none" spellcheck="false" required
                            value="<?= htmlspecialchars($me['email'] ?? '') ?>">
                     <?php if (!empty($me['pending_email'])): ?>
                     <p class="hint" style="margin-top:.3rem">Pending: <strong><?= htmlspecialchars($me['pending_email']) ?></strong>. A confirmation link was sent there; your email changes when you use it.
-                        <button type="submit" form="emailCancelForm" style="background:none;border:none;color:#2563eb;cursor:pointer;font:inherit;padding:0;text-decoration:underline">Cancel the change</button></p>
+                        <button type="submit" form="emailCancelForm" style="background:none;border:none;color:var(--fg-2563eb, #2563eb);cursor:pointer;font:inherit;padding:0;text-decoration:underline">Cancel the change</button></p>
                     <?php else: ?>
                     <p class="hint" style="margin-top:.3rem">A new address takes effect once you confirm it from a link sent there.</p>
                     <?php endif; ?>
@@ -736,7 +738,7 @@ $site_name = get_setting('site_name', 'Game Night');
                         <input type="tel" id="phone" name="phone" autocomplete="tel"
                                value="<?= htmlspecialchars($me['phone'] ?? '') ?>" style="flex:1;min-width:0">
                         <?php if ($_hasPhone && $_phoneOk): ?>
-                            <span style="white-space:nowrap;color:#16a34a;font-weight:600;font-size:.85rem">&#10003; Verified</span>
+                            <span style="white-space:nowrap;color:var(--fg-16a34a, #16a34a);font-weight:600;font-size:.85rem">&#10003; Verified</span>
                         <?php elseif ($_hasPhone && !$_phonePend): ?>
                             <!-- submits the separate phSendForm via the HTML form= attribute (not the profile form) -->
                             <button type="submit" form="phSendForm" class="btn" style="white-space:nowrap">Verify number</button>
@@ -746,7 +748,7 @@ $site_name = get_setting('site_name', 'Game Night');
                     <div style="display:flex;gap:.5rem;align-items:center;margin-top:.45rem">
                         <input type="text" name="verify_code" form="phVerifyForm" inputmode="numeric" maxlength="6" pattern="\d{6}" required
                                autocomplete="one-time-code" placeholder="000000"
-                               style="flex:1;min-width:0;padding:.45rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;letter-spacing:.2em;text-align:center">
+                               style="flex:1;min-width:0;padding:.45rem .6rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;letter-spacing:.2em;text-align:center">
                         <button type="submit" form="phVerifyForm" class="btn btn-primary" style="white-space:nowrap">Verify</button>
                         <button type="submit" form="phSendForm" class="btn" style="white-space:nowrap">Resend</button>
                     </div>
@@ -754,10 +756,10 @@ $site_name = get_setting('site_name', 'Game Night');
                     <?php elseif ($_hasPhone && !$_phoneOk): ?>
                     <p class="hint" style="margin-top:.3rem">Verify your number to use SMS for two-factor sign-in. If you just changed it, click Save Profile first.</p>
                     <?php endif; ?>
-                    <p style="margin-top:.4rem;font-size:.75rem;line-height:1.4;color:#64748b">By providing your phone number, you consent to receive event-related SMS messages (invites, reminders, RSVP updates). Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe, HELP for help. <a href="/privacy.php" target="_blank">Privacy Policy</a>.</p>
+                    <p style="margin-top:.4rem;font-size:.75rem;line-height:1.4;color:var(--fg-64748b, #64748b)">By providing your phone number, you consent to receive event-related SMS messages (invites, reminders, RSVP updates). Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe, HELP for help. <a href="/privacy.php" target="_blank">Privacy Policy</a>.</p>
                 </div>
                 <div class="form-group">
-                    <label for="profile_current_password">Current password <span style="color:#64748b;font-size:.8rem;font-weight:400">(needed to change your username, email or phone)</span></label>
+                    <label for="profile_current_password">Current password <span style="color:var(--fg-64748b, #64748b);font-size:.8rem;font-weight:400">(needed to change your username, email or phone)</span></label>
                     <input type="password" id="profile_current_password" name="current_password" autocomplete="current-password">
                 </div>
                 </div>
@@ -788,6 +790,15 @@ $site_name = get_setting('site_name', 'Game Night');
             <h2>Preferences</h2>
             <p class="subtitle">How the site looks and behaves for you.</p>
             <div class="st-fields">
+                <div class="form-group">
+                    <label for="theme">Appearance</label>
+                    <select id="theme" name="theme" class="st-select" form="stProfileForm">
+                        <option value="">Match this device</option>
+                        <option value="light"<?= ($me['theme'] ?? '') === 'light' ? ' selected' : '' ?>>Light</option>
+                        <option value="dark"<?= ($me['theme'] ?? '') === 'dark' ? ' selected' : '' ?>>Dark</option>
+                    </select>
+                    <p class="hint">"Match this device" follows your phone or computer's dark mode setting. The timer and TV screens keep their own look.</p>
+                </div>
                 <div class="form-group">
                     <label for="timezone">Timezone</label>
                     <select id="timezone" name="timezone" class="st-select" form="stProfileForm">
@@ -895,13 +906,13 @@ $site_name = get_setting('site_name', 'Game Night');
             <div class="card">
                 <h2>On this device</h2>
                 <p class="subtitle">Get notifications on this device even when the site isn't open. Each device you enable gets its own subscription.</p>
-            <p id="pushStatus" style="font-size:.85rem;color:#64748b;margin-bottom:.8rem">Checking this browser&hellip;</p>
+            <p id="pushStatus" style="font-size:.85rem;color:var(--fg-64748b, #64748b);margin-bottom:.8rem">Checking this browser&hellip;</p>
             <div style="display:flex;gap:.6rem;flex-wrap:wrap">
                 <button type="button" class="btn btn-primary" id="pushEnableBtn" data-act="pushEnable" style="display:none">Enable on this device</button>
                 <button type="button" class="btn btn-outline" id="pushDisableBtn" data-act="pushDisable" style="display:none">Disable on this device</button>
                 <button type="button" class="btn btn-outline" id="pushTestBtn" data-act="pushTest" style="display:none">Send test notification</button>
             </div>
-            <p style="font-size:.75rem;color:#64748b;margin-top:.7rem">iPhone/iPad: add this site to your Home Screen first (Share &rarr; Add to Home Screen), then enable from the installed app.</p>
+            <p style="font-size:.75rem;color:var(--fg-64748b, #64748b);margin-top:.7rem">iPhone/iPad: add this site to your Home Screen first (Share &rarr; Add to Home Screen), then enable from the installed app.</p>
             </div>
 
             <!-- Install as an app: the permanent home for the Add to Home Screen
@@ -979,7 +990,7 @@ $site_name = get_setting('site_name', 'Game Night');
 
             <?php else: ?>
                 <!-- Off: enrollment happens on the dedicated setup page -->
-                <p style="color:#64748b;margin-bottom:1rem">Currently <strong>off</strong>. Protect your account with an authenticator app or texted codes.</p>
+                <p style="color:var(--fg-64748b, #64748b);margin-bottom:1rem">Currently <strong>off</strong>. Protect your account with an authenticator app or texted codes.</p>
                 <div class="st-actions"><a href="/mfa_setup.php" class="btn btn-primary" style="text-align:center;text-decoration:none">Set up two-factor authentication</a></div>
             <?php endif; ?>
             </div>
@@ -991,7 +1002,7 @@ $site_name = get_setting('site_name', 'Game Night');
             <p class="subtitle">Apps you have signed in to with this account, such as Claude. Each can act as you, within what you allowed.</p>
             <?php if (!$connected_apps): ?>
                 <p class="st-note" style="margin-top:0">Nothing is connected. To connect Claude, add this address as a custom connector in Claude (Customize, then Connectors, then Add custom connector) and sign in when it asks:</p>
-                <code style="display:block;overflow-wrap:anywhere;background:#f1f5f9;border-radius:6px;padding:.5rem .6rem;font-size:.8rem;margin-top:.5rem"><?= htmlspecialchars(rtrim(get_site_url(), '/') . '/mcp', ENT_QUOTES | ENT_SUBSTITUTE) ?></code>
+                <code style="display:block;overflow-wrap:anywhere;background:var(--bg-f1f5f9, #f1f5f9);border-radius:6px;padding:.5rem .6rem;font-size:.8rem;margin-top:.5rem"><?= htmlspecialchars(rtrim(get_site_url(), '/') . '/mcp', ENT_QUOTES | ENT_SUBSTITUTE) ?></code>
             <?php else: ?>
                 <div class="st-rows">
                 <?php foreach ($connected_apps as $t): $_acts = $token_activity[(int)$t['id']] ?? []; ?>
@@ -1041,7 +1052,7 @@ $site_name = get_setting('site_name', 'Game Night');
 
             <?php if ($new_api_token): ?>
                 <div class="st-token-new">
-                    <p style="margin:0 0 .5rem;color:#92400e;font-weight:600">Copy this token now. It will not be shown again.</p>
+                    <p style="margin:0 0 .5rem;color:var(--fg-92400e, #92400e);font-weight:600">Copy this token now. It will not be shown again.</p>
                     <code id="stNewToken"><?= htmlspecialchars($new_api_token['token'], ENT_QUOTES | ENT_SUBSTITUTE) ?></code>
                     <button type="button" class="btn btn-outline" data-act="stCopyToken" style="margin-top:.6rem">Copy</button>
                 </div>
@@ -1124,9 +1135,9 @@ $site_name = get_setting('site_name', 'Game Night');
                 <summary>Use it with Claude</summary>
                 <div style="margin-top:.5rem;font-size:.88rem;line-height:1.55">
                     <p style="margin:0 0 .5rem">Most people do not need a token for Claude: add this site as a connector in Claude and sign in when it asks (see Connected Apps above). A token is for a program that cannot sign in that way. With one, point it at:</p>
-                    <code id="stMcpUrl" style="display:block;overflow-wrap:anywhere;background:#f1f5f9;border-radius:6px;padding:.5rem .6rem;font-size:.8rem"><?= htmlspecialchars(rtrim(get_site_url(), '/') . '/mcp', ENT_QUOTES | ENT_SUBSTITUTE) ?></code>
+                    <code id="stMcpUrl" style="display:block;overflow-wrap:anywhere;background:var(--bg-f1f5f9, #f1f5f9);border-radius:6px;padding:.5rem .6rem;font-size:.8rem"><?= htmlspecialchars(rtrim(get_site_url(), '/') . '/mcp', ENT_QUOTES | ENT_SUBSTITUTE) ?></code>
                     <p style="margin:.75rem 0 .35rem">In Claude Code, with a token in place of <code>TOKEN</code> (leave off <code>--header</code> and everything after it to sign in instead):</p>
-                    <code style="display:block;overflow-wrap:anywhere;background:#f1f5f9;border-radius:6px;padding:.5rem .6rem;font-size:.8rem">claude mcp add --transport http gamenight <?= htmlspecialchars(rtrim(get_site_url(), '/') . '/mcp', ENT_QUOTES | ENT_SUBSTITUTE) ?> --header "Authorization: Bearer TOKEN"</code>
+                    <code style="display:block;overflow-wrap:anywhere;background:var(--bg-f1f5f9, #f1f5f9);border-radius:6px;padding:.5rem .6rem;font-size:.8rem">claude mcp add --transport http gamenight <?= htmlspecialchars(rtrim(get_site_url(), '/') . '/mcp', ENT_QUOTES | ENT_SUBSTITUTE) ?> --header "Authorization: Bearer TOKEN"</code>
                     <p class="st-note">Claude can then do whatever the token allows, and nothing more. Give it only the permissions you want it to have. <a href="https://github.com/Isorgcom/GameNight/blob/main/DOCS.md#connecting-claude-mcp" target="_blank" rel="noopener">More about connecting Claude</a></p>
                 </div>
             </details>
@@ -1171,18 +1182,18 @@ $site_name = get_setting('site_name', 'Game Night');
                 <input type="hidden" name="action" value="delete_account">
                 <div class="st-fields">
                     <div class="form-group">
-                        <label for="confirm_delete">Type <strong style="color:#dc2626">DELETE</strong> to confirm</label>
+                        <label for="confirm_delete">Type <strong style="color:var(--fg-dc2626, #dc2626)">DELETE</strong> to confirm</label>
                         <!-- text-transform only UPPERCASES the display; keep the submitted value in sync
                              (oninput) so typing "delete" doesn't silently submit lowercase and fail. -->
                         <input type="text" id="confirm_delete" name="confirm_delete" required
                                autocomplete="off" autocorrect="off" spellcheck="false"
                                data-uppercase="1"
-                               style="border-color:#fca5a5;text-transform:uppercase">
+                               style="border-color:var(--bd-fca5a5, #fca5a5);text-transform:uppercase">
                     </div>
                     <div class="form-group">
                         <label for="delete_current_password">Your password</label>
                         <input type="password" id="delete_current_password" name="current_password" required
-                               autocomplete="current-password" style="border-color:#fca5a5">
+                               autocomplete="current-password" style="border-color:var(--bd-fca5a5, #fca5a5)">
                     </div>
                 </div>
                 <div class="st-actions"><button type="submit" class="btn btn-danger">Permanently Delete My Account</button></div>

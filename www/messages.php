@@ -69,29 +69,29 @@ $utc_tz    = new DateTimeZone('UTC');
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .dm-wrap { max-width: 680px; margin: 1.25rem auto 2rem; padding: 0 1rem; }
-        .dm-row { display:block; background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; padding:.7rem .9rem; margin-bottom:.5rem; text-decoration:none; color:inherit; }
-        .dm-row:hover { border-color:#93c5fd; }
-        .dm-row.unread { background:#eff6ff; border-color:#bfdbfe; }
+        .dm-row { display:block; background:var(--bg-ffffff, #ffffff); border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:10px; padding:.7rem .9rem; margin-bottom:.5rem; text-decoration:none; color:inherit; }
+        .dm-row:hover { border-color:var(--bd-93c5fd, #93c5fd); }
+        .dm-row.unread { background:var(--bg-eff6ff, #eff6ff); border-color:var(--bd-bfdbfe, #bfdbfe); }
         .dm-top { display:flex; align-items:baseline; gap:.5rem; flex-wrap:wrap; }
-        .dm-name { font-weight:700; color:#1e293b; font-size:.95rem; flex:1; min-width:0; }
-        .dm-group-tag { font-size:.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#7c3aed; background:#f3e8ff; border:1px solid #ddd6fe; border-radius:5px; padding:.06rem .35rem; }
-        .dm-when { font-size:.72rem; color:#64748b; white-space:nowrap; }
+        .dm-name { font-weight:700; color:var(--fg-1e293b, #1e293b); font-size:.95rem; flex:1; min-width:0; }
+        .dm-group-tag { font-size:.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--fg-7c3aed, #7c3aed); background:var(--bg-f3e8ff, #f3e8ff); border:1px solid var(--bd-ddd6fe, #ddd6fe); border-radius:5px; padding:.06rem .35rem; }
+        .dm-when { font-size:.72rem; color:var(--fg-64748b, #64748b); white-space:nowrap; }
         .dm-pill { background:#dc2626; color:#fff; font-size:.65rem; font-weight:700; border-radius:999px; padding:.05rem .4rem; }
-        .dm-snippet { font-size:.82rem; color:#64748b; margin-top:.25rem; overflow:hidden; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; }
+        .dm-snippet { font-size:.82rem; color:var(--fg-64748b, #64748b); margin-top:.25rem; overflow:hidden; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; }
         .dm-new { display:flex; gap:.5rem; margin-bottom:.6rem; flex-wrap:wrap; }
-        .dm-new select { flex:1; min-width:200px; padding:.45rem .6rem; border:1.5px solid #e2e8f0; border-radius:8px; font-size:.9rem; }
-        .dm-group-card { display:none; background:#faf5ff; border:1.5px solid #ddd6fe; border-radius:10px; padding:.75rem 1rem; margin-bottom:1rem; }
+        .dm-new select { flex:1; min-width:200px; padding:.45rem .6rem; border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:8px; font-size:.9rem; }
+        .dm-group-card { display:none; background:var(--bg-faf5ff, #faf5ff); border:1.5px solid var(--bd-ddd6fe, #ddd6fe); border-radius:10px; padding:.75rem 1rem; margin-bottom:1rem; }
         .dm-group-card.open { display:block; }
-        .dm-group-card label { display:block; font-size:.8rem; font-weight:700; color:#5b21b6; margin:.4rem 0 .25rem; }
-        .dm-group-card input[type=text] { width:100%; padding:.45rem .6rem; border:1.5px solid #ddd6fe; border-radius:8px; font-size:.9rem; box-sizing:border-box; }
-        .dm-member-list { max-height:180px; overflow-y:auto; background:#fff; border:1.5px solid #ddd6fe; border-radius:8px; padding:.4rem .6rem; }
-        .dm-member-list label { display:flex; align-items:center; gap:.45rem; font-size:.88rem; font-weight:400; color:#1e293b; margin:.15rem 0; }
+        .dm-group-card label { display:block; font-size:.8rem; font-weight:700; color:var(--fg-5b21b6, #5b21b6); margin:.4rem 0 .25rem; }
+        .dm-group-card input[type=text] { width:100%; padding:.45rem .6rem; border:1.5px solid var(--bd-ddd6fe, #ddd6fe); border-radius:8px; font-size:.9rem; box-sizing:border-box; }
+        .dm-member-list { max-height:180px; overflow-y:auto; background:var(--bg-ffffff, #ffffff); border:1.5px solid var(--bd-ddd6fe, #ddd6fe); border-radius:8px; padding:.4rem .6rem; }
+        .dm-member-list label { display:flex; align-items:center; gap:.45rem; font-size:.88rem; font-weight:400; color:var(--fg-1e293b, #1e293b); margin:.15rem 0; }
     </style>
 </head>
 <body>
 <?php $nav_active = 'messages'; require __DIR__ . '/_nav.php'; ?>
 <div role="main" class="dm-wrap">
-    <h1 style="font-size:1.3rem;font-weight:800;color:#1e293b;margin:0 0 1rem">Messages</h1>
+    <h1 style="font-size:1.3rem;font-weight:800;color:var(--fg-1e293b, #1e293b);margin:0 0 1rem">Messages</h1>
 
     <?php if ($eligible): ?>
     <div class="dm-new">
@@ -106,9 +106,9 @@ $utc_tz    = new DateTimeZone('UTC');
     </div>
 
     <div class="dm-group-card" id="dmGroupCard">
-        <label for="dmGroupName">Group name <span style="font-weight:400;color:#7c3aed">(optional)</span></label>
+        <label for="dmGroupName">Group name <span style="font-weight:400;color:var(--fg-7c3aed, #7c3aed)">(optional)</span></label>
         <input type="text" id="dmGroupName" maxlength="60" placeholder="e.g. Friday Night Crew">
-        <label>Members <span style="font-weight:400;color:#7c3aed">(pick at least two)</span></label>
+        <label>Members <span style="font-weight:400;color:var(--fg-7c3aed, #7c3aed)">(pick at least two)</span></label>
         <div class="dm-member-list">
             <?php foreach ($eligible as $eid => $ename): ?>
             <label><input type="checkbox" class="dm-member-cb" value="<?= (int)$eid ?>"> <?= htmlspecialchars($ename) ?></label>
@@ -121,7 +121,7 @@ $utc_tz    = new DateTimeZone('UTC');
     <?php endif; ?>
 
     <?php if (!$convos): ?>
-    <p style="color:#64748b">No conversations yet<?= $eligible ? ' — pick someone above to start one.' : '.' ?></p>
+    <p style="color:var(--fg-64748b, #64748b)">No conversations yet<?= $eligible ? ' — pick someone above to start one.' : '.' ?></p>
     <?php else: ?>
     <?php foreach ($convos as $c):
         try { $when = $c['last_at'] ? (new DateTime((string)$c['last_at'], $utc_tz))->setTimezone($viewer_tz)->format('M j, g:i A') : ''; }
