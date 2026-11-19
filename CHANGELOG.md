@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.33.2] - 2026-11-19
+
 ### Fixed
 
 - **Grey labels on light-grey backgrounds are easier to read.** Table headings, "No response" and status badges, and the home page's timeline counts used a grey that measured 4.3:1 against their light-grey fill, just under the 4.5:1 needed for readable text. About twenty of them now use a darker slate, and `style.css` has a `--muted-strong` token for grey text on a tinted surface. (`www/style.css`, `www/index.php`, `www/my_events.php`, `www/sms_log.php`, `www/checkin.css` and others)
