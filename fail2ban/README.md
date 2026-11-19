@@ -92,6 +92,37 @@ record.
 | `filter.d/npm-blacklist.conf` | `/etc/fail2ban/filter.d/npm-blacklist.conf` |
 | `jail.d/npm-blacklist.conf` | `/etc/fail2ban/jail.d/npm-blacklist.conf` |
 
+## Starting after Docker
+
+Both jails ban into `DOCKER-USER`, and that chain exists only once Docker is
+running. On 2026-11-19 the host rebooted, fail2ban came up a minute before
+Docker, and every saved ban failed to restore with `Script error`.
+`fail2ban-client status npm-blacklist` still listed all eight bans, but
+`DOCKER-USER` had no jump to the jail's chain and the chain held no DROP rules,
+so the sign-up bot of 2026-11-10 was back within the hour from addresses the
+jail said were banned.
+
+`systemd/after-docker.conf` orders fail2ban after Docker. `server-prep.sh`
+installs it; on a host that already runs fail2ban:
+
+```bash
+install -D -m 0644 fail2ban/systemd/after-docker.conf /etc/systemd/system/fail2ban.service.d/after-docker.conf
+systemctl daemon-reload
+```
+
+| File | Where it goes on the host |
+|---|---|
+| `systemd/after-docker.conf` | `/etc/systemd/system/fail2ban.service.d/after-docker.conf` |
+
+If the bans were already lost, a jail restart puts them back from fail2ban's
+database. Check the chain, not the status line:
+
+```bash
+fail2ban-client reload --restart npm-blacklist
+iptables -S DOCKER-USER        # must show -j f2b-npm-blacklist
+iptables -S f2b-npm-blacklist  # one DROP per ban
+```
+
 ## What it does not cover
 
 - The proxy's fallback host (requests that name no configured host, typically

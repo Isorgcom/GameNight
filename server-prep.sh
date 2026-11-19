@@ -57,6 +57,8 @@ install -m 0644 "$HERE/fail2ban/filter.d/npm-scan.conf" /etc/fail2ban/filter.d/n
 install -m 0644 "$HERE/fail2ban/jail.d/npm-scan.conf"   /etc/fail2ban/jail.d/npm-scan.conf
 install -m 0644 "$HERE/fail2ban/filter.d/npm-blacklist.conf" /etc/fail2ban/filter.d/npm-blacklist.conf
 install -m 0644 "$HERE/fail2ban/jail.d/npm-blacklist.conf"   /etc/fail2ban/jail.d/npm-blacklist.conf
+install -D -m 0644 "$HERE/fail2ban/systemd/after-docker.conf" /etc/systemd/system/fail2ban.service.d/after-docker.conf
+systemctl daemon-reload
 systemctl enable --now fail2ban
 fail2ban-client reload
 echo "fail2ban jails npm-scan and npm-blacklist running (add your own address: see fail2ban/README.md)."

@@ -11,6 +11,10 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Infrastructure
+
+- **Banned addresses stay banned after the server restarts.** fail2ban puts its bans into a firewall chain that Docker creates, and when the server rebooted on 2026-11-19 fail2ban started a minute before Docker. Every saved ban failed to restore, while `fail2ban-client status` went on listing them as banned, and the sign-up bot of 2026-11-10 was posting to the registration form again within the hour from ranges that were supposed to be blocked. A systemd drop-in now starts fail2ban after Docker. `server-prep.sh` installs it on a new host; on an existing one, install `fail2ban/systemd/after-docker.conf` as `/etc/systemd/system/fail2ban.service.d/after-docker.conf` and run `systemctl daemon-reload`. `fail2ban/README.md` explains how to check that the bans are really in the firewall, not just on the jail's list. (`fail2ban/systemd/after-docker.conf`, `fail2ban/README.md`, `server-prep.sh`)
+
 ## [v1.33.0] - 2026-11-19
 
 ### Added
