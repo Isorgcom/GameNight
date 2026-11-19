@@ -122,7 +122,7 @@ function v2_routes(): array {
             fn($a, $p, $q, $b) => gn_event_update($db, $a, $p['id'], $b)],
         ['POST', '/events/{id}/cancel', 'events', 'Host. Call the event off and keep it: every guest is told, and it can still be duplicated.',
             fn($a, $p, $q, $b) => gn_event_cancel($db, $a, $p['id'])],
-        ['DELETE', '/events/{id}', 'events', 'Host. Delete the event for good, with its guest list, messages and game. Body: {"confirm": true}; without it the answer says what would be lost.',
+        ['DELETE', '/events/{id}', 'events', 'Host. Delete the event for good, with its guest list, messages and game. Body: {"confirm": true}, and "notify": false to delete without telling the guests of an upcoming event; without confirm the answer says what would be lost and who would be told.',
             fn($a, $p, $q, $b) => gn_event_delete($db, $a, $p['id'], $b)],
         ['POST', '/events/{id}/duplicate', 'events', 'Host. A new event copied from this one, guest list included, nobody\'s answer carried over. Body: start_at (required), title, end_at.',
             fn($a, $p, $q, $b) => gn_event_duplicate($db, $a, $p['id'], $b)],

@@ -11,6 +11,10 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Added
+
+- **An upcoming event can be deleted without telling anyone.** Until now an upcoming event could only be cancelled, which sends every guest a notice, so a duplicate, a test or a plan that never went out could not simply be made to vanish. The event page's **More** menu now has **Delete without notifying** under Cancel event: the event goes for good with its guest list and comments, nobody is sent a cancellation, and any invitations or reminders still waiting to go out are dropped. Claude can do the same: `delete_event` takes `notify: false`, and its preview says whether guests would be told. In the API it is `"notify": false` in the body of `DELETE /api/v2/events/{id}`. The activity log records it as a silent delete. (`www/_notifications.php`, `www/event.php`, `www/calendar.php`, `www/svc/events.php`, `www/_mcp_tools.php`, `www/api/v2/index.php`)
+
 ## [v1.32.1] - 2026-11-18
 
 ### Added
