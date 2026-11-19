@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.33.1] - 2026-11-19
+
 ### Security
 
 - **Signing out is a button, not a link, and it clears the browser's copy of the session.** Sign out used to be a plain link to `/logout.php`, so any other website could sign a visitor out by loading that address. It is now a small form in the account menu that only works from this site, and opening `/logout.php` directly shows a "Sign out?" page with one button, so an old bookmark still works. On HTTPS the response also tells the browser to drop this site's cached pages and cookies. Push notifications on that device are left alone. (`www/logout.php`, `www/_nav.php`, `www/style.css`)
