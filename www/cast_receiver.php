@@ -19,7 +19,7 @@ require_once __DIR__ . '/auth.php';
 csp_allow_cast_sdk(true);
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light"><?php /* own look; stays light in dark mode (style.css) */ ?>
 <head>
     <meta charset="UTF-8">
     <title>GameNight Timer</title>

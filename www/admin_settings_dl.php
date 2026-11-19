@@ -487,19 +487,19 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
     <title><?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
-        .hint { font-size: .78rem; color: #64748b; margin-top: .35rem; }
+        .hint { font-size: .78rem; color: var(--fg-64748b, #64748b); margin-top: .35rem; }
 
         .tabs {
             display: flex;
             gap: 0;
-            border-bottom: 2px solid #e2e8f0;
+            border-bottom: 2px solid var(--bd-e2e8f0, #e2e8f0);
             margin-bottom: 1.75rem;
         }
         .tab-btn {
             padding: .6rem 1.25rem;
             font-size: .9rem;
             font-weight: 500;
-            color: #64748b;
+            color: var(--fg-64748b, #64748b);
             background: none;
             border: none;
             border-bottom: 2px solid transparent;
@@ -507,8 +507,8 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             cursor: pointer;
             text-decoration: none;
         }
-        .tab-btn:hover { color: #1e293b; }
-        .tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
+        .tab-btn:hover { color: var(--fg-1e293b, #1e293b); }
+        .tab-btn.active { color: var(--fg-2563eb, #2563eb); border-bottom-color: #2563eb; font-weight: 600; }
 
         .tab-panel { display: none; }
         .tab-panel.active { display: block; }
@@ -516,18 +516,18 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         .pagination { display:flex; gap:.4rem; margin-top:1rem; flex-wrap:wrap; }
         .pagination a, .pagination span {
             display:inline-block; padding:.3rem .75rem; border-radius:6px;
-            font-size:.82rem; border:1px solid #e2e8f0;
+            font-size:.82rem; border:1px solid var(--bd-e2e8f0, #e2e8f0);
         }
-        .pagination a { color:#2563eb; }
-        .pagination a:hover { background:#eff6ff; text-decoration:none; }
+        .pagination a { color:var(--fg-2563eb, #2563eb); }
+        .pagination a:hover { background:var(--bg-eff6ff, #eff6ff); text-decoration:none; }
         .pagination .current { background:#2563eb; color:#fff; border-color:#2563eb; }
 
         /* ── Users tab ── */
         #bulkBar {
             display: none; align-items: center; gap: .75rem;
-            background: #eff6ff; border: 1px solid #bfdbfe;
+            background: var(--bg-eff6ff, #eff6ff); border: 1px solid var(--bd-bfdbfe, #bfdbfe);
             border-radius: 8px; padding: .5rem 1rem;
-            font-size: .875rem; color: #1e40af; margin-bottom: 1rem;
+            font-size: .875rem; color: var(--fg-1e40af, #1e40af); margin-bottom: 1rem;
         }
         #bulkBar .bulk-label { font-weight: 600; }
         .cb-col { width: 40px; text-align: center; }
@@ -536,12 +536,12 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         .btn-icon {
             display: inline-flex; align-items: center; justify-content: center;
             width: 32px; height: 32px; border-radius: 7px; font-size: 1rem;
-            border: 1.5px solid #e2e8f0; background: #fff; cursor: pointer;
-            color: #475569; text-decoration: none;
+            border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); background: var(--bg-ffffff, #ffffff); cursor: pointer;
+            color: var(--fg-475569, #475569); text-decoration: none;
         }
-        .btn-icon:hover { background: #f1f5f9; border-color: #cbd5e1; text-decoration: none; color: #1e293b; }
-        .btn-icon.danger { border-color: #fca5a5; color: #ef4444; }
-        .btn-icon.danger:hover { background: #fee2e2; border-color: #f87171; }
+        .btn-icon:hover { background: var(--bg-f1f5f9, #f1f5f9); border-color: var(--bd-cbd5e1, #cbd5e1); text-decoration: none; color: var(--fg-1e293b, #1e293b); }
+        .btn-icon.danger { border-color: var(--bd-fca5a5, #fca5a5); color: var(--fg-ef4444, #ef4444); }
+        .btn-icon.danger:hover { background: var(--bg-fee2e2, #fee2e2); border-color: #f87171; }
         .modal-overlay {
             display: none; position: fixed; inset: 0;
             background: rgba(0,0,0,.45); z-index: 200;
@@ -549,7 +549,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         }
         .modal-overlay.open { display: flex; }
         .modal {
-            background: #fff; border-radius: 12px;
+            background: var(--bg-ffffff, #ffffff); border-radius: 12px;
             box-shadow: 0 20px 60px rgba(0,0,0,.25);
             width: 100%; max-width: 440px; padding: 2rem;
             animation: modalIn .18s ease;
@@ -562,15 +562,15 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         .modal-header h2 { font-size: 1.25rem; }
         .modal-close {
             width: 32px; height: 32px; border-radius: 7px; border: none;
-            background: #f1f5f9; cursor: pointer; font-size: 1.1rem;
-            color: #475569; display: flex; align-items: center; justify-content: center;
+            background: var(--bg-f1f5f9, #f1f5f9); cursor: pointer; font-size: 1.1rem;
+            color: var(--fg-475569, #475569); display: flex; align-items: center; justify-content: center;
         }
-        .modal-close:hover { background: #e2e8f0; }
+        .modal-close:hover { background: var(--bg-e2e8f0, #e2e8f0); }
         .modal select {
-            width: 100%; padding: .6rem .85rem; border: 1.5px solid #e2e8f0;
-            border-radius: 7px; font-size: .95rem; background: #f8fafc;
+            width: 100%; padding: .6rem .85rem; border: 1.5px solid var(--bd-e2e8f0, #e2e8f0);
+            border-radius: 7px; font-size: .95rem; background: var(--bg-f8fafc, #f8fafc);
         }
-        .modal select:focus { border-color: #2563eb; background: #fff; }
+        .modal select:focus { border-color: #2563eb; background: var(--bg-ffffff, #ffffff); }
     </style>
 </head>
 <body>
@@ -608,7 +608,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
     <!-- ── Dashboard tab ── -->
     <div class="tab-panel <?= $tab === 'dashboard' ? 'active' : '' ?>">
 
-        <p style="color:#64748b;font-size:.875rem;margin-bottom:1.5rem">
+        <p style="color:var(--fg-64748b, #64748b);font-size:.875rem;margin-bottom:1.5rem">
             Welcome back, <?= htmlspecialchars($current['username']) ?>.
             <?php if ($current['last_login']): ?>
                 Last login: <?= htmlspecialchars($current['last_login']) ?>
@@ -659,7 +659,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                 </div>
                 <div class="form-group">
                     <label for="timezone">Timezone</label>
-                    <select id="timezone" name="timezone" style="width:100%;padding:.6rem .85rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.95rem;background:#f8fafc">
+                    <select id="timezone" name="timezone" style="width:100%;padding:.6rem .85rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;font-size:.95rem;background:var(--bg-f8fafc, #f8fafc)">
                         <?php foreach ($tz_offsets as $label => $tz_id): ?>
                             <option value="<?= htmlspecialchars($tz_id) ?>"
                                 <?= $tz_id === $timezone ? 'selected' : '' ?>>
@@ -720,7 +720,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                         <div style="display:flex;gap:.5rem;align-items:center">
                             <input type="color" id="nav_bg_picker"
                                    value="<?= htmlspecialchars(get_setting('nav_bg_color','') ?: '#0f172a') ?>"
-                                   style="width:40px;height:38px;padding:2px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;flex-shrink:0"
+                                   style="width:40px;height:38px;padding:2px;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;cursor:pointer;flex-shrink:0"
                                    data-act-input="syncTextPreview" data-input-a1="nav_bg_color" data-input-a2="@value">
                             <input type="text" name="nav_bg_color" id="nav_bg_color"
                                    value="<?= htmlspecialchars(get_setting('nav_bg_color','')) ?>"
@@ -735,7 +735,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                         <div style="display:flex;gap:.5rem;align-items:center">
                             <input type="color" id="nav_text_picker"
                                    value="<?= htmlspecialchars(get_setting('nav_text_color','') ?: '#ffffff') ?>"
-                                   style="width:40px;height:38px;padding:2px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;flex-shrink:0"
+                                   style="width:40px;height:38px;padding:2px;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;cursor:pointer;flex-shrink:0"
                                    data-act-input="syncTextPreview" data-input-a1="nav_text_color" data-input-a2="@value">
                             <input type="text" name="nav_text_color" id="nav_text_color"
                                    value="<?= htmlspecialchars(get_setting('nav_text_color','')) ?>"
@@ -750,7 +750,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                         <div style="display:flex;gap:.5rem;align-items:center">
                             <input type="color" id="accent_picker"
                                    value="<?= htmlspecialchars(get_setting('accent_color','') ?: '#2563eb') ?>"
-                                   style="width:40px;height:38px;padding:2px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;flex-shrink:0"
+                                   style="width:40px;height:38px;padding:2px;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;cursor:pointer;flex-shrink:0"
                                    data-act-input="syncTextPreview" data-input-a1="accent_color" data-input-a2="@value">
                             <input type="text" name="accent_color" id="accent_color"
                                    value="<?= htmlspecialchars(get_setting('accent_color','')) ?>"
@@ -780,7 +780,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     <input type="hidden" name="action" value="banner_remove">
                     <input type="hidden" name="tab" value="appearance">
                     <button type="submit" class="btn btn-outline"
-                            style="color:#ef4444;border-color:#fca5a5;font-size:.82rem"
+                            style="color:var(--fg-ef4444, #ef4444);border-color:var(--bd-fca5a5, #fca5a5);font-size:.82rem"
                             data-confirm="Remove the icon?" data-confirm-ok="Remove" data-confirm-danger="1">&#x2715; Remove Icon</button>
                 </form>
                 <?php endif; ?>
@@ -805,7 +805,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                 <p class="subtitle">Wide image shown centered below the nav bar on every page. JPEG, PNG, GIF, or WebP &mdash; max 4 MB.</p>
                 <?php $header_banner_path = get_setting('header_banner_path', ''); ?>
                 <?php if ($header_banner_path): ?>
-                <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;padding:.5rem;margin-bottom:.85rem;text-align:center">
+                <div style="background:var(--bg-f8fafc, #f8fafc);border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:8px;padding:.5rem;margin-bottom:.85rem;text-align:center">
                     <img src="<?= htmlspecialchars($header_banner_path) ?>?v=<?= time() ?>"
                          alt="Current header banner" style="max-height:100px;max-width:100%;display:inline-block">
                 </div>
@@ -814,7 +814,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     <input type="hidden" name="action" value="header_banner_remove">
                     <input type="hidden" name="tab" value="appearance">
                     <button type="submit" class="btn btn-outline"
-                            style="color:#ef4444;border-color:#fca5a5;font-size:.82rem"
+                            style="color:var(--fg-ef4444, #ef4444);border-color:var(--bd-fca5a5, #fca5a5);font-size:.82rem"
                             data-confirm="Remove the header banner?" data-confirm-ok="Remove" data-confirm-danger="1">&#x2715; Remove Header Banner</button>
                 </form>
                 <?php endif; ?>
@@ -852,17 +852,17 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
 
         <!-- Live preview -->
         <div style="margin-top:1.5rem;max-width:860px">
-            <p style="font-size:.82rem;font-weight:600;color:#64748b;margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.04em">Live Preview</p>
+            <p style="font-size:.82rem;font-weight:600;color:var(--fg-64748b, #64748b);margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.04em">Live Preview</p>
             <div style="border-radius:10px;overflow:hidden;box-shadow:var(--shadow)">
                 <div id="previewTop" style="display:flex;align-items:center;justify-content:space-between;padding:0 2rem;height:52px;background:<?= htmlspecialchars(get_setting('nav_bg_color','') ?: '#0f172a') ?>">
                     <span id="previewBrand" style="font-weight:700;font-size:1.15rem;color:<?= htmlspecialchars(get_setting('nav_text_color','') ?: '#ffffff') ?>">
                         <?= $banner_path ? '<img src="' . htmlspecialchars($banner_path) . '" style="max-height:36px;vertical-align:middle">' : htmlspecialchars($site_name) ?>
                     </span>
-                    <span style="color:#64748b;font-size:.875rem"><?= htmlspecialchars($current['username']) ?> &#9776;</span>
+                    <span style="color:var(--fg-64748b, #64748b);font-size:.875rem"><?= htmlspecialchars($current['username']) ?> &#9776;</span>
                 </div>
                 <div id="previewLinks" style="height:40px;background:rgba(0,0,0,.2);padding:0 2rem;display:flex;align-items:center;gap:1.5rem">
-                    <span id="previewAccent" style="font-size:.9rem;font-weight:600;color:<?= htmlspecialchars(get_setting('accent_color','') ?: '#2563eb') ?>">Home</span>
-                    <span style="font-size:.9rem;color:#64748b">Calendar</span>
+                    <span id="previewAccent" style="font-size:.9rem;font-weight:600;color:<?= htmlspecialchars(get_setting('accent_color','') ?: 'var(--fg-2563eb, #2563eb)') ?>">Home</span>
+                    <span style="font-size:.9rem;color:var(--fg-64748b, #64748b)">Calendar</span>
                 </div>
             </div>
         </div>
@@ -872,7 +872,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
     <div class="tab-panel <?= $tab === 'logs' ? 'active' : '' ?>">
 
         <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.25rem">
-            <p style="color:#64748b;font-size:.875rem;margin:0">
+            <p style="color:var(--fg-64748b, #64748b);font-size:.875rem;margin:0">
                 All user activity &mdash; <?= number_format($log_total) ?> total entries.
             </p>
             <form method="post" action="/admin_settings.php"
@@ -887,7 +887,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
 
         <div class="table-card">
             <?php if (empty($log_rows)): ?>
-                <p style="padding:1rem 1.5rem;color:#64748b;font-size:.875rem">No activity recorded yet.</p>
+                <p style="padding:1rem 1.5rem;color:var(--fg-64748b, #64748b);font-size:.875rem">No activity recorded yet.</p>
             <?php else: ?>
             <table>
                 <thead>
@@ -917,7 +917,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             </table>
 
             <?php if ($log_pages > 1): ?>
-            <div style="padding:.75rem 1.5rem;border-top:1px solid #e2e8f0">
+            <div style="padding:.75rem 1.5rem;border-top:1px solid var(--bd-e2e8f0, #e2e8f0)">
                 <div class="pagination">
                     <?php if ($page > 1): ?>
                         <a href="?tab=logs&page=<?= $page - 1 ?>">&lsaquo; Prev</a>
@@ -943,7 +943,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
     <div class="tab-panel <?= $tab === 'users' ? 'active' : '' ?>">
 
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:1rem">
-            <span style="color:#64748b;font-size:.875rem"><?= count($users) ?> user<?= count($users) !== 1 ? 's' : '' ?></span>
+            <span style="color:var(--fg-64748b, #64748b);font-size:.875rem"><?= count($users) ?> user<?= count($users) !== 1 ? 's' : '' ?></span>
             <button class="btn btn-primary" data-act="openUserModal">+ New User</button>
         </div>
 
@@ -1039,7 +1039,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                         <p class="hint">SendGrid: literally the word <code>apikey</code></p>
                     </div>
                     <div class="form-group">
-                        <label>Password / API Key <span style="color:#64748b;font-weight:400">(leave blank to keep current)</span></label>
+                        <label>Password / API Key <span style="color:var(--fg-64748b, #64748b);font-weight:400">(leave blank to keep current)</span></label>
                         <input type="password" name="smtp_password" autocomplete="new-password">
                         <p class="hint">SendGrid: your API key starting with <code>SG.</code></p>
                     </div>
@@ -1054,9 +1054,9 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     <div style="display:flex;align-items:center;gap:.75rem">
                         <button type="submit" class="btn btn-primary">Save Settings</button>
                         <?php if ($smtp_configured): ?>
-                            <span style="color:#16a34a;font-size:.8rem;font-weight:600">&#10003; Configured</span>
+                            <span style="color:var(--fg-16a34a, #16a34a);font-size:.8rem;font-weight:600">&#10003; Configured</span>
                         <?php else: ?>
-                            <span style="color:#dc2626;font-size:.8rem;font-weight:600">&#9679; Not configured</span>
+                            <span style="color:var(--fg-dc2626, #dc2626);font-size:.8rem;font-weight:600">&#9679; Not configured</span>
                         <?php endif; ?>
                     </div>
                 </form>
@@ -1236,7 +1236,7 @@ function updatePreview() {
     const accentEl = document.getElementById('previewAccent');
     if (top)      top.style.background = /^#[0-9a-fA-F]{6}$/.test(bg)   ? bg   : '#0f172a';
     if (brand)    brand.style.color    = /^#[0-9a-fA-F]{6}$/.test(text) ? text : '#ffffff';
-    if (accentEl) accentEl.style.color = /^#[0-9a-fA-F]{6}$/.test(acc)  ? acc  : '#2563eb';
+    if (accentEl) accentEl.style.color = /^#[0-9a-fA-F]{6}$/.test(acc)  ? acc  : 'var(--fg-2563eb, #2563eb)';
 }
 </script>
 <script nonce="<?= csp_nonce() ?>">

@@ -154,7 +154,7 @@ $csrf_token = csrf_token();
     <title>Register for Event – <?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
-        body { background: var(--bg, #f8fafc); }
+        body { background: var(--bg, var(--bg-f8fafc, #f8fafc)); }
         .walkin-wrap {
             min-height:100vh;min-height:100dvh;
             display: flex;
@@ -163,7 +163,7 @@ $csrf_token = csrf_token();
             padding: 1.5rem;
         }
         .walkin-card {
-            background: #fff;
+            background: var(--bg-ffffff, #ffffff);
             border-radius: 14px;
             box-shadow: 0 8px 32px rgba(0,0,0,.12);
             padding: 2rem 2rem 1.75rem;
@@ -178,12 +178,12 @@ $csrf_token = csrf_token();
         .walkin-site-name {
             text-align: center;
             font-size: .85rem;
-            color: #64748b;
+            color: var(--fg-64748b, #64748b);
             margin-top: .25rem;
             margin-bottom: 1.25rem;
         }
         .walkin-event-box {
-            background: #f1f5f9;
+            background: var(--bg-f1f5f9, #f1f5f9);
             border-radius: 8px;
             padding: .75rem 1rem;
             margin-bottom: 1.5rem;
@@ -191,38 +191,38 @@ $csrf_token = csrf_token();
         .walkin-event-title {
             font-size: 1.1rem;
             font-weight: 700;
-            color: #1e293b;
+            color: var(--fg-1e293b, #1e293b);
             margin-bottom: .2rem;
         }
         .walkin-event-meta {
             font-size: .85rem;
-            color: #64748b;
+            color: var(--fg-64748b, #64748b);
         }
         .walkin-success {
-            background: #f0fdf4;
-            border: 1.5px solid #86efac;
+            background: var(--bg-f0fdf4, #f0fdf4);
+            border: 1.5px solid var(--bd-86efac, #86efac);
             border-radius: 8px;
             padding: 1rem 1.2rem;
-            color: #166534;
+            color: var(--fg-166534, #166534);
             font-size: .95rem;
             line-height: 1.5;
             margin-bottom: 1rem;
         }
         .walkin-error {
-            background: #fef2f2;
-            border: 1.5px solid #fca5a5;
+            background: var(--bg-fef2f2, #fef2f2);
+            border: 1.5px solid var(--bd-fca5a5, #fca5a5);
             border-radius: 8px;
             padding: .75rem 1rem;
-            color: #991b1b;
+            color: var(--fg-991b1b, #991b1b);
             font-size: .875rem;
             margin-bottom: 1rem;
         }
         .walkin-invalid {
             text-align: center;
-            color: #64748b;
+            color: var(--fg-64748b, #64748b);
             padding: 1.5rem 0 .5rem;
         }
-        .walkin-invalid h2 { color: #1e293b; margin-bottom: .5rem; }
+        .walkin-invalid h2 { color: var(--fg-1e293b, #1e293b); margin-bottom: .5rem; }
     </style>
 </head>
 <body>
@@ -257,25 +257,25 @@ $csrf_token = csrf_token();
         <?php if (!empty($walkin_verify_ui) && $walkin_verify_ui === 'phone_inline'):
             $__pm = preg_replace('/(\d{3})\D*(\d{3})\D*(\d{4})/', '($1) $2-$3', $walkin_verify_phone);
         ?>
-        <div class="walkin-verify-phone" style="margin-top:1.25rem;padding:1rem;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px">
-            <p style="margin:0 0 .6rem;font-size:.88rem;color:#334155;line-height:1.5">
+        <div class="walkin-verify-phone" style="margin-top:1.25rem;padding:1rem;background:var(--bg-f8fafc, #f8fafc);border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:10px">
+            <p style="margin:0 0 .6rem;font-size:.88rem;color:var(--fg-334155, #334155);line-height:1.5">
                 We texted a 6-digit code to <strong><?= htmlspecialchars($__pm ?: $walkin_verify_phone) ?></strong>.
-                Enter it so you can sign in later. <em style="color:#64748b">You can skip — you're already in the event.</em>
+                Enter it so you can sign in later. <em style="color:var(--fg-64748b, #64748b)">You can skip — you're already in the event.</em>
             </p>
             <form method="post" action="/verify_phone.php" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                 <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
                        maxlength="6" pattern="\d{6}" required placeholder="123456"
-                       style="flex:1;min-width:130px;padding:.55rem .75rem;border:1.5px solid #cbd5e1;border-radius:6px;font-size:1.1rem;letter-spacing:.3em;text-align:center">
+                       style="flex:1;min-width:130px;padding:.55rem .75rem;border:1.5px solid var(--bd-cbd5e1, #cbd5e1);border-radius:6px;font-size:1.1rem;letter-spacing:.3em;text-align:center">
                 <button type="submit" class="btn btn-primary" style="padding:.55rem 1.1rem">Verify</button>
             </form>
             <p style="margin:.65rem 0 0;font-size:.82rem">
-                <a href="/" style="color:#64748b" title="Skip for now — you're still registered for the event, but you won't be able to reset your password later">Skip for now</a>
+                <a href="/" style="color:var(--fg-64748b, #64748b)" title="Skip for now — you're still registered for the event, but you won't be able to reset your password later">Skip for now</a>
             </p>
         </div>
         <?php elseif (!empty($walkin_verify_ui) && $walkin_verify_ui === 'email_note'): ?>
-        <div class="walkin-verify-email" style="margin-top:1.25rem;padding:1rem;background:#eff6ff;border:1.5px solid #93c5fd;border-radius:10px">
-            <p style="margin:0;font-size:.88rem;color:#1e40af;line-height:1.5">
+        <div class="walkin-verify-email" style="margin-top:1.25rem;padding:1rem;background:var(--bg-eff6ff, #eff6ff);border:1.5px solid var(--bd-93c5fd, #93c5fd);border-radius:10px">
+            <p style="margin:0;font-size:.88rem;color:var(--fg-1e40af, #1e40af);line-height:1.5">
                 &#128231; Check your inbox — we emailed a verification link to <strong><?= htmlspecialchars($walkin_verify_email) ?></strong>
                 so you can set a password and sign in later. You're already in the event, so you can ignore it for now.
             </p>
@@ -283,9 +283,9 @@ $csrf_token = csrf_token();
         <?php endif; ?>
 
         <?php if ($assigned_table !== null): ?>
-        <div style="margin-top:1rem;padding:1.2rem;background:#eff6ff;border:2px solid #3b82f6;border-radius:10px;text-align:center">
-            <div style="font-size:.85rem;color:#3b82f6;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Your Seat</div>
-            <div style="font-size:2.25rem;font-weight:800;color:#1e40af;line-height:1.2">
+        <div style="margin-top:1rem;padding:1.2rem;background:var(--bg-eff6ff, #eff6ff);border:2px solid #3b82f6;border-radius:10px;text-align:center">
+            <div style="font-size:.85rem;color:var(--fg-3b82f6, #3b82f6);font-weight:600;text-transform:uppercase;letter-spacing:.05em">Your Seat</div>
+            <div style="font-size:2.25rem;font-weight:800;color:var(--fg-1e40af, #1e40af);line-height:1.2">
                 Table <?= (int)$assigned_table ?><?php if ($assigned_seat): ?> &middot; Seat <?= (int)$assigned_seat ?><?php endif; ?>
             </div>
         </div>
@@ -296,7 +296,7 @@ $csrf_token = csrf_token();
             <div class="walkin-event-title"><?= htmlspecialchars($event['title']) ?></div>
             <div class="walkin-event-meta"><?= htmlspecialchars(fmt_event_display($event)) ?></div>
         </div>
-        <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:1.1rem;color:#1e293b">Register for this event</h2>
+        <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:1.1rem;color:var(--fg-1e293b, #1e293b)">Register for this event</h2>
 
         <?php if ($error !== ''): ?>
         <div class="walkin-error"><?= htmlspecialchars($error) ?></div>
@@ -306,14 +306,14 @@ $csrf_token = csrf_token();
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
 
             <div class="form-group">
-                <label for="wi_name">Your name <span style="color:#ef4444">*</span></label>
+                <label for="wi_name">Your name <span style="color:var(--fg-ef4444, #ef4444)">*</span></label>
                 <input type="text" id="wi_name" name="display_name" required
                        maxlength="40" autocomplete="name" placeholder="Jane Smith"
                        value="<?= htmlspecialchars($_POST['display_name'] ?? $remembered_name) ?>"
                        style="width:100%">
             </div>
 
-            <p style="font-size:.8rem;color:#64748b;margin:0 0 .6rem">Enter an email address or a phone number so we can confirm your registration.</p>
+            <p style="font-size:.8rem;color:var(--fg-64748b, #64748b);margin:0 0 .6rem">Enter an email address or a phone number so we can confirm your registration.</p>
 
             <div class="form-group">
                 <label for="wi_contact">Email or phone</label>

@@ -185,8 +185,8 @@ if ($isLanding) {
             z-index: 10;
         }
         .tl-box {
-            background: #fff;
-            border: 1px solid #e2e8f0;
+            background: var(--bg-ffffff, #ffffff);
+            border: 1px solid var(--bd-e2e8f0, #e2e8f0);
             border-radius: 12px;
             padding: 1rem 1.1rem 1.25rem;
             max-height: 260px;
@@ -198,17 +198,17 @@ if ($isLanding) {
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: .08em;
-            color: #64748b;
+            color: var(--fg-64748b, #64748b);
             margin-bottom: .8rem;
             padding-bottom: .5rem;
-            border-bottom: 1px solid #f1f5f9;
+            border-bottom: 1px solid var(--bd-f1f5f9, #f1f5f9);
         }
         .tl-year-label {
             font-size: .68rem;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: .06em;
-            color: #64748b;
+            color: var(--fg-64748b, #64748b);
             margin: .7rem 0 .2rem 1.35rem;
         }
         .tl-year-label:first-of-type { margin-top: 0; }
@@ -224,7 +224,7 @@ if ($isLanding) {
             top: 6px;
             bottom: 6px;
             width: 2px;
-            background: #e2e8f0;
+            background: var(--bg-e2e8f0, #e2e8f0);
             border-radius: 2px;
         }
         .tl-entry {
@@ -234,7 +234,7 @@ if ($isLanding) {
             gap: .4rem;
             padding: .22rem 0;
             text-decoration: none;
-            color: #475569;
+            color: var(--fg-475569, #475569);
             font-size: .82rem;
             line-height: 1.4;
             transition: color .12s;
@@ -249,20 +249,20 @@ if ($isLanding) {
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background: #fff;
-            border: 2px solid #cbd5e1;
+            background: var(--bg-ffffff, #ffffff);
+            border: 2px solid var(--bd-cbd5e1, #cbd5e1);
             transition: border-color .12s, background .12s;
             z-index: 1;
         }
-        .tl-entry:hover { color: #2563eb; text-decoration: none; }
-        .tl-entry:hover::before { border-color: #2563eb; background: #dbeafe; }
-        .tl-entry.tl-active { color: #2563eb; font-weight: 600; }
+        .tl-entry:hover { color: var(--fg-2563eb, #2563eb); text-decoration: none; }
+        .tl-entry:hover::before { border-color: #2563eb; background: var(--bg-dbeafe, #dbeafe); }
+        .tl-entry.tl-active { color: var(--fg-2563eb, #2563eb); font-weight: 600; }
         .tl-entry.tl-active::before { background: #2563eb; border-color: #2563eb; }
         .tl-count {
             margin-left: auto;
             font-size: .68rem;
-            color: #475569;
-            background: #f1f5f9;
+            color: var(--fg-475569, #475569);
+            background: var(--bg-f1f5f9, #f1f5f9);
             border-radius: 99px;
             padding: .05rem .42rem;
             font-weight: 500;
@@ -287,13 +287,13 @@ if ($isLanding) {
             gap: .65rem;
             padding: .6rem 1rem;
             margin-bottom: 1rem;
-            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-            border: 1.5px solid #93c5fd;
+            background: linear-gradient(135deg, var(--bg-eff6ff, #eff6ff) 0%, var(--bg-dbeafe, #dbeafe) 100%);
+            border: 1.5px solid var(--bd-93c5fd, #93c5fd);
             border-radius: 10px;
             font-size: .88rem;
-            color: #1e40af;
+            color: var(--fg-1e40af, #1e40af);
         }
-        .donate-heart { font-size: 1.2rem; flex-shrink: 0; color: #3b82f6; }
+        .donate-heart { font-size: 1.2rem; flex-shrink: 0; color: var(--fg-3b82f6, #3b82f6); }
         .donate-msg { flex: 1; }
         .donate-btn {
             flex-shrink: 0;
@@ -309,15 +309,15 @@ if ($isLanding) {
         .donate-btn:hover { background: #2563eb; }
 
         .post-card {
-            background: #fff;
-            border: 1px solid #e2e8f0;
+            background: var(--bg-ffffff, #ffffff);
+            border: 1px solid var(--bd-e2e8f0, #e2e8f0);
             border-radius: 12px;
             padding: 2rem 2.5rem;
             margin-bottom: 1.5rem;
         }
         .post-meta {
             font-size: .78rem;
-            color: #64748b;
+            color: var(--fg-64748b, #64748b);
             margin-bottom: .6rem;
             display: flex;
             align-items: center;
@@ -326,17 +326,17 @@ if ($isLanding) {
         .post-title {
             font-size: 1.4rem;
             font-weight: 700;
-            color: #0f172a;
+            color: var(--fg-0f172a, #0f172a);
             margin-bottom: .85rem;
         }
-        .post-body { line-height: 1.75; color: #334155; font-size: .97rem; overflow: hidden; }
+        .post-body { line-height: 1.75; color: var(--fg-334155, #334155); font-size: .97rem; overflow: hidden; }
         .post-body p  { margin-bottom: .85rem; }
         .post-body h2 { font-size: 1.2rem; margin: 1.2rem 0 .5rem; }
         .post-body h3 { font-size: 1rem; margin: 1rem 0 .4rem; }
         .post-body ul, .post-body ol { margin: .4rem 0 .85rem 1.5rem; }
         .post-body li { margin-bottom: .25rem; }
-        .post-body a  { color: #2563eb; }
-        .post-body hr { border: none; border-top: 1px solid #e2e8f0; margin: 1.2rem 0; }
+        .post-body a  { color: var(--fg-2563eb, #2563eb); }
+        .post-body hr { border: none; border-top: 1px solid var(--bd-e2e8f0, #e2e8f0); margin: 1.2rem 0; }
 
         /* ── Constrain rich content so it never overflows the card ── */
         /* Images: scale down to container width, never overflow */
@@ -358,7 +358,7 @@ if ($isLanding) {
         .post-body th,
         .post-body td {
             padding: .4rem .65rem;
-            border: 1px solid #e2e8f0;
+            border: 1px solid var(--bd-e2e8f0, #e2e8f0);
             white-space: nowrap;
             font-size: .87rem;
         }
@@ -366,7 +366,7 @@ if ($isLanding) {
         .post-body pre {
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
-            background: #f1f5f9;
+            background: var(--bg-f1f5f9, #f1f5f9);
             border-radius: 6px;
             padding: .75rem 1rem;
             font-size: .84rem;
@@ -374,7 +374,7 @@ if ($isLanding) {
             margin-bottom: .85rem;
         }
         .post-body code {
-            background: #f1f5f9;
+            background: var(--bg-f1f5f9, #f1f5f9);
             border-radius: 3px;
             padding: .1em .35em;
             font-size: .88em;
@@ -389,14 +389,14 @@ if ($isLanding) {
             max-width: 100%;
             border-radius: 6px;
         }
-        .post-card.pinned { border-color: #fde68a; background: #fffbeb; }
-        .pin-badge { font-size: .72rem; font-weight: 600; color: #b45309; background: #fef3c7; border: 1px solid #fde68a; border-radius: 4px; padding: .15rem .45rem; letter-spacing: .02em; }
+        .post-card.pinned { border-color: var(--bd-fde68a, #fde68a); background: var(--bg-fffbeb, #fffbeb); }
+        .pin-badge { font-size: .72rem; font-weight: 600; color: var(--fg-b45309, #b45309); background: var(--bg-fef3c7, #fef3c7); border: 1px solid var(--bd-fde68a, #fde68a); border-radius: 4px; padding: .15rem .45rem; letter-spacing: .02em; }
         .league-badge {
-            font-size: .72rem; font-weight: 600; color: #1e40af;
-            background: #dbeafe; border: 1px solid #93c5fd; border-radius: 999px;
+            font-size: .72rem; font-weight: 600; color: var(--fg-1e40af, #1e40af);
+            background: var(--bg-dbeafe, #dbeafe); border: 1px solid var(--bd-93c5fd, #93c5fd); border-radius: 999px;
             padding: .15rem .6rem; text-decoration: none; letter-spacing: .01em;
         }
-        .league-badge:hover { background: #bfdbfe; color: #1e3a8a; text-decoration: none; }
+        .league-badge:hover { background: var(--bg-bfdbfe, #bfdbfe); color: var(--fg-1e3a8a, #1e3a8a); text-decoration: none; }
 
         .post-actions {
             display: flex; gap: .5rem; align-items: center;
@@ -404,33 +404,33 @@ if ($isLanding) {
         }
         .post-actions a, .post-actions button {
             font-size: .75rem; padding: .25rem .7rem;
-            border-radius: 5px; border: 1px solid #e2e8f0;
-            background: #f8fafc; color: #64748b;
+            border-radius: 5px; border: 1px solid var(--bd-e2e8f0, #e2e8f0);
+            background: var(--bg-f8fafc, #f8fafc); color: var(--fg-64748b, #64748b);
             min-width: 72px; text-align: center; line-height: 1.2;
             box-sizing: border-box;
             display: inline-flex; align-items: center; justify-content: center;
             font-family: inherit; cursor: pointer; text-decoration: none;
         }
         .post-actions a:hover, .post-actions button:hover {
-            background: #f1f5f9; color: #1e293b;
+            background: var(--bg-f1f5f9, #f1f5f9); color: var(--fg-1e293b, #1e293b);
         }
-        .post-actions button.danger { border-color: #fca5a5; color: #ef4444; }
-        .post-actions button.danger:hover { background: #fee2e2; }
+        .post-actions button.danger { border-color: var(--bd-fca5a5, #fca5a5); color: var(--fg-ef4444, #ef4444); }
+        .post-actions button.danger:hover { background: var(--bg-fee2e2, #fee2e2); }
 
         /* ── Per-post kebab menu (Hide / Edit / Delete) ── */
         .post-menu-wrap { position: relative; margin-left: auto; }
         /* Reads as a button at rest, not only on hover: it was a ghost grey ···
            on a white card, which is nowhere anyone looks for an action. */
         .post-menu {
-            background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
-            color: #475569; cursor: pointer; font-size: 1.15rem; line-height: 1;
+            background: var(--bg-f8fafc, #f8fafc); border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 6px;
+            color: var(--fg-475569, #475569); cursor: pointer; font-size: 1.15rem; line-height: 1;
             padding: .1rem .5rem; font-family: inherit;
         }
-        .post-menu:hover { background: #e2e8f0; color: #0f172a; border-color: #cbd5e1; }
+        .post-menu:hover { background: var(--bg-e2e8f0, #e2e8f0); color: var(--fg-0f172a, #0f172a); border-color: var(--bd-cbd5e1, #cbd5e1); }
         .post-menu:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
         .post-menu-dropdown {
             display: none; position: absolute; right: 0; top: 100%; margin-top: .25rem;
-            background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+            background: var(--bg-ffffff, #ffffff); border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 8px;
             box-shadow: 0 6px 18px rgba(15,23,42,.12); min-width: 132px; z-index: 30; padding: .3rem;
         }
         .post-menu-wrap.open .post-menu-dropdown { display: block; }
@@ -438,39 +438,39 @@ if ($isLanding) {
         .post-menu-item {
             display: block; width: 100%; box-sizing: border-box; text-align: left;
             background: transparent; border: none; border-radius: 5px;
-            padding: .4rem .6rem; font-size: .8rem; font-weight: 500; color: #334155;
+            padding: .4rem .6rem; font-size: .8rem; font-weight: 500; color: var(--fg-334155, #334155);
             cursor: pointer; font-family: inherit; text-decoration: none; line-height: 1.3;
         }
-        .post-menu-item:hover { background: #f1f5f9; color: #0f172a; }
-        .post-menu-item.danger { color: #dc2626; }
-        .post-menu-item.danger:hover { background: #fee2e2; }
+        .post-menu-item:hover { background: var(--bg-f1f5f9, #f1f5f9); color: var(--fg-0f172a, #0f172a); }
+        .post-menu-item.danger { color: var(--fg-dc2626, #dc2626); }
+        .post-menu-item.danger:hover { background: var(--bg-fee2e2, #fee2e2); }
 
         /* ── Hidden-post stub + show-hidden chrome ── */
         .post-hidden-stub {
-            background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px;
-            padding: .7rem 1.1rem; margin-bottom: 1.5rem; color: #64748b; font-size: .85rem;
+            background: var(--bg-f8fafc, #f8fafc); border: 1px dashed var(--bd-cbd5e1, #cbd5e1); border-radius: 10px;
+            padding: .7rem 1.1rem; margin-bottom: 1.5rem; color: var(--fg-64748b, #64748b); font-size: .85rem;
             display: flex; align-items: center; gap: .6rem;
         }
         .post-hidden-stub .post-unhide-inline {
-            background: transparent; border: none; color: #2563eb; cursor: pointer;
+            background: transparent; border: none; color: var(--fg-2563eb, #2563eb); cursor: pointer;
             font-weight: 600; font-size: .85rem; font-family: inherit; padding: 0; text-decoration: underline;
         }
         .hidden-badge {
-            font-size: .72rem; font-weight: 600; color: #475569;
-            background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 4px; padding: .15rem .45rem;
+            font-size: .72rem; font-weight: 600; color: var(--fg-475569, #475569);
+            background: var(--bg-e2e8f0, #e2e8f0); border: 1px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 4px; padding: .15rem .45rem;
         }
         .feed-toolbar { display: flex; align-items: center; gap: .75rem; margin: 0 0 1rem; }
-        .feed-toolbar-label { font-weight: 700; color: #0f172a; font-size: 1rem; }
+        .feed-toolbar-label { font-weight: 700; color: var(--fg-0f172a, #0f172a); font-size: 1rem; }
         .feed-toolbar-link {
-            font-size: .82rem; color: #64748b; text-decoration: none; font-weight: 600;
-            border: 1px solid #e2e8f0; border-radius: 6px; padding: .3rem .7rem; background: #f8fafc;
+            font-size: .82rem; color: var(--fg-64748b, #64748b); text-decoration: none; font-weight: 600;
+            border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 6px; padding: .3rem .7rem; background: var(--bg-f8fafc, #f8fafc);
         }
-        .feed-toolbar-link:hover { background: #f1f5f9; color: #1e293b; }
+        .feed-toolbar-link:hover { background: var(--bg-f1f5f9, #f1f5f9); color: var(--fg-1e293b, #1e293b); }
 
         .no-posts {
             text-align: center;
             padding: 4rem 2rem;
-            color: #64748b;
+            color: var(--fg-64748b, #64748b);
         }
         .no-posts p { font-size: 1rem; margin-top: .5rem; }
 
@@ -483,25 +483,25 @@ if ($isLanding) {
         /* Pushed to the right end of the card's action row. */
         .post-card-actions { margin-left: auto; display: inline-flex; gap: .4rem; }
         .post-inline-act {
-            background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
-            color: #475569; cursor: pointer; font-size: .78rem; font-weight: 600;
+            background: var(--bg-f8fafc, #f8fafc); border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 6px;
+            color: var(--fg-475569, #475569); cursor: pointer; font-size: .78rem; font-weight: 600;
             padding: .22rem .6rem; font-family: inherit; line-height: 1.3;
         }
-        .post-inline-act:hover { background: #e2e8f0; color: #0f172a; border-color: #cbd5e1; }
+        .post-inline-act:hover { background: var(--bg-e2e8f0, #e2e8f0); color: var(--fg-0f172a, #0f172a); border-color: var(--bd-cbd5e1, #cbd5e1); }
         .post-inline-act:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
-        .comments-heading:hover .cmts-toggle-label { color: #2563eb; }
+        .comments-heading:hover .cmts-toggle-label { color: var(--fg-2563eb, #2563eb); }
         .cmts-toggle-label {
             display: flex;
             align-items: center;
             gap: .4rem;
-            color: #475569;
+            color: var(--fg-475569, #475569);
             font-size: .85rem;
             font-weight: 600;
             transition: color .12s;
         }
         .cmts-chevron {
             font-size: .65rem;
-            color: #64748b;
+            color: var(--fg-64748b, #64748b);
             transition: transform .18s;
             display: inline-block;
             line-height: 1;
@@ -510,32 +510,32 @@ if ($isLanding) {
 
         /* This week's events */
         .week-preview {
-            background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+            background: var(--bg-ffffff, #ffffff); border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 12px;
             padding: 1.25rem 1.5rem; margin-bottom: 1.75rem;
         }
         .week-preview-header {
             display: flex; align-items: center; justify-content: space-between;
             margin-bottom: 1rem;
         }
-        .week-preview-header h2 { font-size: 1rem; font-weight: 700; color: #0f172a; }
+        .week-preview-header h2 { font-size: 1rem; font-weight: 700; color: var(--fg-0f172a, #0f172a); }
         /* :not(.btn) so this text-link styling doesn't override the +Add Event button
            (its .btn-primary white text would otherwise be recolored blue = invisible). */
-        .week-preview-header a:not(.btn)  { font-size: .8rem; color: #2563eb; text-decoration: none; }
+        .week-preview-header a:not(.btn)  { font-size: .8rem; color: var(--fg-2563eb, #2563eb); text-decoration: none; }
         .week-preview-header a:not(.btn):hover { text-decoration: underline; }
         .week-grid {
             display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
         }
         .wk-cell {
-            border: 1px solid #f1f5f9; border-radius: 8px;
-            padding: .4rem .35rem; min-height: 68px; background: #fafafa;
+            border: 1px solid var(--bd-f1f5f9, #f1f5f9); border-radius: 8px;
+            padding: .4rem .35rem; min-height: 68px; background: var(--bg-fafafa, #fafafa);
             min-width: 0;
         }
-        .wk-cell.wk-today { background: #eff6ff; border-color: #bfdbfe; }
+        .wk-cell.wk-today { background: var(--bg-eff6ff, #eff6ff); border-color: var(--bd-bfdbfe, #bfdbfe); }
         .wk-day {
-            font-size: .72rem; font-weight: 700; color: #475569;
+            font-size: .72rem; font-weight: 700; color: var(--fg-475569, #475569);
             margin-bottom: 4px; white-space: nowrap;
         }
-        .wk-cell.wk-today .wk-day { color: #2563eb; }
+        .wk-cell.wk-today .wk-day { color: var(--fg-2563eb, #2563eb); }
         .wk-event {
             font-size: .65rem; padding: 1px 5px; border-radius: 3px;
             color: #fff; margin-bottom: 2px; display: block;
@@ -543,7 +543,7 @@ if ($isLanding) {
             line-height: 1.6; text-decoration: none;
         }
         .wk-event:hover { filter: brightness(1.1); }
-        .wk-more { font-size: .62rem; color: #64748b; }
+        .wk-more { font-size: .62rem; color: var(--fg-64748b, #64748b); }
         @media (max-width: 600px) {
             .week-preview { padding: 1rem; }
             /* Switch from a 7-col grid to a horizontal scroll strip */
@@ -619,7 +619,7 @@ endif; ?>
     <?php require __DIR__ . '/_first_night.php'; ?>
 
     <?php if ($user && (int)($user['mfa_enabled'] ?? 0) === 0 && (int)($user['mfa_offer_dismissed'] ?? 0) === 0): ?>
-    <div class="alert" style="display:flex;align-items:center;gap:.75rem;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;margin-bottom:1.25rem">
+    <div class="alert" style="display:flex;align-items:center;gap:.75rem;background:var(--bg-eff6ff, #eff6ff);border:1px solid var(--bd-bfdbfe, #bfdbfe);color:var(--fg-1e40af, #1e40af);margin-bottom:1.25rem">
         <span style="font-size:1.3rem" aria-hidden="true">&#128274;</span>
         <span style="flex:1">Add an extra layer of security: turn on two-factor authentication for your account.</span>
         <a href="/mfa_setup.php" class="btn btn-primary" style="white-space:nowrap;text-decoration:none">Set up</a>
@@ -627,15 +627,15 @@ endif; ?>
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
             <input type="hidden" name="action" value="dismiss_mfa_offer">
             <button type="submit" aria-label="Dismiss" title="Dismiss"
-                    style="background:none;border:none;color:#1e40af;cursor:pointer;font-size:1.3rem;line-height:1;padding:.1rem .3rem">&times;</button>
+                    style="background:none;border:none;color:var(--fg-1e40af, #1e40af);cursor:pointer;font-size:1.3rem;line-height:1;padding:.1rem .3rem">&times;</button>
         </form>
     </div>
     <?php endif; ?>
 
     <?php if ($monthFilter): ?>
-    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;padding:.6rem 1rem;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;font-size:.88rem;color:#1e40af">
+    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;padding:.6rem 1rem;background:var(--bg-eff6ff, #eff6ff);border:1px solid var(--bd-bfdbfe, #bfdbfe);border-radius:10px;font-size:.88rem;color:var(--fg-1e40af, #1e40af)">
         <span>&#128197; Showing posts from <strong><?= htmlspecialchars(date('F Y', mktime(0,0,0,(int)explode('-',$monthFilter)[1],1,(int)explode('-',$monthFilter)[0]))) ?></strong></span>
-        <a href="/" style="margin-left:auto;color:#2563eb;text-decoration:none;font-size:.82rem;white-space:nowrap">&larr; All posts</a>
+        <a href="/" style="margin-left:auto;color:var(--fg-2563eb, #2563eb);text-decoration:none;font-size:.82rem;white-space:nowrap">&larr; All posts</a>
     </div>
     <?php endif; ?>
 
@@ -733,7 +733,7 @@ endif; ?>
         <?php endforeach; ?>
 
         <div id="posts-sentinel" style="height:1px"></div>
-        <div id="posts-loading" style="display:none;text-align:center;padding:1.5rem 0;color:#64748b;font-size:.88rem">
+        <div id="posts-loading" style="display:none;text-align:center;padding:1.5rem 0;color:var(--fg-64748b, #64748b);font-size:.88rem">
             Loading&hellip;
         </div>
     <?php endif; ?>

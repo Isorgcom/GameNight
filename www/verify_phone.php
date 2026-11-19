@@ -130,9 +130,9 @@ $token = csrf_token();
         unset($_SESSION['walkin_event_id'], $_SESSION['walkin_player_id']);
         ?>
         <?php if ($wi_table !== null): ?>
-        <div style="margin-top:1rem;padding:1.2rem;background:#eff6ff;border:2px solid #3b82f6;border-radius:10px;text-align:center">
-            <div style="font-size:.85rem;color:#3b82f6;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Your Seat</div>
-            <div style="font-size:2.25rem;font-weight:800;color:#1e40af;line-height:1.2">
+        <div style="margin-top:1rem;padding:1.2rem;background:var(--bg-eff6ff, #eff6ff);border:2px solid #3b82f6;border-radius:10px;text-align:center">
+            <div style="font-size:.85rem;color:var(--fg-3b82f6, #3b82f6);font-weight:600;text-transform:uppercase;letter-spacing:.05em">Your Seat</div>
+            <div style="font-size:2.25rem;font-weight:800;color:var(--fg-1e40af, #1e40af);line-height:1.2">
                 Table <?= (int)$wi_table ?><?php if ($wi_seat): ?> &middot; Seat <?= (int)$wi_seat ?><?php endif; ?>
             </div>
         </div>
@@ -153,12 +153,12 @@ $token = csrf_token();
                 <input type="text" name="code" aria-label="Verification code" placeholder="000000" maxlength="6" pattern="\d{6}"
                        inputmode="numeric" autocomplete="one-time-code" required autofocus
                        value="<?= htmlspecialchars($_POST['code'] ?? '') ?>"
-                       style="width:180px;font-size:1.5rem;text-align:center;letter-spacing:.3em;padding:.6rem;border:2px solid #e2e8f0;border-radius:10px">
+                       style="width:180px;font-size:1.5rem;text-align:center;letter-spacing:.3em;padding:.6rem;border:2px solid var(--bd-e2e8f0, #e2e8f0);border-radius:10px">
             </div>
             <button type="submit" class="btn btn-primary" style="width:100%">Verify</button>
         </form>
 
-        <p style="text-align:center;margin-top:1rem;font-size:.875rem;color:#64748b">
+        <p style="text-align:center;margin-top:1rem;font-size:.875rem;color:var(--fg-64748b, #64748b)">
             Didn't get it? <a href="/resend_verification.php">Resend code</a>
         </p>
         <?php endif; ?>

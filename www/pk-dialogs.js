@@ -54,12 +54,12 @@
             '.pk-dialog{position:fixed!important;inset:0!important;z-index:100000!important;' +
                 'display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5)}' +
             '.pk-dialog.open{display:flex!important}' +
-            '.pk-dialog .pk-modal{background:#fff;color:#0f172a;border-radius:12px;padding:1.5rem;' +
+            '.pk-dialog .pk-modal{background:var(--bg-ffffff, #ffffff);color:var(--fg-0f172a, #0f172a);border-radius:12px;padding:1.5rem;' +
                 'width:90%;max-width:400px;box-shadow:0 10px 40px rgba(0,0,0,.25);max-height:85vh;overflow:auto;text-align:left}' +
-            '.pk-dialog .pk-modal h3{margin:0 0 .75rem;color:#0f172a}' +
+            '.pk-dialog .pk-modal h3{margin:0 0 .75rem;color:var(--fg-0f172a, #0f172a)}' +
             '.pk-dialog .pk-modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem}' +
             '.pk-dialog .pk-modal-actions button{padding:.5rem 1rem;border-radius:6px;font-size:.9rem;font-weight:600;' +
-                'cursor:pointer;border:1.5px solid #e2e8f0;background:#fff;color:#0f172a}' +
+                'cursor:pointer;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);background:var(--bg-ffffff, #ffffff);color:var(--fg-0f172a, #0f172a)}' +
             '.pk-dialog .pk-modal-actions .pk-save{background:#2563eb;color:#fff;border-color:transparent}' +
             '.pk-dialog .pk-modal-actions .pk-save:disabled{opacity:.5;cursor:default}' +
             // A quick second tap on a key (+$20, +$20) must be a second tap, not a
@@ -68,22 +68,22 @@
             // The money keypad. Keys 46px tall for a thumb; the lit multiple is the
             // accent; bills read green; no transitions, so nothing to reduce.
             '.pk-money{margin-top:.7rem}' +
-            '.pk-money-amt{display:flex;align-items:baseline;gap:.25rem;border:1.5px solid #cbd5e1;border-radius:10px;' +
-                'padding:.45rem .8rem;font-size:1.7rem;font-weight:800;font-variant-numeric:tabular-nums;color:#0f172a;' +
-                'background:#f8fafc;min-height:2.6rem;box-sizing:border-box;overflow:hidden}' +
-            '.pk-money-amt .pk-money-cur{color:#64748b;font-size:1.1rem;margin-right:auto}' +
+            '.pk-money-amt{display:flex;align-items:baseline;gap:.25rem;border:1.5px solid var(--bd-cbd5e1, #cbd5e1);border-radius:10px;' +
+                'padding:.45rem .8rem;font-size:1.7rem;font-weight:800;font-variant-numeric:tabular-nums;color:var(--fg-0f172a, #0f172a);' +
+                'background:var(--bg-f8fafc, #f8fafc);min-height:2.6rem;box-sizing:border-box;overflow:hidden}' +
+            '.pk-money-amt .pk-money-cur{color:var(--fg-64748b, #64748b);font-size:1.1rem;margin-right:auto}' +
             '.pk-money-amt .pk-money-val{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
-            '.pk-money-amt.empty .pk-money-val{color:#64748b;font-weight:600}' +
+            '.pk-money-amt.empty .pk-money-val{color:var(--fg-64748b, #64748b);font-weight:600}' +
             '.pk-money-mults,.pk-money-bills{display:flex;gap:.35rem;margin-top:.5rem}' +
-            '.pk-money-chip{flex:1 1 0;min-width:0;min-height:40px;border:1.5px solid #cbd5e1;border-radius:10px;background:#fff;' +
-                'color:#334155;font-weight:700;font-size:.82rem;padding:0 .2rem;cursor:pointer;white-space:nowrap;overflow:hidden;' +
+            '.pk-money-chip{flex:1 1 0;min-width:0;min-height:40px;border:1.5px solid var(--bd-cbd5e1, #cbd5e1);border-radius:10px;background:var(--bg-ffffff, #ffffff);' +
+                'color:var(--fg-334155, #334155);font-weight:700;font-size:.82rem;padding:0 .2rem;cursor:pointer;white-space:nowrap;overflow:hidden;' +
                 'text-overflow:ellipsis;-webkit-tap-highlight-color:transparent}' +
-            '.pk-money-chip.pk-money-bill{color:#15803d}' +
+            '.pk-money-chip.pk-money-bill{color:var(--fg-15803d, #15803d)}' +
             '.pk-money-chip.on{background:#2563eb;border-color:#2563eb;color:#fff}' +
             '.pk-money-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:.35rem;margin-top:.5rem}' +
-            '.pk-money-key{min-height:46px;border:1.5px solid #cbd5e1;border-radius:10px;background:#fff;color:#334155;' +
+            '.pk-money-key{min-height:46px;border:1.5px solid var(--bd-cbd5e1, #cbd5e1);border-radius:10px;background:var(--bg-ffffff, #ffffff);color:var(--fg-334155, #334155);' +
                 'font-size:1.25rem;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}' +
-            '.pk-money-key:active,.pk-money-chip:active{background:#f1f5f9}' +
+            '.pk-money-key:active,.pk-money-chip:active{background:var(--bg-f1f5f9, #f1f5f9)}' +
             '.pk-money-chip.on:active{background:#1d4ed8}' +
             '.pk-money-key:focus-visible,.pk-money-chip:focus-visible{outline:2px solid #2563eb;outline-offset:1px}' +
             '.pk-dialog.pk-dialog-money .pk-modal-actions button{flex:1;min-height:46px;font-size:1rem}' +
@@ -92,11 +92,11 @@
             '.pk-progress{position:fixed!important;inset:0!important;z-index:100001!important;display:none;' +
                 'align-items:center;justify-content:center;background:rgba(15,23,42,.55);padding:1rem}' +
             '.pk-progress.open{display:flex!important}' +
-            '.pk-progress-card{background:#fff;border-radius:14px;padding:1.75rem 2rem;max-width:360px;width:100%;' +
+            '.pk-progress-card{background:var(--bg-ffffff, #ffffff);border-radius:14px;padding:1.75rem 2rem;max-width:360px;width:100%;' +
                 'text-align:center;box-shadow:0 16px 48px rgba(0,0,0,.3)}' +
-            '.pk-progress-title{font-size:1.05rem;font-weight:700;color:#1e293b;margin-bottom:.4rem}' +
-            '.pk-progress-msg{font-size:.85rem;color:#64748b;margin-bottom:1.1rem}' +
-            '.pk-progress-track{height:9px;background:#e2e8f0;border-radius:99px;overflow:hidden}' +
+            '.pk-progress-title{font-size:1.05rem;font-weight:700;color:var(--fg-1e293b, #1e293b);margin-bottom:.4rem}' +
+            '.pk-progress-msg{font-size:.85rem;color:var(--fg-64748b, #64748b);margin-bottom:1.1rem}' +
+            '.pk-progress-track{height:9px;background:var(--bg-e2e8f0, #e2e8f0);border-radius:99px;overflow:hidden}' +
             '.pk-progress-bar{height:100%;width:8%;background:#16a34a;border-radius:99px;transition:width .35s ease}';
         document.head.appendChild(s);
     }
@@ -160,7 +160,7 @@
         overlay.innerHTML =
             '<div class="pk-modal" role="dialog" aria-modal="true" aria-labelledby="pkDialogTitle" aria-describedby="pkDialogMsg">' +
                 '<h3 class="pk-dialog-title" id="pkDialogTitle"></h3>' +
-                '<p class="pk-dialog-msg" id="pkDialogMsg" style="font-size:.9rem;color:#475569;line-height:1.45;margin:0"></p>' +
+                '<p class="pk-dialog-msg" id="pkDialogMsg" style="font-size:.9rem;color:var(--fg-475569, #475569);line-height:1.45;margin:0"></p>' +
                 '<div class="pk-dialog-input" style="display:none;margin-top:.6rem">' +
                     '<input class="pk-dialog-field" aria-labelledby="pkDialogTitle pkDialogMsg" style="width:100%;padding:.5rem;border:1.5px solid #94a3b8;border-radius:6px;font-size:1rem;box-sizing:border-box">' +
                 '</div>' +
@@ -564,5 +564,14 @@
             document.head.appendChild(js);
         });
         return joditP;
+    };
+
+    // ── Is the page dark right now? ─────────────────────────────────────
+    // The My Settings choice (<html data-theme>) wins; otherwise the device.
+    // For third-party widgets that take a theme option (Jodit).
+    window.pkIsDark = function () {
+        var t = document.documentElement.getAttribute('data-theme');
+        if (t) return t === 'dark';
+        return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
     };
 })();

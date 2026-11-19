@@ -221,10 +221,10 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
     in this browser (localStorage), "No thanks" is permanent (server flag).
     Only shown when push is supported, permission isn't denied, and this
     device has no subscription yet. */ ?>
-<div id="pushPromptCard" style="display:none;position:fixed;right:1rem;bottom:1rem;z-index:250;max-width:330px;background:#fff;border:1.5px solid #bfdbfe;border-left:4px solid #2563eb;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:.85rem 1rem">
+<div id="pushPromptCard" style="display:none;position:fixed;right:1rem;bottom:1rem;z-index:250;max-width:330px;background:var(--bg-ffffff, #ffffff);border:1.5px solid var(--bd-bfdbfe, #bfdbfe);border-left:4px solid #2563eb;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:.85rem 1rem">
     <div id="pushPromptBody">
-        <div style="font-weight:700;font-size:.9rem;color:#1e293b;margin-bottom:.25rem">&#128276; Get notified about your games?</div>
-        <div style="font-size:.8rem;color:#64748b;margin-bottom:.7rem">Invites, reminders, RSVPs and messages as notifications on this device, even when the site is closed.</div>
+        <div style="font-weight:700;font-size:.9rem;color:var(--fg-1e293b, #1e293b);margin-bottom:.25rem">&#128276; Get notified about your games?</div>
+        <div style="font-size:.8rem;color:var(--fg-64748b, #64748b);margin-bottom:.7rem">Invites, reminders, RSVPs and messages as notifications on this device, even when the site is closed.</div>
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
             <button type="button" class="btn btn-primary" style="padding:.4rem .9rem;font-size:.8rem" data-act="pushPromptEnable">Turn on</button>
             <button type="button" class="btn btn-outline" style="padding:.4rem .9rem;font-size:.8rem" data-act="pushPromptLater">Not now</button>
@@ -245,8 +245,8 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
     window.pushPromptEnable = function () {
         gnPush.enable(CSRF).then(function () {
             document.getElementById('pushPromptBody').innerHTML =
-                '<div style="font-weight:700;font-size:.9rem;color:#166534">&#10003; Notifications on</div>'
-                + '<div style="font-size:.8rem;color:#64748b">Manage devices any time in My Settings.</div>';
+                '<div style="font-weight:700;font-size:.9rem;color:var(--fg-166534, #166534)">&#10003; Notifications on</div>'
+                + '<div style="font-size:.8rem;color:var(--fg-64748b, #64748b)">Manage devices any time in My Settings.</div>';
             setTimeout(hide, 4000);
         }).catch(function (e) {
             hide();

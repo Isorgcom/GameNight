@@ -101,17 +101,17 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         $out  = '<div style="margin-top:.85rem"><div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:' . $color . ';margin-bottom:.3rem">'
               . htmlspecialchars($lbl) . ' (' . count($names) . ')</div><div style="display:flex;flex-wrap:wrap;gap:.3rem;justify-content:center">';
         foreach ($names as $n) {
-            $out .= '<span style="font-size:.82rem;color:#334155;background:#f1f5f9;border-radius:999px;padding:.18rem .65rem">' . htmlspecialchars($n) . '</span>';
+            $out .= '<span style="font-size:.82rem;color:var(--fg-334155, #334155);background:var(--bg-f1f5f9, #f1f5f9);border-radius:999px;padding:.18rem .65rem">' . htmlspecialchars($n) . '</span>';
         }
         return $out . '</div></div>';
     };
 
-    $body  = '<div style="text-align:left;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1rem 1.1rem;margin-bottom:1.25rem">';
-    $body .= '<div style="font-size:1.05rem;font-weight:800;color:#1e293b;margin-bottom:.3rem">' . htmlspecialchars($invite['title']) . '</div>';
-    $body .= '<div style="font-size:.9rem;color:#475569">' . htmlspecialchars($pretty_date) . '</div>';
-    if ($pretty_time !== '') $body .= '<div style="font-size:.9rem;color:#475569">' . $pretty_time . '</div>';
+    $body  = '<div style="text-align:left;background:var(--bg-f8fafc, #f8fafc);border:1px solid var(--bd-e2e8f0, #e2e8f0);border-radius:10px;padding:1rem 1.1rem;margin-bottom:1.25rem">';
+    $body .= '<div style="font-size:1.05rem;font-weight:800;color:var(--fg-1e293b, #1e293b);margin-bottom:.3rem">' . htmlspecialchars($invite['title']) . '</div>';
+    $body .= '<div style="font-size:.9rem;color:var(--fg-475569, #475569)">' . htmlspecialchars($pretty_date) . '</div>';
+    if ($pretty_time !== '') $body .= '<div style="font-size:.9rem;color:var(--fg-475569, #475569)">' . $pretty_time . '</div>';
     if (!empty($invite['description'])) {
-        $body .= '<div style="margin-top:.7rem;font-size:.9rem;color:#334155;line-height:1.5">' . nl2br(htmlspecialchars($invite['description'])) . '</div>';
+        $body .= '<div style="margin-top:.7rem;font-size:.9rem;color:var(--fg-334155, #334155);line-height:1.5">' . nl2br(htmlspecialchars($invite['description'])) . '</div>';
     }
     if (empty($invite['hide_guest_list'])) {
         $body .= $names_block('Going', $going, '#16a34a');
@@ -127,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
               . '<input type="hidden" name="r" value="' . htmlspecialchars($rsvp) . '">'
               . '<button type="submit" style="display:inline-block;padding:.7rem 2rem;border:none;border-radius:6px;background:' . $btnColor . ';color:#fff;font-weight:600;font-size:1rem;cursor:pointer">Confirm ' . $label . '</button>'
               . '</form>'
-              . '<p style="margin-top:1rem"><a href="/event.php?token=' . urlencode($token) . '" style="color:#64748b;text-decoration:none;font-size:.875rem">Cancel</a></p>';
+              . '<p style="margin-top:1rem"><a href="/event.php?token=' . urlencode($token) . '" style="color:var(--fg-64748b, #64748b);text-decoration:none;font-size:.875rem">Cancel</a></p>';
     show_page($heading, $body, 'success');
     exit;
 }
@@ -202,9 +202,9 @@ function show_page(string $title, string $body, string $type): void {
     <div style="max-width:480px;width:100%;text-align:center">
         <div style="background:<?= $bg ?>;border:2px solid <?= $color ?>;border-radius:12px;padding:2rem 1.5rem;margin-bottom:1.5rem">
             <h1 style="font-size:1.5rem;color:<?= $color ?>;margin:0 0 .75rem"><?= htmlspecialchars($title) ?></h1>
-            <div style="font-size:1rem;color:#334155;line-height:1.6"><?= $body ?></div>
+            <div style="font-size:1rem;color:var(--fg-334155, #334155);line-height:1.6"><?= $body ?></div>
         </div>
-        <a href="/" style="color:#2563eb;text-decoration:none;font-size:.9rem">Go to <?= htmlspecialchars($site_name) ?></a>
+        <a href="/" style="color:var(--fg-2563eb, #2563eb);text-decoration:none;font-size:.9rem">Go to <?= htmlspecialchars($site_name) ?></a>
     </div>
 </body>
 </html>

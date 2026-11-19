@@ -36,22 +36,22 @@ $vals = $league ?: [
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .le-wrap { max-width: 560px; margin: 1.5rem auto; padding: 0 1rem; }
-        .le-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; }
+        .le-card { background: var(--bg-ffffff, #ffffff); border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; padding: 1.25rem; }
         .le-card h1 { font-size: 1.3rem; font-weight: 700; margin: 0 0 1rem; }
         .le-row { margin-bottom: 1rem; }
-        .le-row label { display: block; font-weight: 600; color: #334155; margin-bottom: .3rem; font-size: .9rem; }
+        .le-row label { display: block; font-weight: 600; color: var(--fg-334155, #334155); margin-bottom: .3rem; font-size: .9rem; }
         .le-row input[type=text], .le-row textarea, .le-row select {
-            width: 100%; padding: .55rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font: inherit;
+            width: 100%; padding: .55rem; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 6px; font: inherit;
         }
         .le-row textarea { min-height: 90px; resize: vertical; }
-        .le-hint { font-size: .75rem; color: #64748b; margin-top: .25rem; }
+        .le-hint { font-size: .75rem; color: var(--fg-64748b, #64748b); margin-top: .25rem; }
         .le-toggle { display: flex; align-items: center; gap: .5rem; }
         .le-actions { display: flex; gap: .5rem; justify-content: flex-end; margin-top: 1rem; }
         .le-btn { background: #2563eb; color: #fff; border: none; border-radius: 6px; padding: .55rem 1.1rem; font-size: .9rem; font-weight: 600; cursor: pointer; text-decoration: none; }
         .le-btn:hover { background: #1d4ed8; }
-        .le-btn-ghost { background: transparent; color: #475569; border: 1.5px solid #cbd5e1; }
-        .le-btn-ghost:hover { background: #f1f5f9; }
-        .le-err { color: #dc2626; font-size: .9rem; margin-bottom: .75rem; display: none; }
+        .le-btn-ghost { background: transparent; color: var(--fg-475569, #475569); border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); }
+        .le-btn-ghost:hover { background: var(--bg-f1f5f9, #f1f5f9); }
+        .le-err { color: var(--fg-dc2626, #dc2626); font-size: .9rem; margin-bottom: .75rem; display: none; }
     </style>
 </head>
 <body>

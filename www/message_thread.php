@@ -119,11 +119,11 @@ $lastId = $messages ? (int)end($messages)['id'] : 0;
     <style>
         .dt-wrap { max-width: 680px; margin: 1.25rem auto 2rem; padding: 0 1rem; }
         .dt-head { display:flex; align-items:center; gap:.6rem; margin-bottom:.35rem; flex-wrap:wrap; }
-        .dt-head h1 { font-size:1.3rem; font-weight:800; color:#1e293b; margin:0; flex:1; min-width:0; }
-        .dt-members { font-size:.78rem; color:#64748b; margin:0 0 .9rem; }
+        .dt-head h1 { font-size:1.3rem; font-weight:800; color:var(--fg-1e293b, #1e293b); margin:0; flex:1; min-width:0; }
+        .dt-members { font-size:.78rem; color:var(--fg-64748b, #64748b); margin:0 0 .9rem; }
         .dt-msgs { display:flex; flex-direction:column; gap:.45rem; margin-bottom:1rem; }
         .dt-bubble { max-width:78%; padding:.5rem .8rem; border-radius:12px; font-size:.9rem; white-space:pre-wrap; word-wrap:break-word; }
-        .dt-bubble.theirs { background:#f1f5f9; color:#1e293b; align-self:flex-start; border-bottom-left-radius:4px; }
+        .dt-bubble.theirs { background:var(--bg-f1f5f9, #f1f5f9); color:var(--fg-1e293b, #1e293b); align-self:flex-start; border-bottom-left-radius:4px; }
         .dt-bubble.mine { background:#2563eb; color:#fff; align-self:flex-end; border-bottom-right-radius:4px; }
         .dt-bubble a { color:inherit; text-decoration:underline; word-break:break-all; }
         /* Pictures in a bubble (.pk-pics, style.css) and the composer: the box
@@ -132,14 +132,14 @@ $lastId = $messages ? (int)end($messages)['id'] : 0;
         .dt-bubble a.pk-pic { text-decoration:none; }
         .dt-compose { flex:1; min-width:0; }
         #dtAttach { min-width:44px; font-size:1.1rem; }
-        .dt-sender { font-size:.68rem; font-weight:700; color:#7c3aed; margin-bottom:.15rem; display:flex; align-items:center; gap:.3rem; }
+        .dt-sender { font-size:.68rem; font-weight:700; color:var(--fg-7c3aed, #7c3aed); margin-bottom:.15rem; display:flex; align-items:center; gap:.3rem; }
         .dt-when { font-size:.65rem; opacity:.65; margin-top:.2rem; }
         .dt-form { display:flex; gap:.5rem; align-items:flex-end; }
         .dt-form textarea { flex:1; min-height:64px; padding:.5rem .7rem; border:0; font-size:.9rem; font-family:inherit; resize:vertical; width:100%; box-sizing:border-box; background:transparent; }
         .dt-form textarea:focus { outline:none; }
-        .dt-add-card { display:none; background:#faf5ff; border:1.5px solid #ddd6fe; border-radius:10px; padding:.6rem .8rem; margin-bottom:.9rem; }
+        .dt-add-card { display:none; background:var(--bg-faf5ff, #faf5ff); border:1.5px solid var(--bd-ddd6fe, #ddd6fe); border-radius:10px; padding:.6rem .8rem; margin-bottom:.9rem; }
         .dt-add-card.open { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
-        .dt-add-card select { flex:1; min-width:180px; padding:.4rem .55rem; border:1.5px solid #ddd6fe; border-radius:8px; font-size:.88rem; }
+        .dt-add-card select { flex:1; min-width:180px; padding:.4rem .55rem; border:1.5px solid var(--bd-ddd6fe, #ddd6fe); border-radius:8px; font-size:.88rem; }
     </style>
 </head>
 <body>
@@ -154,10 +154,10 @@ $lastId = $messages ? (int)end($messages)['id'] : 0;
         <?php if ($isEventChat): ?>
             <a class="btn btn-outline" style="font-size:.8rem;padding:.3rem .6rem;text-decoration:none" href="/event.php?id=<?= (int)$conv['event_id'] ?>">View event</a>
             <?php if (!empty($myPart['manual_add'])): ?>
-            <button class="btn btn-outline" type="button" style="font-size:.8rem;padding:.3rem .6rem;color:#dc2626;border-color:#fecaca" data-act="leaveGroup">Leave chat</button>
+            <button class="btn btn-outline" type="button" style="font-size:.8rem;padding:.3rem .6rem;color:var(--fg-dc2626, #dc2626);border-color:var(--bd-fecaca, #fecaca)" data-act="leaveGroup">Leave chat</button>
             <?php endif; ?>
         <?php elseif ($isGroup): ?>
-            <button class="btn btn-outline" type="button" style="font-size:.8rem;padding:.3rem .6rem;color:#dc2626;border-color:#fecaca" data-act="leaveGroup">Leave group</button>
+            <button class="btn btn-outline" type="button" style="font-size:.8rem;padding:.3rem .6rem;color:var(--fg-dc2626, #dc2626);border-color:var(--bd-fecaca, #fecaca)" data-act="leaveGroup">Leave group</button>
         <?php elseif ($conv && $messages): ?>
             <button class="btn btn-outline" type="button" style="font-size:.8rem;padding:.3rem .6rem" data-act="clearConvo">Delete conversation</button>
         <?php endif; ?>
@@ -175,16 +175,16 @@ $lastId = $messages ? (int)end($messages)['id'] : 0;
         </select>
         <button class="btn" type="button" data-act="addMember" data-a1="@self">Add</button>
         <?php if ($isEventChat): ?>
-        <span style="flex-basis:100%;font-size:.72rem;color:#7c3aed">Adds them to this chat only — it does not invite them to the event.</span>
+        <span style="flex-basis:100%;font-size:.72rem;color:var(--fg-7c3aed, #7c3aed)">Adds them to this chat only — it does not invite them to the event.</span>
         <?php elseif (!$isGroup): ?>
-        <span style="flex-basis:100%;font-size:.72rem;color:#7c3aed">Adding someone turns this into a group chat — they'll only see messages from now on.</span>
+        <span style="flex-basis:100%;font-size:.72rem;color:var(--fg-7c3aed, #7c3aed)">Adding someone turns this into a group chat — they'll only see messages from now on.</span>
         <?php endif; ?>
     </div>
     <?php endif; ?>
 
     <div class="dt-msgs" id="dtMsgs">
         <?php if (!$messages): ?>
-        <p id="dtEmpty" style="color:#64748b">No messages yet — say hello below.</p>
+        <p id="dtEmpty" style="color:var(--fg-64748b, #64748b)">No messages yet — say hello below.</p>
         <?php else: foreach ($messages as $m):
             $mine = (int)$m['sender_id'] === $uid;
             try { $when = (new DateTime((string)$m['created_at'], $utc_tz))->setTimezone($viewer_tz)->format('M j g:ia'); }

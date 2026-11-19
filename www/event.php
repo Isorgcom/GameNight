@@ -22,8 +22,8 @@ $validRsvp  = array_merge(['yes', 'no'], $allowMaybe ? ['maybe'] : []);
 // ── Render a simple branded page (shared by error + main views) ──────────────
 function ev_show_simple(string $heading, string $body, string $type = 'error'): void {
     global $site_name;
-    $color = $type === 'success' ? '#16a34a' : '#dc2626';
-    $bg    = $type === 'success' ? '#f0fdf4' : '#fef2f2';
+    $color = $type === 'success' ? 'var(--fg-16a34a, #16a34a)' : 'var(--fg-dc2626, #dc2626)';
+    $bg    = $type === 'success' ? 'var(--bg-f0fdf4, #f0fdf4)' : 'var(--bg-fef2f2, #fef2f2)';
     ?><!DOCTYPE html>
 <html lang="en"><head>
     <meta charset="UTF-8">
@@ -35,9 +35,9 @@ function ev_show_simple(string $heading, string $body, string $type = 'error'): 
     <div style="max-width:480px;width:100%;text-align:center">
         <div style="background:<?= $bg ?>;border:2px solid <?= $color ?>;border-radius:12px;padding:2rem 1.5rem;margin-bottom:1.5rem">
             <h1 style="font-size:1.5rem;color:<?= $color ?>;margin:0 0 .75rem"><?= htmlspecialchars($heading) ?></h1>
-            <div style="font-size:1rem;color:#334155;line-height:1.6"><?= $body ?></div>
+            <div style="font-size:1rem;color:var(--fg-334155, #334155);line-height:1.6"><?= $body ?></div>
         </div>
-        <a href="/" style="color:#2563eb;text-decoration:none;font-size:.9rem">Go to <?= htmlspecialchars($site_name) ?></a>
+        <a href="/" style="color:var(--fg-2563eb, #2563eb);text-decoration:none;font-size:.9rem">Go to <?= htmlspecialchars($site_name) ?></a>
     </div>
 </body></html><?php
 }
@@ -224,32 +224,32 @@ if ($token === '' && $page_eid > 0) {
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .evp-wrap { max-width: 640px; margin: 1.25rem auto 2rem; padding: 0 1rem; }
-        .evp-card { background:#fff; border:1.5px solid #e2e8f0; border-radius:12px; padding:1.5rem; }
-        .evp-meta { color:#475569; font-size:.95rem; margin-bottom:.15rem; }
-        .evp-comment { border-top:1px solid #f1f5f9; padding:.55rem 0; }
-        .evp-comment .who { font-weight:600; font-size:.85rem; color:#334155; }
-        .evp-comment .when { color:#64748b; font-size:.75rem; margin-left:.4rem; }
-        .evp-comment .body { font-size:.9rem; color:#334155; margin-top:.15rem; white-space:pre-wrap; }
+        .evp-card { background:var(--bg-ffffff, #ffffff); border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:12px; padding:1.5rem; }
+        .evp-meta { color:var(--fg-475569, #475569); font-size:.95rem; margin-bottom:.15rem; }
+        .evp-comment { border-top:1px solid var(--bd-f1f5f9, #f1f5f9); padding:.55rem 0; }
+        .evp-comment .who { font-weight:600; font-size:.85rem; color:var(--fg-334155, #334155); }
+        .evp-comment .when { color:var(--fg-64748b, #64748b); font-size:.75rem; margin-left:.4rem; }
+        .evp-comment .body { font-size:.9rem; color:var(--fg-334155, #334155); margin-top:.15rem; white-space:pre-wrap; }
         /* The "not set up yet" call-to-action, checkin.php's warning palette. */
         .pk-setup-cta{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin:0;padding:.7rem .9rem;
-            background:#fffbeb;border:1.5px solid #f59e0b;border-left-width:5px;border-radius:8px}
-        .pk-setup-cta-txt{flex:1 1 240px;min-width:0;font-size:.82rem;color:#92400e;line-height:1.4}
-        .pk-setup-cta-txt b{display:block;font-size:.9rem;color:#b45309}
+            background:var(--bg-fffbeb, #fffbeb);border:1.5px solid #f59e0b;border-left-width:5px;border-radius:8px}
+        .pk-setup-cta-txt{flex:1 1 240px;min-width:0;font-size:.82rem;color:var(--fg-92400e, #92400e);line-height:1.4}
+        .pk-setup-cta-txt b{display:block;font-size:.9rem;color:var(--fg-b45309, #b45309)}
         .pk-setup-cta button{flex:0 0 auto;border:none;background:#d97706;color:#fff;border-radius:6px;
             padding:.45rem 1rem;font-size:.82rem;font-weight:700;cursor:pointer}
         .pk-setup-cta button:hover{background:#b45309}
         .pk-setup-cta button[disabled]{opacity:.5;cursor:default}
-        .ft-head{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:.45rem}
-        .ft-status{font-size:.9rem;color:#334155;line-height:1.5}
+        .ft-head{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-64748b, #64748b);margin-bottom:.45rem}
+        .ft-status{font-size:.9rem;color:var(--fg-334155, #334155);line-height:1.5}
         .ft-row{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.6rem;align-items:center}
-        .ft-ent{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;font-size:.85rem;color:#475569;padding:.2rem 0;border-top:1px solid #f1f5f9}
+        .ft-ent{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;font-size:.85rem;color:var(--fg-475569, #475569);padding:.2rem 0;border-top:1px solid var(--bd-f1f5f9, #f1f5f9)}
         .ft-ent:first-child{border-top:0}
-        .ft-ent .n{flex:1;min-width:0;font-weight:600;color:#334155}
+        .ft-ent .n{flex:1;min-width:0;font-weight:600;color:var(--fg-334155, #334155)}
         .ft-ent .c{font-variant-numeric:tabular-nums}
-        .ft-ent .out{color:#64748b;text-decoration:line-through}
-        .ft-mini{border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:6px;padding:.2rem .55rem;font-size:.75rem;font-weight:600;cursor:pointer}
-        .ft-mini:hover{background:#f1f5f9}
-        .ft-note{font-size:.8rem;color:#64748b;margin-top:.4rem}
+        .ft-ent .out{color:var(--fg-64748b, #64748b);text-decoration:line-through}
+        .ft-mini{border:1px solid var(--bd-cbd5e1, #cbd5e1);background:var(--bg-ffffff, #ffffff);color:var(--fg-334155, #334155);border-radius:6px;padding:.2rem .55rem;font-size:.75rem;font-weight:600;cursor:pointer}
+        .ft-mini:hover{background:var(--bg-f1f5f9, #f1f5f9)}
+        .ft-note{font-size:.8rem;color:var(--fg-64748b, #64748b);margin-top:.4rem}
     </style>
 </head>
 <body>
@@ -260,18 +260,18 @@ if ($token === '' && $page_eid > 0) {
     unset($_SESSION['flash']);
     if ($flash && !empty($flash['msg'])):
         $ok = ($flash['type'] ?? '') === 'success'; ?>
-    <div role="alert" style="margin-bottom:.9rem;padding:.6rem .8rem;border-radius:8px;font-size:.9rem;font-weight:600;<?= $ok ? 'background:#f0fdf4;border:1px solid #bbf7d0;color:#166534' : 'background:#fef2f2;border:1px solid #fca5a5;color:#dc2626' ?>">
+    <div role="alert" style="margin-bottom:.9rem;padding:.6rem .8rem;border-radius:8px;font-size:.9rem;font-weight:600;<?= $ok ? 'background:var(--bg-f0fdf4, #f0fdf4);border:1px solid var(--bd-bbf7d0, #bbf7d0);color:var(--fg-166534, #166534)' : 'background:var(--bg-fef2f2, #fef2f2);border:1px solid var(--bd-fca5a5, #fca5a5);color:var(--fg-dc2626, #dc2626)' ?>">
         <?= htmlspecialchars($flash['msg']) ?>
     </div>
     <?php endif; ?>
     <div class="evp-card">
         <div style="display:flex;align-items:flex-start;gap:.6rem;flex-wrap:wrap">
-            <h1 style="font-size:1.4rem;font-weight:800;color:<?= $evCancelled ? '#64748b' : '#1e293b' ?>;margin:0 0 .5rem;flex:1;min-width:0"><?= htmlspecialchars($ev['title']) ?></h1>
+            <h1 style="font-size:1.4rem;font-weight:800;color:<?= $evCancelled ? 'var(--fg-64748b, #64748b)' : 'var(--fg-1e293b, #1e293b)' ?>;margin:0 0 .5rem;flex:1;min-width:0"><?= htmlspecialchars($ev['title']) ?></h1>
             <?php if ($evCancelled): ?>
             <span class="evp-cancelled-tag">Cancelled</span>
             <?php endif; ?>
             <?php if (!empty($ev['league_name'])): ?>
-            <span style="background:#eef2ff;color:#4338ca;font-size:.72rem;font-weight:700;padding:.2rem .55rem;border-radius:999px"><?= htmlspecialchars($ev['league_name']) ?></span>
+            <span style="background:var(--bg-eef2ff, #eef2ff);color:var(--fg-4338ca, #4338ca);font-size:.72rem;font-weight:700;padding:.2rem .55rem;border-radius:999px"><?= htmlspecialchars($ev['league_name']) ?></span>
             <?php endif; ?>
         </div>
         <div class="evp-meta"><?= htmlspecialchars($date_lbl2) ?><?= $time_lbl2 !== '' ? ' &middot; ' . $time_lbl2 : '' ?>
@@ -282,7 +282,7 @@ if ($token === '' && $page_eid > 0) {
             <?php endif; ?>
         </div>
         <?php if (!empty($ev['venue_name']) || !empty($ev['location'])): ?>
-        <div style="font-size:.9rem;color:#475569;margin-top:.3rem">
+        <div style="font-size:.9rem;color:var(--fg-475569, #475569);margin-top:.3rem">
             &#128205;
             <?php if (!empty($ev['venue_name'])): ?><?= htmlspecialchars($ev['venue_name']) ?><?php endif; ?>
             <?php if (!empty($ev['venue_name']) && !empty($ev['location'])): ?>&middot;<?php endif; ?>
@@ -290,14 +290,14 @@ if ($token === '' && $page_eid > 0) {
             &middot; <a href="https://www.google.com/maps/search/?api=1&amp;query=<?= urlencode($ev['location'] ?: $ev['venue_name']) ?>" target="_blank" rel="noopener">Open in Maps</a>
         </div>
         <?php endif; ?>
-        <div style="font-size:.85rem;color:#64748b;margin-top:.35rem">
+        <div style="font-size:.85rem;color:var(--fg-64748b, #64748b);margin-top:.35rem">
             &#128197; <a href="/ics.php?id=<?= $page_eid ?>">Add to calendar</a>
             &middot; <a href="/ics.php?id=<?= $page_eid ?>&amp;google=1" target="_blank" rel="noopener">Google</a>
             &middot; <a href="<?= htmlspecialchars($calUrl) ?>">Open in calendar</a>
         </div>
 
         <?php if (!empty($ev['description'])): ?>
-        <div style="margin-top:1rem;font-size:.95rem;color:#334155;line-height:1.55"><?= nl2br(htmlspecialchars($ev['description'])) ?></div>
+        <div style="margin-top:1rem;font-size:.95rem;color:var(--fg-334155, #334155);line-height:1.55"><?= nl2br(htmlspecialchars($ev['description'])) ?></div>
         <?php endif; ?>
 
         <?php if ($evCancelled): ?>
@@ -308,8 +308,8 @@ if ($token === '' && $page_eid > 0) {
         </div>
         <?php endif; ?>
         <style>
-        .evp-cancelled-tag { background:#fef2f2;color:#991b1b;border:1px solid #fecaca;font-size:.72rem;font-weight:700;padding:.2rem .55rem;border-radius:999px;text-transform:uppercase;letter-spacing:.04em }
-        .evp-cancelled { margin-top:1rem;background:#fffbeb;border:1px solid #f59e0b;color:#92400e;border-radius:8px;padding:.6rem .8rem;font-size:.9rem;line-height:1.5 }
+        .evp-cancelled-tag { background:var(--bg-fef2f2, #fef2f2);color:var(--fg-991b1b, #991b1b);border:1px solid var(--bd-fecaca, #fecaca);font-size:.72rem;font-weight:700;padding:.2rem .55rem;border-radius:999px;text-transform:uppercase;letter-spacing:.04em }
+        .evp-cancelled { margin-top:1rem;background:var(--bg-fffbeb, #fffbeb);border:1px solid #f59e0b;color:var(--fg-92400e, #92400e);border-radius:8px;padding:.6rem .8rem;font-size:.9rem;line-height:1.5 }
         </style>
 
         <?php if ($canManage && $evCancelled): ?>
@@ -320,7 +320,7 @@ if ($token === '' && $page_eid > 0) {
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
                 <input type="hidden" name="action" value="delete">
                 <input type="hidden" name="id" value="<?= $page_eid ?>">
-                <button type="submit" class="btn btn-outline" style="color:#dc2626;border-color:#fecaca">Delete event</button>
+                <button type="submit" class="btn btn-outline" style="color:var(--fg-dc2626, #dc2626);border-color:var(--bd-fecaca, #fecaca)">Delete event</button>
             </form>
         </div>
         <?php elseif ($canManage): ?>
@@ -350,7 +350,7 @@ if ($token === '' && $page_eid > 0) {
                     <?php if ($evUpcoming): ?>
                     <?php /* An upcoming event is cancelled, not deleted: guests are
                              told, the event stays (marked) so it can be duplicated. */ ?>
-                    <form method="post" action="/calendar.php" style="margin:0;border-top:1px solid #f1f5f9"
+                    <form method="post" action="/calendar.php" style="margin:0;border-top:1px solid var(--bd-f1f5f9, #f1f5f9)"
                           data-confirm="Cancel this event? Everyone on the guest list is told it is off. The event stays here, marked cancelled, so you can duplicate it later." data-confirm-ok="Cancel event" data-confirm-danger="1">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
                         <input type="hidden" name="action" value="cancel">
@@ -366,10 +366,10 @@ if ($token === '' && $page_eid > 0) {
                         <input type="hidden" name="silent" value="1">
                         <input type="hidden" name="id" value="<?= $page_eid ?>">
                         <input type="hidden" name="month_param" value="<?= htmlspecialchars(substr($occDateQ, 0, 7)) ?>">
-                        <button type="submit" style="color:#dc2626">Delete without notifying</button>
+                        <button type="submit" style="color:var(--fg-dc2626, #dc2626)">Delete without notifying</button>
                     </form>
                     <?php else: ?>
-                    <form method="post" action="/calendar.php" style="margin:0;border-top:1px solid #f1f5f9"
+                    <form method="post" action="/calendar.php" style="margin:0;border-top:1px solid var(--bd-f1f5f9, #f1f5f9)"
                           data-confirm="Delete this past event for good? Its guest list, results and comments go with it. Nobody is notified." data-confirm-ok="Delete" data-confirm-danger="1">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
                         <input type="hidden" name="action" value="delete">
@@ -449,20 +449,20 @@ if ($token === '' && $page_eid > 0) {
         <script src="/vendor/qrcode.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/qrcode.min.js') ?: 0)) ?>" defer></script>
         <script src="/pk-qr.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-qr.js') ?: 0)) ?>" defer></script>
         <style>
-        .ev-share { margin-top:1rem; border:1.5px solid #cbd5e1; border-radius:10px; padding:1rem; background:#fff; }
-        .ev-share-title { font-size:1rem; margin:0 0 .35rem; color:#0f172a; }
-        .ev-share-hint { font-size:.85rem; color:#475569; margin:0 0 .8rem; line-height:1.5; }
-        .ev-share-url { font-family:ui-monospace,monospace; font-size:.78rem; color:#334155; background:#f1f5f9; border-radius:6px; padding:.45rem .6rem; overflow-wrap:anywhere; margin-bottom:.7rem; }
+        .ev-share { margin-top:1rem; border:1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius:10px; padding:1rem; background:var(--bg-ffffff, #ffffff); }
+        .ev-share-title { font-size:1rem; margin:0 0 .35rem; color:var(--fg-0f172a, #0f172a); }
+        .ev-share-hint { font-size:.85rem; color:var(--fg-475569, #475569); margin:0 0 .8rem; line-height:1.5; }
+        .ev-share-url { font-family:ui-monospace,monospace; font-size:.78rem; color:var(--fg-334155, #334155); background:var(--bg-f1f5f9, #f1f5f9); border-radius:6px; padding:.45rem .6rem; overflow-wrap:anywhere; margin-bottom:.7rem; }
         .ev-share-row { display:flex; gap:.5rem; flex-wrap:wrap; }
         .ev-share-row .btn { min-height:36px; }
         .ev-share-quiet { margin-top:.6rem; }
         .ev-share-quiet .btn { font-size:.8rem; }
-        .ev-share-switch { display:flex; align-items:center; gap:.5rem; margin:.85rem 0 0; font-size:.88rem; color:#334155; cursor:pointer; min-height:28px; }
+        .ev-share-switch { display:flex; align-items:center; gap:.5rem; margin:.85rem 0 0; font-size:.88rem; color:var(--fg-334155, #334155); cursor:pointer; min-height:28px; }
         .ev-share-switch input { width:18px; height:18px; }
-        .ev-share-count { font-size:.82rem; color:#475569; margin:.5rem 0 0; }
+        .ev-share-count { font-size:.82rem; color:var(--fg-475569, #475569); margin:.5rem 0 0; }
         .ev-share-count:empty { display:none; }
-        .ev-share-off p { font-size:.88rem; color:#92400e; background:#fffbeb; border:1px solid #f59e0b; border-radius:8px; padding:.55rem .7rem; margin:0 0 .6rem; }
-        .ev-share-err { font-size:.85rem; color:#991b1b; margin:.6rem 0 0; }
+        .ev-share-off p { font-size:.88rem; color:var(--fg-92400e, #92400e); background:var(--bg-fffbeb, #fffbeb); border:1px solid #f59e0b; border-radius:8px; padding:.55rem .7rem; margin:0 0 .6rem; }
+        .ev-share-err { font-size:.85rem; color:var(--fg-991b1b, #991b1b); margin:.6rem 0 0; }
         /* .pk-modal-overlay gives display none/.open flex, and tells help-bubble.js to hold its tips. */
         /* .pk-modal-overlay gives display none/.open flex, and tells help-bubble.js to hold its tips.
            style.css whitens every overlay on a phone with !important; this one keeps its poster
@@ -475,7 +475,7 @@ if ($token === '' && $page_eid > 0) {
         .ev-qr-suit.s2 { top:12%; right:-1.5rem; transform:rotate(18deg); color:rgba(248,113,113,.09); }
         .ev-qr-suit.s3 { bottom:6%; left:-1.25rem; transform:rotate(12deg); }
         .ev-qr-suit.s4 { bottom:-2rem; right:8%; transform:rotate(-10deg); color:rgba(248,113,113,.09); }
-        .ev-share-qr-card { position:relative; background:#fff; border-radius:22px; overflow:hidden; text-align:center;
+        .ev-share-qr-card { position:relative; background:var(--bg-ffffff, #ffffff); border-radius:22px; overflow:hidden; text-align:center;
             width:min(92vw, 420px); max-height:calc(100vh - 2rem);max-height:calc(100dvh - 2rem); overflow-y:auto; box-sizing:border-box;
             box-shadow:0 24px 60px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.08); }
         .ev-qr-band { background:linear-gradient(135deg, #2563eb 0%, #7c3aed 100%); color:#fff; padding:1.1rem 1.25rem 1rem; }
@@ -483,16 +483,16 @@ if ($token === '' && $page_eid > 0) {
         .ev-qr-kicker { font-size:.72rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase; opacity:.85; }
         .ev-share-qr-title { font-weight:800; font-size:1.45rem; line-height:1.2; margin:.25rem 0 0; overflow-wrap:anywhere; }
         .ev-qr-body { padding:1rem 1.25rem 1.2rem; }
-        .ev-qr-meta { list-style:none; margin:0 0 .9rem; padding:0; display:flex; flex-direction:column; gap:.25rem; font-size:.92rem; font-weight:600; color:#334155; }
-        .ev-qr-frame { position:relative; margin:0 auto; width:min(68vw, 280px, 46vh); padding:12px; background:#fff; border-radius:16px;
+        .ev-qr-meta { list-style:none; margin:0 0 .9rem; padding:0; display:flex; flex-direction:column; gap:.25rem; font-size:.92rem; font-weight:600; color:var(--fg-334155, #334155); }
+        .ev-qr-frame { position:relative; margin:0 auto; width:min(68vw, 280px, 46vh); padding:12px; background:var(--bg-ffffff, #ffffff); border-radius:16px;
             box-shadow:0 0 0 2px #e2e8f0, 0 6px 18px rgba(15,23,42,.12); }
         .ev-qr-frame::before, .ev-qr-frame::after { content:''; position:absolute; width:34px; height:34px; border:4px solid #2563eb; pointer-events:none; }
         .ev-qr-frame::before { top:-6px; left:-6px; border-right:0; border-bottom:0; border-top-left-radius:18px; }
         .ev-qr-frame::after { bottom:-6px; right:-6px; border-left:0; border-top:0; border-bottom-right-radius:18px; border-color:#7c3aed; }
         .ev-qr-frame img { width:100%; height:auto; image-rendering:pixelated; display:block; }
-        .ev-share-qr-sub { font-size:.9rem; color:#475569; margin:1rem 0 .6rem; }
-        .ev-qr-seats { display:inline-block; font-size:.82rem; font-weight:700; color:#166534; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:999px; padding:.25rem .75rem; margin-bottom:.9rem; }
-        .ev-qr-seats.full { color:#92400e; background:#fffbeb; border-color:#f59e0b; }
+        .ev-share-qr-sub { font-size:.9rem; color:var(--fg-475569, #475569); margin:1rem 0 .6rem; }
+        .ev-qr-seats { display:inline-block; font-size:.82rem; font-weight:700; color:var(--fg-166534, #166534); background:var(--bg-f0fdf4, #f0fdf4); border:1px solid var(--bd-bbf7d0, #bbf7d0); border-radius:999px; padding:.25rem .75rem; margin-bottom:.9rem; }
+        .ev-qr-seats.full { color:var(--fg-92400e, #92400e); background:var(--bg-fffbeb, #fffbeb); border-color:#f59e0b; }
         .ev-qr-done { display:block; width:100%; min-height:44px; font-size:1rem; }
         @media (max-width: 640px), (max-height: 720px) {
             .ev-qr-band { padding:.85rem 1rem .8rem; }
@@ -503,41 +503,41 @@ if ($token === '' && $page_eid > 0) {
             .ev-share-qr-sub { margin:.8rem 0 .5rem; font-size:.85rem; }
             .ev-qr-seats { margin-bottom:.7rem; }
         }
-        .inv-via-tag { font-size:.65rem; font-weight:700; color:#1e40af; background:#eff6ff; border:1px solid #bfdbfe; border-radius:4px; padding:.05rem .3rem; }
+        .inv-via-tag { font-size:.65rem; font-weight:700; color:var(--fg-1e40af, #1e40af); background:var(--bg-eff6ff, #eff6ff); border:1px solid var(--bd-bfdbfe, #bfdbfe); border-radius:4px; padding:.05rem .3rem; }
         </style>
         <?php endif; ?>
         <style>
         .ev-more-dd { position:relative; }
-        .ev-more-panel { display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:60;background:#fff;
-            border:1.5px solid #cbd5e1;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);min-width:180px;overflow:hidden; }
+        .ev-more-panel { display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:60;background:var(--bg-ffffff, #ffffff);
+            border:1.5px solid var(--bd-cbd5e1, #cbd5e1);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);min-width:180px;overflow:hidden; }
         .ev-more-dd.open .ev-more-panel { display:block; }
         .ev-more-panel a, .ev-more-panel button { display:block;width:100%;text-align:left;padding:.55rem .85rem;
-            font-size:.88rem;color:#334155;text-decoration:none;background:none;border:0;cursor:pointer;font-family:inherit; }
-        .ev-more-panel a:hover, .ev-more-panel button:hover { background:#f1f5f9; }
-        .ev-more-panel form button { color:#dc2626;font-weight:600; }
+            font-size:.88rem;color:var(--fg-334155, #334155);text-decoration:none;background:none;border:0;cursor:pointer;font-family:inherit; }
+        .ev-more-panel a:hover, .ev-more-panel button:hover { background:var(--bg-f1f5f9, #f1f5f9); }
+        .ev-more-panel form button { color:var(--fg-dc2626, #dc2626);font-weight:600; }
         </style>
         <?php endif; ?>
 
         <!-- RSVP (none on a cancelled event: the banner above says why) -->
         <?php if (!$evCancelled): ?>
-        <div style="margin-top:1.4rem;padding-top:1.1rem;border-top:1px solid #e2e8f0">
+        <div style="margin-top:1.4rem;padding-top:1.1rem;border-top:1px solid var(--bd-e2e8f0, #e2e8f0)">
             <?php if ($isPendingMe): ?>
-                <div style="font-size:.9rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.55rem .7rem">Your sign-up is waiting for host approval.</div>
+                <div style="font-size:.9rem;color:var(--fg-92400e, #92400e);background:var(--bg-fffbeb, #fffbeb);border:1px solid var(--bd-fde68a, #fde68a);border-radius:8px;padding:.55rem .7rem">Your sign-up is waiting for host approval.</div>
             <?php elseif ($isWaitMe): ?>
-                <div style="font-size:.9rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.55rem .7rem">You are on the waitlist for this event<?= $waitPos > 0 ? ' — position ' . $waitPos : '' ?>. You'll be notified if a seat opens up.</div>
+                <div style="font-size:.9rem;color:var(--fg-92400e, #92400e);background:var(--bg-fffbeb, #fffbeb);border:1px solid var(--bd-fde68a, #fde68a);border-radius:8px;padding:.55rem .7rem">You are on the waitlist for this event<?= $waitPos > 0 ? ' — position ' . $waitPos : '' ?>. You'll be notified if a seat opens up.</div>
             <?php elseif ($isInvited): ?>
                 <div style="display:flex;align-items:baseline;gap:.6rem;margin-bottom:.55rem">
-                    <span style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#2563eb">Are you coming?</span>
-                    <span id="evpSaved" style="visibility:hidden;color:#166534;background:#dcfce7;border-radius:6px;padding:.1rem .55rem;font-size:.75rem;font-weight:600">Saved</span>
+                    <span style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--fg-2563eb, #2563eb)">Are you coming?</span>
+                    <span id="evpSaved" style="visibility:hidden;color:var(--fg-166534, #166534);background:var(--bg-dcfce7, #dcfce7);border-radius:6px;padding:.1rem .55rem;font-size:.75rem;font-weight:600">Saved</span>
                 </div>
                 <div style="display:flex;gap:.5rem;max-width:380px" id="evpRsvpBtns">
                     <button type="button" class="evp-rb" data-rsvp="yes">&#10003; Yes</button>
                     <?php if ($allowMaybe): ?><button type="button" class="evp-rb" data-rsvp="maybe">? Maybe</button><?php endif; ?>
                     <button type="button" class="evp-rb" data-rsvp="no">&#10007; No</button>
                 </div>
-                <div style="margin-top:.8rem;display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;font-size:.85rem;color:#475569">
+                <div style="margin-top:.8rem;display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;font-size:.85rem;color:var(--fg-475569, #475569)">
                     <label style="font-weight:600;display:inline-flex;align-items:center;gap:.4rem">&#9200; Remind me
-                        <select id="evpRemind" title="An extra reminder just for you, on top of the host's, via your usual channel" style="padding:.3rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.83rem">
+                        <select id="evpRemind" title="An extra reminder just for you, on top of the host's, via your usual channel" style="padding:.3rem .5rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:6px;font-size:.83rem">
                             <option value="" id="evpRemindNone">None</option>
                             <?php foreach ([60 => '1 hour before', 180 => '3 hours before', 720 => '12 hours before', 1440 => '1 day before'] as $__o => $__l):
                                 $__sent = isset($remSent[$__o]) && !isset($remPending[$__o]);
@@ -548,16 +548,16 @@ if ($token === '' && $page_eid > 0) {
                         </select>
                     </label>
                     <?php if (!$isCreator): ?>
-                    <button type="button" id="evpLeaveBtn" style="margin-left:auto;font:inherit;font-size:.78rem;color:#dc2626;background:none;border:0;padding:0;cursor:pointer">Leave this event</button>
+                    <button type="button" id="evpLeaveBtn" style="margin-left:auto;font:inherit;font-size:.78rem;color:var(--fg-dc2626, #dc2626);background:none;border:0;padding:0;cursor:pointer">Leave this event</button>
                     <?php endif; ?>
                 </div>
                 <style>
                 .evp-rb { flex:1;padding:.6rem .5rem;border-radius:9px;font-size:.95rem;font-weight:700;cursor:pointer;
-                    background:#fff;border:2px solid #cbd5e1;color:#64748b;font-family:inherit; }
-                .evp-rb[data-rsvp=yes].on   { background:#dcfce7;border-color:#16a34a;color:#166534; }
-                .evp-rb[data-rsvp=maybe].on { background:#fef3c7;border-color:#d97706;color:#92400e; }
-                .evp-rb[data-rsvp=no].on    { background:#fee2e2;border-color:#dc2626;color:#991b1b; }
-                .evp-rb:hover { border-color:#93c5fd; }
+                    background:var(--bg-ffffff, #ffffff);border:2px solid var(--bd-cbd5e1, #cbd5e1);color:var(--fg-64748b, #64748b);font-family:inherit; }
+                .evp-rb[data-rsvp=yes].on   { background:var(--bg-dcfce7, #dcfce7);border-color:#16a34a;color:var(--fg-166534, #166534); }
+                .evp-rb[data-rsvp=maybe].on { background:var(--bg-fef3c7, #fef3c7);border-color:#d97706;color:var(--fg-92400e, #92400e); }
+                .evp-rb[data-rsvp=no].on    { background:var(--bg-fee2e2, #fee2e2);border-color:#dc2626;color:var(--fg-991b1b, #991b1b); }
+                .evp-rb:hover { border-color:var(--bd-93c5fd, #93c5fd); }
                 </style>
             <?php else: ?>
                 <?php /* The host is not on their own guest list until they add
@@ -569,7 +569,7 @@ if ($token === '' && $page_eid > 0) {
         <?php endif; /* !$evCancelled */ ?>
 
         <?php if ($myTicket): ?>
-        <div style="margin-top:1rem;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:.6rem .9rem;font-size:.88rem;color:#92400e">
+        <div style="margin-top:1rem;background:var(--bg-fffbeb, #fffbeb);border:1px solid var(--bd-fde68a, #fde68a);border-radius:10px;padding:.6rem .9rem;font-size:.88rem;color:var(--fg-92400e, #92400e)">
             🎟 <strong>You hold a $<?= number_format((int)$myTicket['value_cents'] / 100, ((int)$myTicket['value_cents'] % 100) ? 2 : 0) ?> entry ticket for this event</strong><?= $myTicket['source_title'] ? ' (won at "' . htmlspecialchars($myTicket['source_title']) . '")' : '' ?>.
             Show the host at buy-in — it covers your seat.
         </div>
@@ -582,10 +582,10 @@ if ($token === '' && $page_eid > 0) {
         if ($chatEligible): ?>
         <div style="margin-top:1.1rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
             <a class="btn btn-outline" style="text-decoration:none" href="/message_thread.php?event=<?= $page_eid ?>">&#128172; Event chat</a>
-            <span style="font-size:.78rem;color:#64748b">group chat for the host and everyone going</span>
+            <span style="font-size:.78rem;color:var(--fg-64748b, #64748b)">group chat for the host and everyone going</span>
             <?php if ($canManage): ?>
             <a class="btn btn-outline" style="text-decoration:none" href="/sms_conversations.php?event=<?= $page_eid ?>">&#128241; Text conversations</a>
-            <span style="font-size:.78rem;color:#64748b">SMS/WhatsApp replies from your guests</span>
+            <span style="font-size:.78rem;color:var(--fg-64748b, #64748b)">SMS/WhatsApp replies from your guests</span>
             <?php endif; ?>
         </div>
         <?php endif; ?>
@@ -594,7 +594,7 @@ if ($token === '' && $page_eid > 0) {
         <!-- Played online: the table on FinalTable. Before setup, managers see
              what will be sent and the button; after, everyone sees the status
              and the links, managers the controls. finaltable.js keeps it fresh. -->
-        <div id="ftPanel" style="margin-top:1.4rem;padding-top:1.1rem;border-top:1px solid #e2e8f0">
+        <div id="ftPanel" style="margin-top:1.4rem;padding-top:1.1rem;border-top:1px solid var(--bd-e2e8f0, #e2e8f0)">
             <div class="ft-head">Played online at <?= $ftE($ftApp['name']) ?></div>
             <div class="ft-status"><?= $ftE($ftGameLabel) ?></div>
             <?php if (!$ftGame || !in_array($ftGame['status'], ['registering', 'running'], true)): ?>
@@ -670,9 +670,9 @@ if ($token === '' && $page_eid > 0) {
              on-behalf RSVPs — ported from the old calendar popup); guests keep the
              simple name list, honoring hide_guest_list. -->
         <?php if ($canManage): ?>
-        <div id="evInvPanel" style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid #e2e8f0"></div>
+        <div id="evInvPanel" style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid var(--bd-e2e8f0, #e2e8f0)"></div>
         <?php elseif (empty($ev['hide_guest_list'])): ?>
-        <div style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid #e2e8f0">
+        <div style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid var(--bd-e2e8f0, #e2e8f0)">
             <?php
             // Avatar map for registered attendees (lower(roster name) => path),
             // through the invite row's own account link.
@@ -691,18 +691,18 @@ if ($token === '' && $page_eid > 0) {
               . ev_names_block("Can't make it", $declined, '#94a3b8', $rosterAvatars, $rosterKnown) ?>
         </div>
         <?php elseif (count($going) > 0): ?>
-        <div style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid #e2e8f0;font-size:.9rem;color:#475569">
-            <strong style="color:#16a34a"><?= count($going) ?></strong> going<?= count($maybe) > 0 ? ' · ' . count($maybe) . ' maybe' : '' ?>
+        <div style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid var(--bd-e2e8f0, #e2e8f0);font-size:.9rem;color:var(--fg-475569, #475569)">
+            <strong style="color:var(--fg-16a34a, #16a34a)"><?= count($going) ?></strong> going<?= count($maybe) > 0 ? ' · ' . count($maybe) . ' maybe' : '' ?>
         </div>
         <?php endif; ?>
 
         <!-- Messages from the host: history for everyone; compose + delete for managers -->
         <?php if ($evMsgs || ($canManage && $notifsEnabled)): ?>
-        <div style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid #e2e8f0">
+        <div style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid var(--bd-e2e8f0, #e2e8f0)">
             <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem">
-                <span style="flex:1;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b">Messages from the host</span>
+                <span style="flex:1;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-64748b, #64748b)">Messages from the host</span>
                 <?php if ($canManage): ?>
-                <a href="/event_history.php?id=<?= $page_eid ?>" style="font-size:.75rem;color:#2563eb;text-decoration:none;white-space:nowrap">Full history</a>
+                <a href="/event_history.php?id=<?= $page_eid ?>" style="font-size:.75rem;color:var(--fg-2563eb, #2563eb);text-decoration:none;white-space:nowrap">Full history</a>
                 <?php endif; ?>
                 <?php if ($canManage && $notifsEnabled): ?>
                 <button type="button" class="btn" style="background:#16a34a;color:#fff;font-size:.78rem;padding:.3rem .8rem" data-act="openEventMsgModal">Message guests</button>
@@ -713,15 +713,15 @@ if ($token === '' && $page_eid > 0) {
                 <?php foreach ($evMsgs as $m):
                     $aud = $m['audience'] === 'all' ? 'All guests' : ($m['audience'] === 'yes_maybe' ? 'Yes & Maybe' : 'Going (Yes)');
                 ?>
-                <div style="border:1px solid #e2e8f0;border-radius:8px;padding:.5rem .6rem;background:#fff">
+                <div style="border:1px solid var(--bd-e2e8f0, #e2e8f0);border-radius:8px;padding:.5rem .6rem;background:var(--bg-ffffff, #ffffff)">
                     <div style="display:flex;align-items:flex-start;gap:.5rem">
-                        <div style="flex:1;min-width:0;font-weight:600;font-size:.85rem;color:#1e293b"><?= htmlspecialchars($m['subject']) ?></div>
+                        <div style="flex:1;min-width:0;font-weight:600;font-size:.85rem;color:var(--fg-1e293b, #1e293b)"><?= htmlspecialchars($m['subject']) ?></div>
                         <?php if ($canManage): ?>
                         <button aria-label="Delete this message" type="button" title="Delete this message" data-act="deleteEventMsg" data-a1="<?= (int)$m['id'] ?>" data-a2="@self" style="background:none;border:0;color:#cbd5e1;cursor:pointer;font-size:1.15rem;line-height:1;padding:0 .15rem">&times;</button>
                         <?php endif; ?>
                     </div>
-                    <div style="font-size:.7rem;color:#64748b;margin:.1rem 0 .4rem"><?= htmlspecialchars($m['created_at']) ?><?= $canManage ? ' &middot; ' . htmlspecialchars($aud) : '' ?></div>
-                    <div style="font-size:.85rem;color:#334155;line-height:1.5"><?= $m['body_html'] /* sanitized at store time */ ?></div>
+                    <div style="font-size:.7rem;color:var(--fg-64748b, #64748b);margin:.1rem 0 .4rem"><?= htmlspecialchars($m['created_at']) ?><?= $canManage ? ' &middot; ' . htmlspecialchars($aud) : '' ?></div>
+                    <div style="font-size:.85rem;color:var(--fg-334155, #334155);line-height:1.5"><?= $m['body_html'] /* sanitized at store time */ ?></div>
                     <?php if (!empty($m['attachment_file'])): ?>
                     <div style="margin-top:.4rem;font-size:.8rem"><a href="/uploads/event_messages/<?= rawurlencode(basename((string)$m['attachment_file'])) ?>" target="_blank" rel="noopener">&#128206; <?= htmlspecialchars((string)$m['attachment_name'], ENT_QUOTES | ENT_SUBSTITUTE) ?></a></div>
                     <?php endif; ?>
@@ -729,14 +729,14 @@ if ($token === '' && $page_eid > 0) {
                 <?php endforeach; ?>
             </div>
             <?php elseif ($canManage): ?>
-            <div style="font-size:.78rem;color:#64748b">No messages sent yet. Use &ldquo;Message guests&rdquo; to send the address and final details.</div>
+            <div style="font-size:.78rem;color:var(--fg-64748b, #64748b)">No messages sent yet. Use &ldquo;Message guests&rdquo; to send the address and final details.</div>
             <?php endif; ?>
         </div>
         <?php endif; ?>
 
         <!-- Comments -->
-        <div style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid #e2e8f0">
-            <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:.3rem">
+        <div style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid var(--bd-e2e8f0, #e2e8f0)">
+            <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-64748b, #64748b);margin-bottom:.3rem">
                 <?= count($comments) ?> <?= count($comments) === 1 ? 'Comment' : 'Comments' ?>
             </div>
             <?php foreach ($comments as $c):
@@ -748,8 +748,8 @@ if ($token === '' && $page_eid > 0) {
                     <span class="who"><?= htmlspecialchars($c['username']) ?><?= isset($rosterKnown[strtolower((string)$c['username'])]) ? ' <span class="pk-known" title="Known as in the league">(' . htmlspecialchars($rosterKnown[strtolower((string)$c['username'])]) . ')</span>' : '' ?><?= '' ?></span><span class="when"><?= htmlspecialchars($c['created_at']) ?></span>
                     <?php if ($canModC): ?>
                     <span style="float:right;display:inline-flex;gap:.3rem">
-                        <button aria-label="Edit" type="button" title="Edit" data-act="editComment" data-a1="<?= (int)$c['id'] ?>" style="background:none;border:0;color:#64748b;cursor:pointer;font-size:.85rem;padding:0">&#9998;</button>
-                        <button aria-label="Delete" type="button" title="Delete" data-act="deleteComment" data-a1="<?= (int)$c['id'] ?>" style="background:none;border:0;color:#64748b;cursor:pointer;font-size:.85rem;padding:0">&#x2715;</button>
+                        <button aria-label="Edit" type="button" title="Edit" data-act="editComment" data-a1="<?= (int)$c['id'] ?>" style="background:none;border:0;color:var(--fg-64748b, #64748b);cursor:pointer;font-size:.85rem;padding:0">&#9998;</button>
+                        <button aria-label="Delete" type="button" title="Delete" data-act="deleteComment" data-a1="<?= (int)$c['id'] ?>" style="background:none;border:0;color:var(--fg-64748b, #64748b);cursor:pointer;font-size:.85rem;padding:0">&#x2715;</button>
                     </span>
                     <?php endif; ?>
                     <div class="body" id="evcb-<?= (int)$c['id'] ?>"><?= htmlspecialchars($c['body']) ?></div>
@@ -886,7 +886,7 @@ function evToast(msg) {
     var t = document.createElement('div');
     t.textContent = msg || 'Saved';
     if (typeof pkAnnounce === 'function') pkAnnounce(t.textContent);
-    t.style.cssText = 'position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%);background:#dcfce7;color:#166534;border:1px solid #86efac;border-radius:8px;padding:.45rem 1rem;font-size:.85rem;font-weight:600;z-index:1200';
+    t.style.cssText = 'position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%);background:var(--bg-dcfce7, #dcfce7);color:var(--fg-166534, #166534);border:1px solid var(--bd-86efac, #86efac);border-radius:8px;padding:.45rem 1rem;font-size:.85rem;font-weight:600;z-index:1200';
     document.body.appendChild(t);
     setTimeout(function () { t.remove(); }, 2500);
 }
@@ -1064,36 +1064,40 @@ async function editComment(id) {
 <style>
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:1100;align-items:center;justify-content:center;padding:1rem}
 .modal-overlay.open{display:flex}
-.modal{background:#fff;border-radius:14px;padding:1.1rem 1.25rem;max-width:640px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.25)}
-.inv-rsvp-sel{padding:.2rem .35rem;border:1px solid #cbd5e1;border-radius:5px;font-size:.78rem;background:#fff}
-.inv-nocontact-tag{font-size:.65rem;font-weight:700;color:#991b1b;background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:.05rem .3rem}
-.rsvp-yes{color:#16a34a;font-weight:700;font-size:.78rem}.rsvp-no{color:#dc2626;font-weight:700;font-size:.78rem}.rsvp-maybe{color:#d97706;font-weight:700;font-size:.78rem}
+.modal{background:var(--bg-ffffff, #ffffff);border-radius:14px;padding:1.1rem 1.25rem;max-width:640px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.inv-rsvp-sel{padding:.2rem .35rem;border:1px solid var(--bd-cbd5e1, #cbd5e1);border-radius:5px;font-size:.78rem;background:var(--bg-ffffff, #ffffff)}
+.inv-nocontact-tag{font-size:.65rem;font-weight:700;color:var(--fg-991b1b, #991b1b);background:var(--bg-fef2f2, #fef2f2);border:1px solid var(--bd-fecaca, #fecaca);border-radius:4px;padding:.05rem .3rem}
+.rsvp-yes{color:var(--fg-16a34a, #16a34a);font-weight:700;font-size:.78rem}.rsvp-no{color:var(--fg-dc2626, #dc2626);font-weight:700;font-size:.78rem}.rsvp-maybe{color:var(--fg-d97706, #d97706);font-weight:700;font-size:.78rem}
 </style>
 <div class="modal-overlay" id="eventMsgModal" data-act-self="closeEventMsgModal">
-    <div class="modal" style="display:flex;flex-direction:column;max-height:92vh">
-        <div style="display:flex;align-items:center;gap:.6rem;border-bottom:1px solid #e2e8f0;padding-bottom:.6rem;margin-bottom:.75rem">
+    <div class="modal" style="display:flex;flex-direction:column;max-height:92vh;overflow-y:auto">
+        <div style="display:flex;align-items:center;gap:.6rem;border-bottom:1px solid var(--bd-e2e8f0, #e2e8f0);padding-bottom:.6rem;margin-bottom:.75rem">
             <h2 style="margin:0;flex:1;font-size:1.15rem">Message going guests</h2>
-            <button type="button" class="modal-close" data-act="closeEventMsgModal" aria-label="Close" style="font-size:1.5rem;line-height:1;color:#64748b;background:none;border:0;padding:0 .2rem;cursor:pointer">&times;</button>
+            <button type="button" class="modal-close" data-act="closeEventMsgModal" aria-label="Close" style="font-size:1.5rem;line-height:1;color:var(--fg-64748b, #64748b);background:none;border:0;padding:0 .2rem;cursor:pointer">&times;</button>
         </div>
-        <p style="margin-top:0;color:#64748b;font-size:.85rem">Send a message to your guests. They'll get it by their preferred channel; text recipients get a link to read it.</p>
+        <p style="margin-top:0;color:var(--fg-64748b, #64748b);font-size:.85rem">Send a message to your guests. They'll get it by their preferred channel; text recipients get a link to read it.</p>
         <div class="form-group">
             <label for="emSubject">Subject</label>
-            <input type="text" id="emSubject" maxlength="150" placeholder="Enter a subject" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;box-sizing:border-box">
+            <input type="text" id="emSubject" maxlength="150" placeholder="Enter a subject" style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:8px;box-sizing:border-box">
         </div>
         <div class="form-group">
             <label for="emAudience">Send to</label>
-            <select id="emAudience" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff">
+            <select id="emAudience" style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:8px;background:var(--bg-ffffff, #ffffff)">
                 <option value="yes">Going (Yes) only</option>
                 <option value="yes_maybe">Going &amp; Maybe</option>
                 <option value="all">All invited (any response)</option>
             </select>
         </div>
-        <div class="form-group" style="flex:1;min-height:0">
+        <?php /* flex:none, not flex:1 + min-height:0: the editor is a fixed 280px
+                 plus its toolbar and status bar, so a group allowed to shrink
+                 below that let the status bar overlap "Attach a PDF". The
+                 modal scrolls instead when the window is short. */ ?>
+        <div class="form-group" style="flex:none">
             <label for="emBody">Message</label>
             <textarea id="emBody" name="body"></textarea>
         </div>
         <div class="form-group">
-            <label for="emFile">Attach a PDF <span style="font-weight:400;color:#64748b">(optional, up to 5 MB; emailed as an attachment, a link for everyone else)</span></label>
+            <label for="emFile">Attach a PDF <span style="font-weight:400;color:var(--fg-64748b, #64748b)">(optional, up to 5 MB; emailed as an attachment, a link for everyone else)</span></label>
             <input type="file" id="emFile" accept="application/pdf,.pdf">
         </div>
         <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.5rem">
@@ -1138,8 +1142,8 @@ function renderInvPanel() {
     // The panel's own heading, with the way to everything this event sent
     // and received (event_history.php, v1.15.0).
     var ih = '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">'
-        + '<span style="flex:1;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b">Invites</span>'
-        + '<a href="/event_history.php?id=' + EV_EID + '" style="font-size:.75rem;color:#2563eb;text-decoration:none;white-space:nowrap">History</a></div>';
+        + '<span style="flex:1;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-64748b, #64748b)">Invites</span>'
+        + '<a href="/event_history.php?id=' + EV_EID + '" style="font-size:.75rem;color:var(--fg-2563eb, #2563eb);text-decoration:none;white-space:nowrap">History</a></div>';
 
     if (NOTIFS_ON) {
         var q = invQueue;
@@ -1148,28 +1152,28 @@ function renderInvPanel() {
         var inFlight = approved.filter(function(i){ return !i.sent && i.delivery === 'sending'; }).length;
         var sendingN = Math.max(q.pending || 0, inFlight);
         if (sendingN > 0) {
-            ih += '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#1e40af;font-weight:600">&#9203; ' + sendingN + ' invitation' + (sendingN===1?'':'s') + ' queued &mdash; sending now&hellip; <span style="font-weight:400;color:#3b82f6">(updates automatically)</span></div>';
+            ih += '<div style="background:var(--bg-eff6ff, #eff6ff);border:1px solid var(--bd-bfdbfe, #bfdbfe);border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:var(--fg-1e40af, #1e40af);font-weight:600">&#9203; ' + sendingN + ' invitation' + (sendingN===1?'':'s') + ' queued &mdash; sending now&hellip; <span style="font-weight:400;color:var(--fg-3b82f6, #3b82f6)">(updates automatically)</span></div>';
         } else if (sawPending) {
-            ih += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#166534;font-weight:600">&#10003; All queued invitations were sent.</div>';
+            ih += '<div style="background:var(--bg-f0fdf4, #f0fdf4);border:1px solid var(--bd-bbf7d0, #bbf7d0);border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:var(--fg-166534, #166534);font-weight:600">&#10003; All queued invitations were sent.</div>';
         }
         if (q.failed > 0) {
-            ih += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#991b1b;font-weight:600">&#9888; ' + q.failed + ' invitation' + (q.failed===1?'':'s') + ' could not be sent after several retries. <a href="/event_history.php?id=' + EV_EID + '&status=failed" style="color:#991b1b">See what failed</a></div>';
+            ih += '<div style="background:var(--bg-fef2f2, #fef2f2);border:1px solid var(--bd-fecaca, #fecaca);border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:var(--fg-991b1b, #991b1b);font-weight:600">&#9888; ' + q.failed + ' invitation' + (q.failed===1?'':'s') + ' could not be sent after several retries. <a href="/event_history.php?id=' + EV_EID + '&status=failed" style="color:var(--fg-991b1b, #991b1b)">See what failed</a></div>';
         }
         var unsent    = approved.filter(function(i){ return !i.sent && !i.no_contact && i.delivery !== 'sending'; });
         var noContact = approved.filter(function(i){ return i.no_contact; });
         if (unsent.length) {
-            ih += '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.55rem .7rem;margin-bottom:.7rem">'
-                + '<span style="flex:1;min-width:0;font-size:.8rem;color:#92400e;font-weight:600">&#9888; Invitations not sent to ' + unsent.length + ' ' + (unsent.length===1?'person':'people') + '</span>'
+            ih += '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;background:var(--bg-fffbeb, #fffbeb);border:1px solid var(--bd-fde68a, #fde68a);border-radius:8px;padding:.55rem .7rem;margin-bottom:.7rem">'
+                + '<span style="flex:1;min-width:0;font-size:.8rem;color:var(--fg-92400e, #92400e);font-weight:600">&#9888; Invitations not sent to ' + unsent.length + ' ' + (unsent.length===1?'person':'people') + '</span>'
                 + '<button type="button" class="btn-send-invites" style="font-size:.78rem;padding:.3rem .8rem;border-radius:6px;border:0;background:#2563eb;color:#fff;font-weight:600;cursor:pointer">Send Invitations</button></div>';
         }
         if (noContact.length) {
-            ih += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.78rem;color:#991b1b;line-height:1.45">&#9888; ' + noContact.length + ' ' + (noContact.length===1?'invitee has':'invitees have') + ' no email or phone and can’t be notified. Edit the event to add a contact for them.</div>';
+            ih += '<div style="background:var(--bg-fef2f2, #fef2f2);border:1px solid var(--bd-fecaca, #fecaca);border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.78rem;color:var(--fg-991b1b, #991b1b);line-height:1.45">&#9888; ' + noContact.length + ' ' + (noContact.length===1?'invitee has':'invitees have') + ' no email or phone and can’t be notified. Edit the event to add a contact for them.</div>';
         }
         var nonresp = approved.filter(function(i){ return i.sent && !i.rsvp && !i.no_contact; });
         if (nonresp.length) {
-            ih += '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.55rem .7rem;margin-bottom:.7rem">'
-                + '<span style="flex:1;min-width:0;font-size:.8rem;color:#475569;font-weight:600">&#9200; ' + nonresp.length + ' of ' + (approved.length + declined.length) + ' haven&rsquo;t answered yet</span>'
-                + '<button type="button" class="btn-nudge" style="font-size:.78rem;padding:.3rem .8rem;border-radius:6px;border:1.5px solid #cbd5e1;background:#fff;color:#334155;font-weight:600;cursor:pointer">Send reminder</button></div>';
+            ih += '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;background:var(--bg-f8fafc, #f8fafc);border:1px solid var(--bd-e2e8f0, #e2e8f0);border-radius:8px;padding:.55rem .7rem;margin-bottom:.7rem">'
+                + '<span style="flex:1;min-width:0;font-size:.8rem;color:var(--fg-475569, #475569);font-weight:600">&#9200; ' + nonresp.length + ' of ' + (approved.length + declined.length) + ' haven&rsquo;t answered yet</span>'
+                + '<button type="button" class="btn-nudge" style="font-size:.78rem;padding:.3rem .8rem;border-radius:6px;border:1.5px solid var(--bd-cbd5e1, #cbd5e1);background:var(--bg-ffffff, #ffffff);color:var(--fg-334155, #334155);font-weight:600;cursor:pointer">Send reminder</button></div>';
         }
     }
 
@@ -1190,19 +1194,19 @@ function renderInvPanel() {
     // coming, who might, who has not said, each with its count, the same
     // way the declined list below reads.
     function invRow(inv) {
-        ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' + rsvpSel(inv)
+        ih += '<div style="font-size:.875rem;color:var(--fg-334155, #334155);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' + rsvpSel(inv)
             + '<span style="flex:1;min-width:0">' + escH(inv.username) + knownTag(inv.username) + viaTag(inv)
             + (inv.no_contact ? ' <span class="inv-nocontact-tag" title="No email or phone on file">no contact</span>' : '') + '</span>';
         if (inv.delivery === 'failed') {
-            ih += '<span title="' + escH(inv.delivery_error || 'Delivery failed') + '" style="font-size:.68rem;font-weight:700;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:5px;padding:.1rem .4rem;cursor:help">&#10007; failed</span>';
+            ih += '<span title="' + escH(inv.delivery_error || 'Delivery failed') + '" style="font-size:.68rem;font-weight:700;color:var(--fg-dc2626, #dc2626);background:var(--bg-fef2f2, #fef2f2);border:1px solid var(--bd-fecaca, #fecaca);border-radius:5px;padding:.1rem .4rem;cursor:help">&#10007; failed</span>';
         } else if (inv.delivery === 'sending') {
-            ih += '<span title="Queued — delivery in progress" style="font-size:.68rem;font-weight:700;color:#1e40af;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:.1rem .4rem">&#9203; sending</span>';
+            ih += '<span title="Queued — delivery in progress" style="font-size:.68rem;font-weight:700;color:var(--fg-1e40af, #1e40af);background:var(--bg-eff6ff, #eff6ff);border:1px solid var(--bd-bfdbfe, #bfdbfe);border-radius:5px;padding:.1rem .4rem">&#9203; sending</span>';
         } else if (inv.delivery === 'delivered') {
-            ih += '<span title="Handed to the provider successfully" style="font-size:.68rem;font-weight:700;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:.1rem .4rem">&#10003;</span>';
+            ih += '<span title="Handed to the provider successfully" style="font-size:.68rem;font-weight:700;color:var(--fg-166534, #166534);background:var(--bg-f0fdf4, #f0fdf4);border:1px solid var(--bd-bbf7d0, #bbf7d0);border-radius:5px;padding:.1rem .4rem">&#10003;</span>';
         }
         if (NOTIFS_ON && (!inv.rsvp || inv.delivery === 'failed')) {
             var lbl = inv.delivery === 'failed' ? 'Retry' : (inv.sent ? 'Resend' : 'Send');
-            ih += '<button type="button" class="btn-resend-inv" data-username="' + escH(inv.username) + '" title="' + lbl + ' invite SMS/email" style="font-size:.7rem;padding:.15rem .5rem;border-radius:5px;border:1px solid #cbd5e1;background:#fff;color:#475569;font-weight:600;cursor:pointer">' + lbl + '</button>';
+            ih += '<button type="button" class="btn-resend-inv" data-username="' + escH(inv.username) + '" title="' + lbl + ' invite SMS/email" style="font-size:.7rem;padding:.15rem .5rem;border-radius:5px;border:1px solid var(--bd-cbd5e1, #cbd5e1);background:var(--bg-ffffff, #ffffff);color:var(--fg-475569, #475569);font-weight:600;cursor:pointer">' + lbl + '</button>';
         }
         ih += '</div>';
     }
@@ -1221,9 +1225,9 @@ function renderInvPanel() {
     invGroup('No answer yet', waitL, '#64748b', !goingL.length && !maybeL.length);
 
     if (pending.length) {
-        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#d97706;margin-top:.7rem;margin-bottom:.4rem">&#9203; Pending Approval (' + pending.length + ')</div>';
+        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-d97706, #d97706);margin-top:.7rem;margin-bottom:.4rem">&#9203; Pending Approval (' + pending.length + ')</div>';
         pending.forEach(function(inv) {
-            ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:.35rem .5rem;margin-bottom:.3rem">'
+            ih += '<div style="font-size:.875rem;color:var(--fg-334155, #334155);display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;background:var(--bg-fefce8, #fefce8);border:1px solid var(--bd-fde68a, #fde68a);border-radius:6px;padding:.35rem .5rem;margin-bottom:.3rem">'
                 + '<span style="flex:1;min-width:0">' + escH(inv.username) + knownTag(inv.username) + viaTag(inv) + '</span>'
                 + (EV_CANCELLED ? '' : '<button type="button" class="btn-approve-inv" data-username="' + escH(inv.username) + '" style="font-size:.75rem;padding:.2rem .55rem;border-radius:5px;border:0;background:#16a34a;color:#fff;font-weight:600;cursor:pointer">Approve</button>'
                 + '<button type="button" class="btn-deny-inv" data-username="' + escH(inv.username) + '" style="font-size:.75rem;padding:.2rem .55rem;border-radius:5px;border:0;background:#dc2626;color:#fff;font-weight:600;cursor:pointer">Deny</button>') + '</div>';
@@ -1231,17 +1235,17 @@ function renderInvPanel() {
     }
 
     if (waitlisted.length) {
-        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#1e40af;margin-top:.7rem;margin-bottom:.4rem">Waitlisted (' + waitlisted.length + ')</div>';
+        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-1e40af, #1e40af);margin-top:.7rem;margin-bottom:.4rem">Waitlisted (' + waitlisted.length + ')</div>';
         ih += '<div style="opacity:.7">';
-        waitlisted.forEach(function(inv) { ih += '<div style="font-size:.82rem;color:#475569;padding:.15rem 0">' + escH(inv.username) + '</div>'; });
+        waitlisted.forEach(function(inv) { ih += '<div style="font-size:.82rem;color:var(--fg-475569, #475569);padding:.15rem 0">' + escH(inv.username) + '</div>'; });
         ih += '</div>';
     }
 
     if (declined.length) {
-        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#dc2626;margin-top:.7rem;margin-bottom:.4rem">Declined (' + declined.length + ')</div>';
+        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-dc2626, #dc2626);margin-top:.7rem;margin-bottom:.4rem">Declined (' + declined.length + ')</div>';
         ih += '<div style="opacity:.75">';
         declined.forEach(function(inv) {
-            ih += '<div style="font-size:.82rem;color:#475569;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.15rem 0">' + rsvpSel(inv)
+            ih += '<div style="font-size:.82rem;color:var(--fg-475569, #475569);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.15rem 0">' + rsvpSel(inv)
                 + '<span style="flex:1;min-width:0;text-decoration:line-through;text-decoration-color:#cbd5e1">' + escH(inv.username) + '</span></div>';
         });
         ih += '</div>';
@@ -1334,6 +1338,7 @@ function _emEnsureEditor() {
 function _emMakeEditor() {
     if (_emEditor) return;
     _emEditor = Jodit.make('#emBody', {
+        theme: (typeof pkIsDark === 'function' && pkIsDark()) ? 'dark' : 'default',   // dark mode (v1.34.0)
         // Jodit pulls js-beautify and ACE from cdnjs on load. script-src is 'self',
         // so both are refused and the features never worked here — this just stops
         // two dead cross-origin requests and the console noise on every page with an
@@ -1495,7 +1500,7 @@ function ev_names_block(string $label, array $names, string $color, array $avata
     foreach ($names as $n) {
         $av = $avatars ? avatar_html($n, $avatars[strtolower($n)] ?? null, 20) . ' ' : '';
         $kn = $known[strtolower($n)] ?? '';
-        $out .= '<span style="display:inline-flex;align-items:center;gap:.35rem;font-size:.85rem;color:#334155;background:#f1f5f9;border-radius:999px;padding:.2rem .7rem .2rem ' . ($av ? '.3rem' : '.7rem') . '">' . $av . htmlspecialchars($n) . ($kn !== '' ? ' <span class="pk-known" title="Known as in the league">(' . htmlspecialchars($kn) . ')</span>' : '') . '</span>';
+        $out .= '<span style="display:inline-flex;align-items:center;gap:.35rem;font-size:.85rem;color:var(--fg-334155, #334155);background:var(--bg-f1f5f9, #f1f5f9);border-radius:999px;padding:.2rem .7rem .2rem ' . ($av ? '.3rem' : '.7rem') . '">' . $av . htmlspecialchars($n) . ($kn !== '' ? ' <span class="pk-known" title="Known as in the league">(' . htmlspecialchars($kn) . ')</span>' : '') . '</span>';
     }
     return $out . '</div></div>';
 }
@@ -1507,9 +1512,9 @@ function ev_names_block(string $label, array $names, string $color, array $avata
     <title><?= htmlspecialchars($invite['title']) ?> &ndash; <?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
-        body { background: var(--bg, #f8fafc); }
+        body { background: var(--bg, var(--bg-f8fafc, #f8fafc)); }
         .ev-wrap { min-height:100vh;min-height:100dvh; display:flex; align-items:flex-start; justify-content:center; padding:1.5rem; }
-        .ev-card { background:#fff; border-radius:14px; box-shadow:0 8px 32px rgba(0,0,0,.12); padding:1.75rem 1.75rem 1.5rem; width:100%; max-width:480px; margin-top:1rem; }
+        .ev-card { background:var(--bg-ffffff, #ffffff); border-radius:14px; box-shadow:0 8px 32px rgba(0,0,0,.12); padding:1.75rem 1.75rem 1.5rem; width:100%; max-width:480px; margin-top:1rem; }
         .ev-rsvp-btn { display:inline-block; flex:1; text-align:center; padding:.6rem .5rem; border-radius:8px; text-decoration:none; font-weight:700; font-size:.95rem; border:2px solid; }
     </style>
 </head>
@@ -1521,22 +1526,22 @@ function ev_names_block(string $label, array $names, string $color, array $avata
         if ($logo): ?>
         <div style="text-align:center;margin-bottom:1rem"><img src="<?= htmlspecialchars($logo) ?>" alt="<?= htmlspecialchars($site_name) ?>" style="max-height:44px"></div>
         <?php else: ?>
-        <div style="text-align:center;font-size:.82rem;color:#64748b;margin-bottom:1rem"><?= htmlspecialchars($site_name) ?></div>
+        <div style="text-align:center;font-size:.82rem;color:var(--fg-64748b, #64748b);margin-bottom:1rem"><?= htmlspecialchars($site_name) ?></div>
         <?php endif; ?>
 
         <?php if (in_array($just, $validRsvp, true)): ?>
-        <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px;padding:.7rem 1rem;color:#166534;font-size:.9rem;margin-bottom:1.1rem">
+        <div style="background:var(--bg-f0fdf4, #f0fdf4);border:1.5px solid var(--bd-86efac, #86efac);border-radius:8px;padding:.7rem 1rem;color:var(--fg-166534, #166534);font-size:.9rem;margin-bottom:1.1rem">
             &#10003; Your RSVP is set to <strong><?= htmlspecialchars(ucfirst($just)) ?></strong>.
         </div>
         <?php endif; ?>
 
-        <h1 style="font-size:1.45rem;font-weight:800;color:#1e293b;margin:0 0 .5rem"><?= htmlspecialchars($invite['title']) ?></h1>
-        <div style="font-size:.95rem;color:#475569;margin-bottom:.15rem"><?= htmlspecialchars($date_lbl) ?></div>
+        <h1 style="font-size:1.45rem;font-weight:800;color:var(--fg-1e293b, #1e293b);margin:0 0 .5rem"><?= htmlspecialchars($invite['title']) ?></h1>
+        <div style="font-size:.95rem;color:var(--fg-475569, #475569);margin-bottom:.15rem"><?= htmlspecialchars($date_lbl) ?></div>
         <?php if ($time_lbl !== ''): ?>
-        <div style="font-size:.95rem;color:#475569"><?= $time_lbl ?></div>
+        <div style="font-size:.95rem;color:var(--fg-475569, #475569)"><?= $time_lbl ?></div>
         <?php endif; ?>
         <?php if (!empty($invite['venue_name']) || !empty($invite['location'])): ?>
-        <div style="font-size:.9rem;color:#475569;margin-top:.35rem">
+        <div style="font-size:.9rem;color:var(--fg-475569, #475569);margin-top:.35rem">
             &#128205;
             <?php if (!empty($invite['venue_name'])): ?><?= htmlspecialchars($invite['venue_name']) ?><?php endif; ?>
             <?php if (!empty($invite['venue_name']) && !empty($invite['location'])): ?>&middot;<?php endif; ?>
@@ -1544,19 +1549,19 @@ function ev_names_block(string $label, array $names, string $color, array $avata
             &middot; <a href="https://www.google.com/maps/search/?api=1&amp;query=<?= urlencode($invite['location'] ?: $invite['venue_name']) ?>" target="_blank" rel="noopener">Open in Maps</a>
         </div>
         <?php endif; ?>
-        <div style="font-size:.85rem;color:#64748b;margin-top:.45rem">
+        <div style="font-size:.85rem;color:var(--fg-64748b, #64748b);margin-top:.45rem">
             &#128197; Add to calendar:
             <a href="/ics.php?token=<?= urlencode($token) ?>">Apple / Outlook</a>
             &middot; <a href="/ics.php?token=<?= urlencode($token) ?>&amp;google=1" target="_blank" rel="noopener">Google</a>
         </div>
 
         <?php if (!empty($invite['description'])): ?>
-        <div style="margin-top:1rem;font-size:.95rem;color:#334155;line-height:1.55"><?= nl2br(htmlspecialchars($invite['description'])) ?></div>
+        <div style="margin-top:1rem;font-size:.95rem;color:var(--fg-334155, #334155);line-height:1.55"><?= nl2br(htmlspecialchars($invite['description'])) ?></div>
         <?php endif; ?>
 
         <!-- RSVP buttons -->
         <div style="margin-top:1.5rem">
-            <div style="font-size:.8rem;font-weight:600;color:#64748b;margin-bottom:.5rem">
+            <div style="font-size:.8rem;font-weight:600;color:var(--fg-64748b, #64748b);margin-bottom:.5rem">
                 <?php if ($my_rsvp !== '' && isset($btn_meta[$my_rsvp])): ?>
                     You're going as <strong style="color:<?= $btn_meta[$my_rsvp][1] ?>"><?= htmlspecialchars($btn_meta[$my_rsvp][0]) ?></strong> &middot; tap to change:
                 <?php else: ?>
@@ -1569,7 +1574,7 @@ function ev_names_block(string $label, array $names, string $color, array $avata
                     $active = ($opt === $my_rsvp);
                     $style  = $active
                         ? 'background:' . $col . ';color:#fff;border-color:' . $col
-                        : 'background:#fff;color:' . $col . ';border-color:' . $col;
+                        : 'background:var(--bg-ffffff, #ffffff);color:' . $col . ';border-color:' . $col;
                 ?>
                 <a class="ev-rsvp-btn" style="<?= $style ?>" href="<?= htmlspecialchars($rsvp_base . '&r=' . $opt) ?>"><?= htmlspecialchars($lbl) ?></a>
                 <?php endforeach; ?>
@@ -1586,16 +1591,16 @@ function ev_names_block(string $label, array $names, string $color, array $avata
               . ev_names_block("Can't make it", $declined, '#94a3b8')
               : '';
         if ($whos !== ''): ?>
-        <div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid #e2e8f0"><?= $whos ?></div>
+        <div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--bd-e2e8f0, #e2e8f0)"><?= $whos ?></div>
         <?php elseif (count($going) > 0): ?>
-        <div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid #e2e8f0;font-size:.9rem;color:#475569">
-            <strong style="color:#16a34a"><?= count($going) ?></strong> going<?= count($maybe) > 0 ? ' · ' . count($maybe) . ' maybe' : '' ?>
+        <div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--bd-e2e8f0, #e2e8f0);font-size:.9rem;color:var(--fg-475569, #475569)">
+            <strong style="color:var(--fg-16a34a, #16a34a)"><?= count($going) ?></strong> going<?= count($maybe) > 0 ? ' · ' . count($maybe) . ' maybe' : '' ?>
         </div>
         <?php endif; ?>
 
         <!-- Optional: full account features -->
-        <div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid #e2e8f0">
-            <p style="color:#64748b;font-size:.84rem;margin:0 0 .6rem">Want comments and the full calendar?</p>
+        <div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--bd-e2e8f0, #e2e8f0)">
+            <p style="color:var(--fg-64748b, #64748b);font-size:.84rem;margin:0 0 .6rem">Want comments and the full calendar?</p>
             <?php
             $month_str = substr($invite['start_date'], 0, 7);
             $event_redirect = '/calendar.php?m=' . urlencode($month_str) . '&open=' . $eid . '&date=' . urlencode($invite['start_date']);
@@ -1606,13 +1611,13 @@ function ev_names_block(string $label, array $names, string $color, array $avata
             ?>
             <a href="/login.php?redirect=<?= urlencode($event_redirect) ?>" style="display:inline-block;margin:.2rem .3rem .2rem 0;padding:.45rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff;font-size:.88rem">Log in</a>
             <?php if (!$has_account && $allow_reg): ?>
-            <a href="/register.php?redirect=<?= urlencode($event_redirect) ?>" style="display:inline-block;margin:.2rem .3rem;padding:.45rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;border:2px solid #2563eb;color:#2563eb;background:#fff;font-size:.88rem">Create Account</a>
+            <a href="/register.php?redirect=<?= urlencode($event_redirect) ?>" style="display:inline-block;margin:.2rem .3rem;padding:.45rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;border:2px solid #2563eb;color:var(--fg-2563eb, #2563eb);background:var(--bg-ffffff, #ffffff);font-size:.88rem">Create Account</a>
             <?php endif; ?>
         </div>
 
         <!-- Exit / close the public event page -->
         <div style="text-align:center;margin-top:1.5rem">
-            <a href="/" style="color:#64748b;text-decoration:none;font-size:.84rem">Done &middot; Go to <?= htmlspecialchars($site_name) ?></a>
+            <a href="/" style="color:var(--fg-64748b, #64748b);text-decoration:none;font-size:.84rem">Done &middot; Go to <?= htmlspecialchars($site_name) ?></a>
         </div>
     </div>
 </div>

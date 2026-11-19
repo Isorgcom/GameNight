@@ -210,7 +210,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <link href="/vendor/jodit/jodit.min.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.css') ?: 0)) ?>" rel="stylesheet">
     <style>
-        .hint { font-size: .78rem; color: #64748b; margin-top: .35rem; }
+        .hint { font-size: .78rem; color: var(--fg-64748b, #64748b); margin-top: .35rem; }
 
         /* Modal */
         .modal-overlay {
@@ -221,7 +221,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
         }
         .modal-overlay.open { display: flex; }
         .modal {
-            background: #fff; border-radius: 12px;
+            background: var(--bg-ffffff, #ffffff); border-radius: 12px;
             box-shadow: 0 20px 60px rgba(0,0,0,.25);
             width: 100%; max-width: 860px; padding: 2rem;
             animation: modalIn .18s ease;
@@ -237,27 +237,27 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
         .modal-header h2 { font-size: 1.25rem; }
         .modal-close {
             width: 32px; height: 32px; border-radius: 7px;
-            border: none; background: #f1f5f9; cursor: pointer;
-            font-size: 1.1rem; color: #475569;
+            border: none; background: var(--bg-f1f5f9, #f1f5f9); cursor: pointer;
+            font-size: 1.1rem; color: var(--fg-475569, #475569);
             display: flex; align-items: center; justify-content: center;
         }
-        .modal-close:hover { background: #e2e8f0; }
+        .modal-close:hover { background: var(--bg-e2e8f0, #e2e8f0); }
 
         .action-btns { display: flex; gap: .4rem; }
         .btn-sm-text {
             font-size: .78rem; padding: .25rem .65rem;
-            border-radius: 5px; border: 1px solid #e2e8f0;
-            background: #f8fafc; color: #64748b;
+            border-radius: 5px; border: 1px solid var(--bd-e2e8f0, #e2e8f0);
+            background: var(--bg-f8fafc, #f8fafc); color: var(--fg-64748b, #64748b);
             cursor: pointer; text-decoration: none; white-space: nowrap;
         }
-        .btn-sm-text:hover { background: #f1f5f9; color: #1e293b; text-decoration: none; }
-        .btn-sm-text.danger { border-color: #fca5a5; color: #ef4444; }
-        .btn-sm-text.danger:hover { background: #fee2e2; }
-        .btn-sm-text.muted { border-color: #e2e8f0; color: #64748b; }
-        .btn-sm-text.muted:hover { background: #f1f5f9; color: #475569; }
+        .btn-sm-text:hover { background: var(--bg-f1f5f9, #f1f5f9); color: var(--fg-1e293b, #1e293b); text-decoration: none; }
+        .btn-sm-text.danger { border-color: var(--bd-fca5a5, #fca5a5); color: var(--fg-ef4444, #ef4444); }
+        .btn-sm-text.danger:hover { background: var(--bg-fee2e2, #fee2e2); }
+        .btn-sm-text.muted { border-color: var(--bd-e2e8f0, #e2e8f0); color: var(--fg-64748b, #64748b); }
+        .btn-sm-text.muted:hover { background: var(--bg-f1f5f9, #f1f5f9); color: var(--fg-475569, #475569); }
         .hidden-badge {
-            font-size: .68rem; font-weight: 600; color: #475569;
-            background: #f1f5f9; border: 1px solid #e2e8f0;
+            font-size: .68rem; font-weight: 600; color: var(--fg-475569, #475569);
+            background: var(--bg-f1f5f9, #f1f5f9); border: 1px solid var(--bd-e2e8f0, #e2e8f0);
             border-radius: 4px; padding: .1rem .38rem; margin-right: .35rem;
             vertical-align: middle;
         }
@@ -267,16 +267,16 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
         /* Search + bulk bar */
         .table-toolbar {
             display: flex; align-items: center; gap: .75rem;
-            padding: .85rem 1.25rem; border-bottom: 1px solid #f1f5f9;
+            padding: .85rem 1.25rem; border-bottom: 1px solid var(--bd-f1f5f9, #f1f5f9);
             flex-wrap: wrap;
         }
         .search-wrap { position: relative; flex: 1; min-width: 180px; }
         .search-wrap input {
             width: 100%; padding: .45rem .75rem .45rem 2rem;
-            border: 1px solid #e2e8f0; border-radius: 7px;
-            font-size: .875rem; background: #f8fafc; color: #1e293b;
+            border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 7px;
+            font-size: .875rem; background: var(--bg-f8fafc, #f8fafc); color: var(--fg-1e293b, #1e293b);
         }
-        .search-wrap input:focus { border-color: #93c5fd; background: #fff; }
+        .search-wrap input:focus { border-color: var(--bd-93c5fd, #93c5fd); background: var(--bg-ffffff, #ffffff); }
         .search-wrap::before {
             content: '\1F50D';
             position: absolute; left: .6rem; top: 50%;
@@ -284,8 +284,8 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
         }
         .bulk-bar {
             display: none; align-items: center; gap: .6rem;
-            padding: .55rem 1.25rem; background: #eff6ff;
-            border-bottom: 1px solid #bfdbfe; font-size: .85rem; color: #1e40af;
+            padding: .55rem 1.25rem; background: var(--bg-eff6ff, #eff6ff);
+            border-bottom: 1px solid var(--bd-bfdbfe, #bfdbfe); font-size: .85rem; color: var(--fg-1e40af, #1e40af);
         }
         .bulk-bar.visible { display: flex; }
         .bulk-count { font-weight: 600; }
@@ -322,7 +322,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
 
     <div class="table-card">
         <?php if (empty($posts)): ?>
-            <p style="padding:1rem 1.5rem;color:#64748b;font-size:.875rem">No posts yet.</p>
+            <p style="padding:1rem 1.5rem;color:var(--fg-64748b, #64748b);font-size:.875rem">No posts yet.</p>
         <?php else: ?>
 
         <!-- Toolbar -->
@@ -365,10 +365,10 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
                             <span class="hidden-badge" title="Hidden from public">Hidden</span>
                         <?php endif; ?>
                         <?php if ($p['pinned']): ?>
-                            <span style="color:#f59e0b;margin-right:.35rem" title="Pinned">&#128204;</span>
+                            <span style="color:var(--fg-f59e0b, #f59e0b);margin-right:.35rem" title="Pinned">&#128204;</span>
                         <?php endif; ?>
                         <?php if (!empty($p['league_name'])): ?>
-                            <span style="font-size:.7rem;color:#1e40af;background:#dbeafe;border:1px solid #93c5fd;border-radius:999px;padding:.1rem .5rem;margin-right:.35rem"><?= htmlspecialchars($p['league_name']) ?></span>
+                            <span style="font-size:.7rem;color:var(--fg-1e40af, #1e40af);background:var(--bg-dbeafe, #dbeafe);border:1px solid var(--bd-93c5fd, #93c5fd);border-radius:999px;padding:.1rem .5rem;margin-right:.35rem"><?= htmlspecialchars($p['league_name']) ?></span>
                         <?php endif; ?>
                         <?= htmlspecialchars($p['title']) ?>
                     </td>
@@ -489,6 +489,7 @@ const csrfToken = <?= js_json($token) ?>;
 let editor = null;
 document.addEventListener('DOMContentLoaded', function () {
 editor = Jodit.make('#jodit-editor', {
+    theme: (typeof pkIsDark === 'function' && pkIsDark()) ? 'dark' : 'default',   // dark mode (v1.34.0)
     // Jodit pulls js-beautify and ACE from cdnjs on load. script-src is 'self',
     // so both are refused and the features never worked here — this just stops
     // two dead cross-origin requests and the console noise on every page with an

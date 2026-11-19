@@ -151,26 +151,26 @@ $backUrl   = '/calendar.php?m=' . urlencode(substr($event['start_date'], 0, 7)) 
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .pl-wrap { max-width: 860px; margin: 1.5rem auto; padding: 0 1rem; }
-        .pl-card { background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; padding:1.25rem; margin-bottom:1.25rem; }
+        .pl-card { background:var(--bg-ffffff, #ffffff); border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:10px; padding:1.25rem; margin-bottom:1.25rem; }
         .pl-card h2 { font-size:1.05rem; margin:0 0 .75rem; }
         .pl-field { margin-bottom:.8rem; }
-        .pl-field label { display:block; font-size:.78rem; font-weight:700; color:#475569; margin-bottom:.3rem; }
-        .pl-field input[type=text] { width:100%; box-sizing:border-box; padding:.5rem .6rem; border:1.5px solid #e2e8f0; border-radius:8px; font-size:.9rem; }
-        .pl-q { border:1px solid #e2e8f0; border-radius:8px; padding:.7rem .8rem; margin-bottom:.7rem; background:#f8fafc; }
+        .pl-field label { display:block; font-size:.78rem; font-weight:700; color:var(--fg-475569, #475569); margin-bottom:.3rem; }
+        .pl-field input[type=text] { width:100%; box-sizing:border-box; padding:.5rem .6rem; border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:8px; font-size:.9rem; }
+        .pl-q { border:1px solid var(--bd-e2e8f0, #e2e8f0); border-radius:8px; padding:.7rem .8rem; margin-bottom:.7rem; background:var(--bg-f8fafc, #f8fafc); }
         .pl-q .pl-opt-row { display:flex; gap:.4rem; margin-top:.4rem; align-items:center; }
         .pl-q .pl-opt-row input { flex:1; }
-        .pl-btn { background:#f1f5f9; border:none; border-radius:6px; padding:.35rem .7rem; font-size:.78rem; font-weight:600; cursor:pointer; color:#334155; }
-        .pl-btn:hover { background:#e2e8f0; }
+        .pl-btn { background:var(--bg-f1f5f9, #f1f5f9); border:none; border-radius:6px; padding:.35rem .7rem; font-size:.78rem; font-weight:600; cursor:pointer; color:var(--fg-334155, #334155); }
+        .pl-btn:hover { background:var(--bg-e2e8f0, #e2e8f0); }
         .pl-btn.primary { background:#2563eb; color:#fff; }
-        .pl-btn.danger { background:#fef2f2; color:#b91c1c; }
-        .pl-bar-wrap { background:#f1f5f9; border-radius:6px; height:20px; position:relative; overflow:hidden; margin:.15rem 0 .4rem; }
+        .pl-btn.danger { background:var(--bg-fef2f2, #fef2f2); color:var(--fg-b91c1c, #b91c1c); }
+        .pl-bar-wrap { background:var(--bg-f1f5f9, #f1f5f9); border-radius:6px; height:20px; position:relative; overflow:hidden; margin:.15rem 0 .4rem; }
         .pl-bar { background:#2563eb; height:100%; border-radius:6px; min-width:2px; }
-        .pl-bar-label { position:absolute; left:.5rem; top:0; line-height:20px; font-size:.72rem; font-weight:700; color:#1e293b; }
+        .pl-bar-label { position:absolute; left:.5rem; top:0; line-height:20px; font-size:.72rem; font-weight:700; color:var(--fg-1e293b, #1e293b); }
         .pl-badge { font-size:.68rem; font-weight:700; padding:.12rem .45rem; border-radius:5px; }
-        .pl-badge.open { background:#dcfce7; color:#166534; }
-        .pl-badge.closed { background:#f1f5f9; color:#475569; }
-        .pl-meta { font-size:.78rem; color:#64748b; }
-        .pl-names { font-size:.78rem; color:#64748b; line-height:1.5; }
+        .pl-badge.open { background:var(--bg-dcfce7, #dcfce7); color:var(--fg-166534, #166534); }
+        .pl-badge.closed { background:var(--bg-f1f5f9, #f1f5f9); color:var(--fg-475569, #475569); }
+        .pl-meta { font-size:.78rem; color:var(--fg-64748b, #64748b); }
+        .pl-names { font-size:.78rem; color:var(--fg-64748b, #64748b); line-height:1.5; }
         .pl-actions { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.75rem; }
     </style>
 </head>
@@ -183,7 +183,7 @@ $backUrl   = '/calendar.php?m=' . urlencode(substr($event['start_date'], 0, 7)) 
         <h1 style="font-size:1.4rem;font-weight:700;margin:0">Polls &mdash; <?= htmlspecialchars($event['title']) ?></h1>
         <a href="<?= htmlspecialchars($backUrl) ?>" class="btn btn-outline" style="margin-left:auto;font-size:.8rem;text-decoration:none">Back to event</a>
     </div>
-    <p style="color:#64748b;font-size:.88rem;margin:0 0 1.25rem;line-height:1.55">
+    <p style="color:var(--fg-64748b, #64748b);font-size:.88rem;margin:0 0 1.25rem;line-height:1.55">
         Polls go to <strong>approved guests who RSVP'd Yes or Maybe</strong>
         (currently <?= count($audienceNow) ?>) via each person's preferred contact method.
         Results show <strong>counts only</strong> &mdash; nobody can see who picked what.
@@ -219,7 +219,7 @@ $backUrl   = '/calendar.php?m=' . urlencode(substr($event['start_date'], 0, 7)) 
 
     <!-- ── Existing polls ── -->
     <?php if (empty($polls)): ?>
-        <p style="color:#64748b">No polls yet for this event.</p>
+        <p style="color:var(--fg-64748b, #64748b)">No polls yet for this event.</p>
     <?php endif; ?>
     <?php foreach ($polls as $p): $t = $p['turnout']; ?>
     <div class="pl-card">
@@ -243,7 +243,7 @@ $backUrl   = '/calendar.php?m=' . urlencode(substr($event['start_date'], 0, 7)) 
                 $pct = $qTotal > 0 ? round($n / $qTotal * 100) : 0;
             ?>
             <div class="pl-bar-wrap" title="<?= $n ?> vote<?= $n === 1 ? '' : 's' ?>">
-                <div class="pl-bar" style="width:<?= max(2, $pct) ?>%;<?= $n === 0 ? 'background:#e2e8f0;' : '' ?>"></div>
+                <div class="pl-bar" style="width:<?= max(2, $pct) ?>%;<?= $n === 0 ? 'background:var(--bg-e2e8f0, #e2e8f0);' : '' ?>"></div>
                 <span class="pl-bar-label"><?= htmlspecialchars($opt['label']) ?> &mdash; <?= $n ?> (<?= $pct ?>%)</span>
             </div>
             <?php endforeach; ?>
@@ -306,7 +306,7 @@ function addQuestion() {
     div.className = 'pl-q';
     div.innerHTML =
         '<div style="display:flex;gap:.4rem;align-items:center">' +
-        '<input type="text" name="question[' + i + ']" placeholder="Question ' + (i + 1) + '" maxlength="200" style="flex:1;padding:.45rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.9rem">' +
+        '<input type="text" name="question[' + i + ']" placeholder="Question ' + (i + 1) + '" maxlength="200" style="flex:1;padding:.45rem .6rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;font-size:.9rem">' +
         '<button aria-label="Remove question" type="button" class="pl-btn danger" data-remove-closest=".pl-q\" title="Remove question">&times;</button>' +
         '</div>' +
         '<div class="pl-opts"></div>' +
@@ -320,7 +320,7 @@ function addOption(btn, qi) {
     var row = document.createElement('div');
     row.className = 'pl-opt-row';
     row.innerHTML =
-        '<input type="text" name="options[' + qi + '][]" placeholder="Option" maxlength="80" style="padding:.4rem .55rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.85rem">' +
+        '<input type="text" name="options[' + qi + '][]" placeholder="Option" maxlength="80" style="padding:.4rem .55rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;font-size:.85rem">' +
         '<button aria-label="Remove option" type="button" class="pl-btn" data-remove-closest=".pl-opt-row\" title="Remove option">&times;</button>';
     opts.appendChild(row);
 }

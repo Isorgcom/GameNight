@@ -51,42 +51,42 @@ $tips = $tipsStmt->fetchAll();
     <style>
         .hlp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; align-items: start; }
         @media (max-width: 760px) { .hlp-grid { grid-template-columns: 1fr; } }
-        .hlp-card { background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; padding:1.25rem; }
+        .hlp-card { background:var(--bg-ffffff, #ffffff); border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:10px; padding:1.25rem; }
         .hlp-card h2 { font-size:1.05rem; margin:0 0 .85rem; }
         .hlp-field { margin-bottom:.85rem; }
-        .hlp-field label { display:block; font-size:.78rem; font-weight:700; color:#475569; margin-bottom:.3rem; }
+        .hlp-field label { display:block; font-size:.78rem; font-weight:700; color:var(--fg-475569, #475569); margin-bottom:.3rem; }
         .hlp-field input[type=text], .hlp-field textarea, .hlp-screen-sel {
-            width:100%; box-sizing:border-box; padding:.5rem .6rem; border:1.5px solid #e2e8f0;
+            width:100%; box-sizing:border-box; padding:.5rem .6rem; border:1.5px solid var(--bd-e2e8f0, #e2e8f0);
             border-radius:8px; font-size:.9rem; font-family:inherit;
         }
-        .hlp-field .hint { font-size:.72rem; color:#64748b; margin:.25rem 0 0; }
-        .hlp-tip { border:1px solid #e2e8f0; border-radius:8px; padding:.7rem .8rem; margin-bottom:.6rem; }
+        .hlp-field .hint { font-size:.72rem; color:var(--fg-64748b, #64748b); margin:.25rem 0 0; }
+        .hlp-tip { border:1px solid var(--bd-e2e8f0, #e2e8f0); border-radius:8px; padding:.7rem .8rem; margin-bottom:.6rem; }
         .hlp-tip.off { opacity:.55; }
         .hlp-tip-head { display:flex; align-items:center; gap:.5rem; margin-bottom:.25rem; }
         .hlp-tip-title { font-weight:700; font-size:.9rem; flex:1; }
-        .hlp-tip-body { font-size:.85rem; color:#334155; white-space:pre-wrap; }
-        .hlp-tip-anchor { font-size:.72rem; color:#7c3aed; margin-top:.3rem; font-family:monospace; }
+        .hlp-tip-body { font-size:.85rem; color:var(--fg-334155, #334155); white-space:pre-wrap; }
+        .hlp-tip-anchor { font-size:.72rem; color:var(--fg-7c3aed, #7c3aed); margin-top:.3rem; font-family:monospace; }
         .hlp-tip-actions { display:flex; flex-wrap:wrap; gap:.35rem; margin-top:.55rem; }
-        .hlp-btn { background:#f1f5f9; border:none; border-radius:6px; padding:.3rem .65rem; font-size:.74rem; font-weight:600; cursor:pointer; color:#334155; }
-        .hlp-btn:hover { background:#e2e8f0; }
-        .hlp-btn.danger { background:#fef2f2; color:#b91c1c; }
-        .hlp-btn.danger:hover { background:#fee2e2; }
+        .hlp-btn { background:var(--bg-f1f5f9, #f1f5f9); border:none; border-radius:6px; padding:.3rem .65rem; font-size:.74rem; font-weight:600; cursor:pointer; color:var(--fg-334155, #334155); }
+        .hlp-btn:hover { background:var(--bg-e2e8f0, #e2e8f0); }
+        .hlp-btn.danger { background:var(--bg-fef2f2, #fef2f2); color:var(--fg-b91c1c, #b91c1c); }
+        .hlp-btn.danger:hover { background:var(--bg-fee2e2, #fee2e2); }
         .hlp-btn.primary { background:#2563eb; color:#fff; }
         .hlp-btn.primary:hover { filter:brightness(1.05); }
         .hlp-badge { font-size:.68rem; font-weight:700; padding:.1rem .4rem; border-radius:5px; }
-        .hlp-badge.on { background:#dcfce7; color:#166534; }
-        .hlp-badge.off { background:#f1f5f9; color:#475569; }
-        .hlp-empty { color:#64748b; font-size:.88rem; }
-        .hlp-help { margin-top:.5rem; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; }
-        .hlp-help > summary { cursor:pointer; padding:.5rem .7rem; font-size:.78rem; font-weight:600; color:#2563eb; list-style:none; }
+        .hlp-badge.on { background:var(--bg-dcfce7, #dcfce7); color:var(--fg-166534, #166534); }
+        .hlp-badge.off { background:var(--bg-f1f5f9, #f1f5f9); color:var(--fg-475569, #475569); }
+        .hlp-empty { color:var(--fg-64748b, #64748b); font-size:.88rem; }
+        .hlp-help { margin-top:.5rem; border:1px solid var(--bd-e2e8f0, #e2e8f0); border-radius:8px; background:var(--bg-f8fafc, #f8fafc); }
+        .hlp-help > summary { cursor:pointer; padding:.5rem .7rem; font-size:.78rem; font-weight:600; color:var(--fg-2563eb, #2563eb); list-style:none; }
         .hlp-help > summary::-webkit-details-marker { display:none; }
         .hlp-help > summary::before { content:"\25B8\00a0"; }
         .hlp-help[open] > summary::before { content:"\25BE\00a0"; }
-        .hlp-help-body { padding:0 .85rem .7rem; font-size:.8rem; color:#475569; line-height:1.5; }
+        .hlp-help-body { padding:0 .85rem .7rem; font-size:.8rem; color:var(--fg-475569, #475569); line-height:1.5; }
         .hlp-help-body p { margin:.5rem 0; }
         .hlp-help-body ul { margin:.4rem 0 .4rem 1.1rem; padding:0; }
         .hlp-help-body li { margin:.25rem 0; }
-        .hlp-help-body code { background:#e2e8f0; padding:.05rem .3rem; border-radius:4px; font-size:.76rem; }
+        .hlp-help-body code { background:var(--bg-e2e8f0, #e2e8f0); padding:.05rem .3rem; border-radius:4px; font-size:.76rem; }
         #hlpMsg { font-size:.82rem; margin:.5rem 0 0; min-height:1em; }
     </style>
 </head>
@@ -97,7 +97,7 @@ $tips = $tipsStmt->fetchAll();
 <div role="main" class="dash-wrap">
     <?php $admin_tab = 'help'; require __DIR__ . '/_admin_tabs.php'; ?>
     <h1 style="font-size:1.5rem;font-weight:700;margin:0 0 .35rem">Help Tips</h1>
-    <p style="color:#64748b;margin:0 0 1.25rem;font-size:.9rem;line-height:1.55">
+    <p style="color:var(--fg-64748b, #64748b);margin:0 0 1.25rem;font-size:.9rem;line-height:1.55">
         Author small "ghost bubble" hints that pop up for signed-in users on a screen. Users can
         dismiss them, and reset all dismissed help from their own Settings page. Leave the anchor
         blank to float the bubble in the corner, or give a CSS selector to point it at an element.
@@ -115,7 +115,7 @@ $tips = $tipsStmt->fetchAll();
         <?php $screen_url = $screen === 'index' ? '/' : '/' . $screen . '.php'; ?>
         <p class="hint" style="margin-top:.4rem">
             URL: <a href="<?= htmlspecialchars($screen_url) ?>" target="_blank" rel="noopener"
-                   style="font-family:monospace;color:#2563eb;text-decoration:none"><?= htmlspecialchars($screen_url) ?> &#8599;</a>
+                   style="font-family:monospace;color:var(--fg-2563eb, #2563eb);text-decoration:none"><?= htmlspecialchars($screen_url) ?> &#8599;</a>
         </p>
     </div>
 
@@ -126,7 +126,7 @@ $tips = $tipsStmt->fetchAll();
             <form id="tipForm" data-act-submit="cancelSubmit">
                 <input type="hidden" id="tipId" value="">
                 <div class="hlp-field">
-                    <label for="tipTitle">Title <span style="font-weight:400;color:#64748b">(optional)</span></label>
+                    <label for="tipTitle">Title <span style="font-weight:400;color:var(--fg-64748b, #64748b)">(optional)</span></label>
                     <input type="text" id="tipTitle" maxlength="120" placeholder="e.g. Adding an event">
                 </div>
                 <div class="hlp-field">
@@ -134,7 +134,7 @@ $tips = $tipsStmt->fetchAll();
                     <textarea id="tipBody" rows="4" placeholder="Keep it short and friendly. Line breaks are preserved."></textarea>
                 </div>
                 <div class="hlp-field">
-                    <label for="tipAnchor">Anchor selector <span style="font-weight:400;color:#64748b">(optional)</span></label>
+                    <label for="tipAnchor">Anchor selector <span style="font-weight:400;color:var(--fg-64748b, #64748b)">(optional)</span></label>
                     <input type="text" id="tipAnchor" placeholder="e.g. .cal-add-btn  or  #addEventBtn">
                     <p class="hint">Leave blank and the bubble floats in the bottom-right corner. Enter a CSS selector to make the bubble point at a specific button or area on the page.</p>
                     <details class="hlp-help">
@@ -153,7 +153,7 @@ $tips = $tipsStmt->fetchAll();
                     </details>
                 </div>
                 <div class="hlp-field">
-                    <label for="tipIndex">Step index <span style="font-weight:400;color:#64748b">(optional)</span></label>
+                    <label for="tipIndex">Step index <span style="font-weight:400;color:var(--fg-64748b, #64748b)">(optional)</span></label>
                     <input type="number" id="tipIndex" min="1" step="1" placeholder="e.g. 1" style="max-width:140px">
                     <p class="hint">Tips that share the same index number appear together as one step (Back/Next moves between steps). Leave blank and the tip is its own step.</p>
                 </div>
@@ -209,14 +209,14 @@ function renderList() {
         const on = Number(t.enabled) === 1;
         return `<div class="hlp-tip ${on ? '' : 'off'}">
             <div class="hlp-tip-head">
-                <span class="hlp-tip-title">${t.title ? esc(t.title) : '<span style="color:#64748b;font-weight:400">(no title)</span>'}</span>
-                ${Number(t.always_show) === 1 ? '<span class="hlp-badge" style="background:#fef3c7;color:#92400e">&#128204; Pinned</span>' : ''}
-                ${Number(t.hosts_only) === 1 ? '<span class="hlp-badge" style="background:#dbeafe;color:#1e40af">Hosts only</span>' : ''}
+                <span class="hlp-tip-title">${t.title ? esc(t.title) : '<span style="color:var(--fg-64748b, #64748b);font-weight:400">(no title)</span>'}</span>
+                ${Number(t.always_show) === 1 ? '<span class="hlp-badge" style="background:var(--bg-fef3c7, #fef3c7);color:var(--fg-92400e, #92400e)">&#128204; Pinned</span>' : ''}
+                ${Number(t.hosts_only) === 1 ? '<span class="hlp-badge" style="background:var(--bg-dbeafe, #dbeafe);color:var(--fg-1e40af, #1e40af)">Hosts only</span>' : ''}
                 <span class="hlp-badge ${on ? 'on' : 'off'}">${on ? 'Shown' : 'Hidden'}</span>
             </div>
             <div class="hlp-tip-body">${esc(t.body)}</div>
             ${t.anchor_selector ? `<div class="hlp-tip-anchor">&#128279; ${esc(t.anchor_selector)}</div>` : ''}
-            ${(t.bubble_index !== null && t.bubble_index !== undefined && t.bubble_index !== '') ? `<div class="hlp-tip-anchor" style="color:#2563eb">&#9635; Step index ${esc(t.bubble_index)}</div>` : ''}
+            ${(t.bubble_index !== null && t.bubble_index !== undefined && t.bubble_index !== '') ? `<div class="hlp-tip-anchor" style="color:var(--fg-2563eb, #2563eb)">&#9635; Step index ${esc(t.bubble_index)}</div>` : ''}
             <div class="hlp-tip-actions">
                 <button aria-label="Move up" class="hlp-btn" data-act="moveTip" data-a1="${i}" data-a2="-1" ${i === 0 ? 'disabled' : ''}>&#9650;</button>
                 <button aria-label="Move down" class="hlp-btn" data-act="moveTip" data-a1="${i}" data-a2="1" ${i === TIPS.length - 1 ? 'disabled' : ''}>&#9660;</button>
@@ -231,7 +231,7 @@ function renderList() {
 function msg(text, isErr) {
     const m = document.getElementById('hlpMsg');
     m.textContent = text || '';
-    m.style.color = isErr ? '#b91c1c' : '#166534';
+    m.style.color = isErr ? 'var(--fg-b91c1c, #b91c1c)' : 'var(--fg-166534, #166534)';
 }
 
 async function post(fields) {

@@ -89,15 +89,15 @@ function fmt_date(string $date, ?string $time, DateTimeZone $site_tz, ?DateTimeZ
 
 function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): string {
     if ($approval_status === 'waitlisted') {
-        return '<span class="me-badge" style="background:#eff6ff;color:#1e40af;border:1px solid #93c5fd;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Waitlisted</span>';
+        return '<span class="me-badge" style="background:var(--bg-eff6ff, #eff6ff);color:var(--fg-1e40af, #1e40af);border:1px solid var(--bd-93c5fd, #93c5fd);border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Waitlisted</span>';
     }
     if ($approval_status === 'pending') {
-        return '<span class="me-badge" style="background:#fefce8;color:#854d0e;border:1px solid #fde68a;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">⏳ Awaiting approval</span>';
+        return '<span class="me-badge" style="background:var(--bg-fefce8, #fefce8);color:var(--fg-854d0e, #854d0e);border:1px solid var(--bd-fde68a, #fde68a);border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">⏳ Awaiting approval</span>';
     }
-    if ($rsvp === 'yes')   return '<span class="me-badge" style="background:#dcfce7;color:#166534;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Yes</span>';
-    if ($rsvp === 'no')    return '<span class="me-badge" style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">No</span>';
-    if ($rsvp === 'maybe') return '<span class="me-badge" style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Maybe</span>';
-    return '<span class="me-badge" style="background:#f1f5f9;color:#475569;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">No response</span>';
+    if ($rsvp === 'yes')   return '<span class="me-badge" style="background:var(--bg-dcfce7, #dcfce7);color:var(--fg-166534, #166534);border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Yes</span>';
+    if ($rsvp === 'no')    return '<span class="me-badge" style="background:var(--bg-fee2e2, #fee2e2);color:var(--fg-991b1b, #991b1b);border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">No</span>';
+    if ($rsvp === 'maybe') return '<span class="me-badge" style="background:var(--bg-fef9c3, #fef9c3);color:var(--fg-854d0e, #854d0e);border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Maybe</span>';
+    return '<span class="me-badge" style="background:var(--bg-f1f5f9, #f1f5f9);color:var(--fg-475569, #475569);border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">No response</span>';
 }
 ?>
 <!DOCTYPE html>
@@ -118,13 +118,13 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
             font-weight: 600;
             padding: .1rem .5rem;
             border-radius: 999px;
-            background: #dbeafe;
-            color: #1e40af;
-            border: 1px solid #93c5fd;
+            background: var(--bg-dbeafe, #dbeafe);
+            color: var(--fg-1e40af, #1e40af);
+            border: 1px solid var(--bd-93c5fd, #93c5fd);
             text-decoration: none;
             line-height: 1.3;
         }
-        .ev-league-tag:hover { background: #bfdbfe; color: #1e3a8a; text-decoration: none; }
+        .ev-league-tag:hover { background: var(--bg-bfdbfe, #bfdbfe); color: var(--fg-1e3a8a, #1e3a8a); text-decoration: none; }
     </style>
 </head>
 <body>
@@ -134,13 +134,13 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
 <div role="main" style="max-width:760px;margin:2rem auto;padding:0 1rem">
 
     <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.75rem;margin-bottom:1.75rem">
-        <h2 style="font-size:1.4rem;font-weight:700;color:#1e293b;margin:0">My Events</h2>
+        <h2 style="font-size:1.4rem;font-weight:700;color:var(--fg-1e293b, #1e293b);margin:0">My Events</h2>
         <a href="/event_edit.php" style="margin-left:auto;display:inline-flex;align-items:center;gap:.3rem;padding:.4rem .75rem;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-size:.85rem;font-weight:600">
             <span style="font-size:1.1rem;line-height:1">&#43;</span> Add Event
         </a>
-        <div style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:#64748b">
+        <div style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:var(--fg-64748b, #64748b)">
             <label>Past:
-                <select data-act-change="goMyEventsPastDays" data-change-a1="@value" style="padding:.2rem .4rem;border:1px solid #e2e8f0;border-radius:5px;font-size:.8rem;background:#fff">
+                <select data-act-change="goMyEventsPastDays" data-change-a1="@value" style="padding:.2rem .4rem;border:1px solid var(--bd-e2e8f0, #e2e8f0);border-radius:5px;font-size:.8rem;background:var(--bg-ffffff, #ffffff)">
                     <?php foreach ([7=>'7d',14=>'14d',30=>'30d',60=>'60d',90=>'90d',180=>'6mo',365=>'1yr'] as $v=>$l): ?>
                     <option value="<?= $v ?>"<?= $past_days === $v ? ' selected' : '' ?>><?= $l ?></option>
                     <?php endforeach; ?>
@@ -150,12 +150,12 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
     </div>
 
     <!-- Upcoming -->
-    <h3 style="font-size:.8rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.75rem">
+    <h3 style="font-size:.8rem;font-weight:600;color:var(--fg-64748b, #64748b);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.75rem">
         Upcoming &mdash; <?= count($upcoming) ?>
     </h3>
 
     <?php if (empty($upcoming)): ?>
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1.5rem;text-align:center;color:#64748b;margin-bottom:2rem">
+    <div style="background:var(--bg-f8fafc, #f8fafc);border:1px solid var(--bd-e2e8f0, #e2e8f0);border-radius:10px;padding:1.5rem;text-align:center;color:var(--fg-64748b, #64748b);margin-bottom:2rem">
         No upcoming events.
     </div>
     <?php else: ?>
@@ -165,11 +165,11 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
             $month_str = substr($ev['start_date'], 0, 7);
             $cal_url   = '/calendar.php?m=' . urlencode($month_str) . '&open=' . $ev['id'] . '&date=' . urlencode($ev['start_date']);
         ?>
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:flex-start;gap:1rem;border-left:4px solid <?= htmlspecialchars($ev['color']) ?>">
+        <div style="background:var(--bg-ffffff, #ffffff);border:1px solid var(--bd-e2e8f0, #e2e8f0);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:flex-start;gap:1rem;border-left:4px solid <?= htmlspecialchars($ev['color']) ?>">
             <div style="flex:1;min-width:0">
                 <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.25rem">
                     <a href="<?= htmlspecialchars($cal_url) ?>"
-                       style="font-weight:600;color:#1e293b;text-decoration:none;font-size:1rem;line-height:1.3">
+                       style="font-weight:600;color:var(--fg-1e293b, #1e293b);text-decoration:none;font-size:1rem;line-height:1.3">
                         <?= htmlspecialchars($ev['title']) ?>
                     </a>
                     <?= rsvp_badge($ev['rsvp'], $ev['approval_status'] ?? 'approved') ?>
@@ -180,7 +180,7 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
                     </a>
                     <?php endif; ?>
                     <?php if ($ev['is_creator']): ?>
-                    <span class="me-badge" style="background:#ede9fe;color:#5b21b6;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Organizer</span>
+                    <span class="me-badge" style="background:var(--bg-ede9fe, #ede9fe);color:var(--fg-5b21b6, #5b21b6);border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Organizer</span>
                     <?php endif; ?>
                     <?php if (!empty($ev['is_poker']) && !empty($manageable[(int)$ev['id']]) && empty($ev['cancelled_at'])): ?>
                     <a href="/checkin.php?event_id=<?= $ev['id'] ?>" class="me-badge" style="background:#059669;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Manage Game</a>
@@ -189,7 +189,7 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
                     <a href="/event_edit.php?id=<?= (int)$ev['id'] ?>&m=<?= urlencode($month_str) ?>" class="me-badge" style="background:#2563eb;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Edit</a>
                     <?php endif; ?>
                 </div>
-                <div style="font-size:.85rem;color:#64748b">
+                <div style="font-size:.85rem;color:var(--fg-64748b, #64748b)">
                     <?= fmt_date($ev['start_date'], $ev['start_time'], $local_tz, $viewer_tz) ?>
                     <?php if ($ev['end_date'] && $ev['end_date'] !== $ev['start_date']): ?>
                     &ndash; <?= fmt_date($ev['end_date'], $ev['end_time'], $local_tz, $viewer_tz) ?>
@@ -198,13 +198,13 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
                     <?php endif; ?>
                 </div>
                 <?php if (!empty($ev['description'])): ?>
-                <div style="font-size:.825rem;color:#64748b;margin-top:.3rem;white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">
+                <div style="font-size:.825rem;color:var(--fg-64748b, #64748b);margin-top:.3rem;white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">
                     <?= htmlspecialchars($ev['description']) ?>
                 </div>
                 <?php endif; ?>
             </div>
             <a href="<?= htmlspecialchars($cal_url) ?>"
-               class="me-view-btn" style="flex-shrink:0;font-size:.8rem;color:#2563eb;text-decoration:none;white-space:nowrap;padding:.3rem .7rem;border:1px solid #bfdbfe;border-radius:6px">
+               class="me-view-btn" style="flex-shrink:0;font-size:.8rem;color:var(--fg-2563eb, #2563eb);text-decoration:none;white-space:nowrap;padding:.3rem .7rem;border:1px solid var(--bd-bfdbfe, #bfdbfe);border-radius:6px">
                 View
             </a>
         </div>
@@ -216,13 +216,13 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
     <details>
         <summary class="me-past-toggle">
             <span style="display:inline-block;transition:transform .15s" class="me-past-caret">&#9656;</span>
-            <span style="font-size:.8rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.07em">Past &mdash; <?= count($past) ?></span>
+            <span style="font-size:.8rem;font-weight:700;color:var(--fg-475569, #475569);text-transform:uppercase;letter-spacing:.07em">Past &mdash; <?= count($past) ?></span>
             <span class="me-past-hint me-hint-show">Show</span>
             <span class="me-past-hint me-hint-hide">Hide</span>
         </summary>
 
     <?php if (empty($past)): ?>
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1.5rem;text-align:center;color:#64748b">
+    <div style="background:var(--bg-f8fafc, #f8fafc);border:1px solid var(--bd-e2e8f0, #e2e8f0);border-radius:10px;padding:1.5rem;text-align:center;color:var(--fg-64748b, #64748b)">
         No past events.
     </div>
     <?php else: ?>
@@ -232,11 +232,11 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
             $month_str = substr($ev['start_date'], 0, 7);
             $cal_url   = '/calendar.php?m=' . urlencode($month_str) . '&open=' . $ev['id'] . '&date=' . urlencode($ev['start_date']);
         ?>
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:flex-start;gap:1rem;border-left:4px solid #cbd5e1;opacity:.8">
+        <div style="background:var(--bg-f8fafc, #f8fafc);border:1px solid var(--bd-e2e8f0, #e2e8f0);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:flex-start;gap:1rem;border-left:4px solid var(--bd-cbd5e1, #cbd5e1);opacity:.8">
             <div style="flex:1;min-width:0">
                 <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.25rem">
                     <a href="<?= htmlspecialchars($cal_url) ?>"
-                       style="font-weight:600;color:#475569;text-decoration:none;font-size:1rem;line-height:1.3">
+                       style="font-weight:600;color:var(--fg-475569, #475569);text-decoration:none;font-size:1rem;line-height:1.3">
                         <?= htmlspecialchars($ev['title']) ?>
                     </a>
                     <?= rsvp_badge($ev['rsvp'], $ev['approval_status'] ?? 'approved') ?>
@@ -247,7 +247,7 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
                     </a>
                     <?php endif; ?>
                     <?php if ($ev['is_creator']): ?>
-                    <span style="background:#f3f4f6;color:#6b7280;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Organizer</span>
+                    <span style="background:var(--bg-f3f4f6, #f3f4f6);color:var(--fg-6b7280, #6b7280);border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Organizer</span>
                     <?php endif; ?>
                     <?php if (!empty($ev['is_poker']) && !empty($manageable[(int)$ev['id']]) && empty($ev['cancelled_at'])): ?>
                     <a href="/checkin.php?event_id=<?= $ev['id'] ?>" style="background:#059669;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Manage Game</a>
@@ -256,12 +256,12 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
                     <a href="/event_edit.php?id=<?= (int)$ev['id'] ?>&m=<?= urlencode($month_str) ?>" style="background:#2563eb;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Edit</a>
                     <?php endif; ?>
                 </div>
-                <div style="font-size:.85rem;color:#64748b">
+                <div style="font-size:.85rem;color:var(--fg-64748b, #64748b)">
                     <?= fmt_date($ev['start_date'], $ev['start_time'], $local_tz, $viewer_tz) ?>
                 </div>
             </div>
             <a href="<?= htmlspecialchars($cal_url) ?>"
-               style="flex-shrink:0;font-size:.8rem;color:#64748b;text-decoration:none;white-space:nowrap;padding:.3rem .7rem;border:1px solid #e2e8f0;border-radius:6px">
+               style="flex-shrink:0;font-size:.8rem;color:var(--fg-64748b, #64748b);text-decoration:none;white-space:nowrap;padding:.3rem .7rem;border:1px solid var(--bd-e2e8f0, #e2e8f0);border-radius:6px">
                 View
             </a>
         </div>
@@ -277,10 +277,10 @@ details[open] .me-past-caret { transform: rotate(90deg); }
 details > summary::-webkit-details-marker { display: none; }
 /* Obvious click target for the Past section (users missed the bare caret) */
 .me-past-toggle { cursor: pointer; list-style: none; display: flex; align-items: center; gap: .5rem;
-    background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: .6rem .9rem; margin-bottom: .75rem; }
-.me-past-toggle:hover { border-color: #93c5fd; background: #eff6ff; }
-.me-past-hint { margin-left: auto; font-size: .75rem; font-weight: 600; color: #2563eb;
-    border: 1.5px solid #bfdbfe; background: #fff; border-radius: 999px; padding: .15rem .6rem; }
+    background: var(--bg-f8fafc, #f8fafc); border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; padding: .6rem .9rem; margin-bottom: .75rem; }
+.me-past-toggle:hover { border-color: var(--bd-93c5fd, #93c5fd); background: var(--bg-eff6ff, #eff6ff); }
+.me-past-hint { margin-left: auto; font-size: .75rem; font-weight: 600; color: var(--fg-2563eb, #2563eb);
+    border: 1.5px solid var(--bd-bfdbfe, #bfdbfe); background: var(--bg-ffffff, #ffffff); border-radius: 999px; padding: .15rem .6rem; }
 details[open] .me-hint-show { display: none; }
 details:not([open]) .me-hint-hide { display: none; }
 </style>

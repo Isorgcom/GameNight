@@ -51,11 +51,11 @@ if (!$post || (int)($post['hidden'] ?? 0) === 1 || (int)($post['league_id'] ?? 0
         <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     </head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:1rem">
         <div style="max-width:480px;width:100%;text-align:center">
-            <div style="background:#fef2f2;border:2px solid #dc2626;border-radius:12px;padding:2rem 1.5rem;margin-bottom:1.5rem">
-                <h1 style="font-size:1.5rem;color:#dc2626;margin:0 0 .75rem">Link Not Found</h1>
-                <div style="font-size:1rem;color:#334155;line-height:1.6">This share link is no longer valid. It may have been disabled or replaced.</div>
+            <div style="background:var(--bg-fef2f2, #fef2f2);border:2px solid #dc2626;border-radius:12px;padding:2rem 1.5rem;margin-bottom:1.5rem">
+                <h1 style="font-size:1.5rem;color:var(--fg-dc2626, #dc2626);margin:0 0 .75rem">Link Not Found</h1>
+                <div style="font-size:1rem;color:var(--fg-334155, #334155);line-height:1.6">This share link is no longer valid. It may have been disabled or replaced.</div>
             </div>
-            <a href="/" style="color:#2563eb;text-decoration:none;font-size:.9rem">Go to <?= htmlspecialchars($site_name) ?></a>
+            <a href="/" style="color:var(--fg-2563eb, #2563eb);text-decoration:none;font-size:.9rem">Go to <?= htmlspecialchars($site_name) ?></a>
         </div>
     </body></html>
     <?php
@@ -88,16 +88,16 @@ $redir = '/post_public.php?token=' . urlencode($token);
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .page-layout { max-width: 740px; margin: 2rem auto 0; padding: 0 1.5rem; }
-        .post-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:1.75rem; margin-bottom:1.5rem; }
-        .post-meta { font-size:.78rem; color:#64748b; margin-bottom:.6rem; display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
-        .post-title { font-size:1.4rem; font-weight:700; color:#0f172a; margin-bottom:.85rem; }
-        .post-body { line-height:1.75; color:#334155; font-size:.97rem; overflow:hidden; }
+        .post-card { background:var(--bg-ffffff, #ffffff); border:1px solid var(--bd-e2e8f0, #e2e8f0); border-radius:12px; padding:1.75rem; margin-bottom:1.5rem; }
+        .post-meta { font-size:.78rem; color:var(--fg-64748b, #64748b); margin-bottom:.6rem; display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
+        .post-title { font-size:1.4rem; font-weight:700; color:var(--fg-0f172a, #0f172a); margin-bottom:.85rem; }
+        .post-body { line-height:1.75; color:var(--fg-334155, #334155); font-size:.97rem; overflow:hidden; }
         .post-body p { margin-bottom:.85rem; }
         .post-body img { max-width:100%; height:auto; display:block; border-radius:6px; margin:.5rem 0; }
-        .post-body a { color:#2563eb; }
-        .league-badge { font-size:.72rem; font-weight:600; color:#1e40af; background:#dbeafe; border:1px solid #93c5fd; border-radius:999px; padding:.15rem .6rem; }
-        .public-badge { font-size:.72rem; font-weight:600; color:#166534; background:#dcfce7; border:1px solid #86efac; border-radius:999px; padding:.15rem .6rem; }
-        .share-banner { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:.75rem 1rem; font-size:.85rem; color:#475569; margin-bottom:1.5rem; }
+        .post-body a { color:var(--fg-2563eb, #2563eb); }
+        .league-badge { font-size:.72rem; font-weight:600; color:var(--fg-1e40af, #1e40af); background:var(--bg-dbeafe, #dbeafe); border:1px solid var(--bd-93c5fd, #93c5fd); border-radius:999px; padding:.15rem .6rem; }
+        .public-badge { font-size:.72rem; font-weight:600; color:var(--fg-166534, #166534); background:var(--bg-dcfce7, #dcfce7); border:1px solid var(--bd-86efac, #86efac); border-radius:999px; padding:.15rem .6rem; }
+        .share-banner { background:var(--bg-f8fafc, #f8fafc); border:1px solid var(--bd-e2e8f0, #e2e8f0); border-radius:8px; padding:.75rem 1rem; font-size:.85rem; color:var(--fg-475569, #475569); margin-bottom:1.5rem; }
     </style>
 </head>
 <body>
@@ -132,7 +132,7 @@ $redir = '/post_public.php?token=' . urlencode($token);
     <div class="share-banner">
         Shared from <?= htmlspecialchars($post['league_name'] ?? 'a league') ?>.
         <?php if (!$user): ?>
-            <a href="/login.php?redirect=<?= urlencode($redir) ?>" style="color:#2563eb;text-decoration:none;font-weight:600">Log in</a>
+            <a href="/login.php?redirect=<?= urlencode($redir) ?>" style="color:var(--fg-2563eb, #2563eb);text-decoration:none;font-weight:600">Log in</a>
             to comment or to see other posts from this league.
         <?php endif; ?>
     </div>
@@ -152,8 +152,8 @@ $redir = '/post_public.php?token=' . urlencode($token);
         <div class="post-title"><?= htmlspecialchars($post['title']) ?></div>
         <div class="post-body"><?= sanitize_html($post['content']) ?></div>
 
-        <div class="comments-section" id="csec-<?= (int)$post['id'] ?>" style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e2e8f0">
-            <div style="font-size:.85rem;font-weight:600;color:#475569;margin-bottom:.75rem">
+        <div class="comments-section" id="csec-<?= (int)$post['id'] ?>" style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--bd-e2e8f0, #e2e8f0)">
+            <div style="font-size:.85rem;font-weight:600;color:var(--fg-475569, #475569);margin-bottom:.75rem">
                 <?= count($comments) ?> Comment<?= count($comments) !== 1 ? 's' : '' ?>
             </div>
 
@@ -181,9 +181,9 @@ $redir = '/post_public.php?token=' . urlencode($token);
                 <button type="submit" class="btn btn-primary btn-post">Post</button>
             </form>
             <?php elseif ($user): ?>
-            <p style="margin-top:1rem;color:#64748b;font-size:.85rem">Only members of this league can comment.</p>
+            <p style="margin-top:1rem;color:var(--fg-64748b, #64748b);font-size:.85rem">Only members of this league can comment.</p>
             <?php else: ?>
-            <p style="margin-top:1rem;color:#64748b;font-size:.85rem">
+            <p style="margin-top:1rem;color:var(--fg-64748b, #64748b);font-size:.85rem">
                 <a href="/login.php?redirect=<?= urlencode($redir) ?>">Log in</a> as a league member to leave a comment.
             </p>
             <?php endif; ?>

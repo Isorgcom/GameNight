@@ -236,53 +236,53 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         /* Page frame: the editor fills the viewport below the nav, with the invite
            panes scrolling internally — same layout the 95vh modal provided. */
         .evedit-wrap { max-width: 1280px; margin: 1rem auto; padding: 0 1rem; }
-        .evedit-card { background:#fff; border:1.5px solid #e2e8f0; border-radius:12px; box-shadow:0 4px 18px rgba(15,23,42,.06); display:flex; flex-direction:column; min-height:0; height:calc(100vh - 170px);height:calc(100dvh - 170px); min-height:540px; overflow:hidden; }
-        .evedit-head { display:flex; align-items:center; gap:.75rem; padding:.9rem 1.25rem; border-bottom:1px solid #e2e8f0; flex-shrink:0; }
+        .evedit-card { background:var(--bg-ffffff, #ffffff); border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:12px; box-shadow:0 4px 18px rgba(15,23,42,.06); display:flex; flex-direction:column; min-height:0; height:calc(100vh - 170px);height:calc(100dvh - 170px); min-height:540px; overflow:hidden; }
+        .evedit-head { display:flex; align-items:center; gap:.75rem; padding:.9rem 1.25rem; border-bottom:1px solid var(--bd-e2e8f0, #e2e8f0); flex-shrink:0; }
         .evedit-head h1 { font-size:1.15rem; font-weight:700; margin:0; flex:1; }
         .evedit-card form { display:flex; flex-direction:column; flex:1; min-height:0; overflow-y:auto; }
 
         /* ── Editor styles (copied from calendar.php's editor modal so the page
               renders identically; Phase 2 retires the modal copy) ── */
-        .edit-top-bar { display:flex;align-items:center;gap:.75rem;padding:.6rem 1.25rem;flex-wrap:wrap;flex-shrink:0;border-bottom:1px solid #e2e8f0;background:#f8fafc; }
+        .edit-top-bar { display:flex;align-items:center;gap:.75rem;padding:.6rem 1.25rem;flex-wrap:wrap;flex-shrink:0;border-bottom:1px solid var(--bd-e2e8f0, #e2e8f0);background:var(--bg-f8fafc, #f8fafc); }
         .edit-top-bar select, .edit-top-bar input[type="text"], .edit-top-bar input[type="date"], .edit-top-bar input[type="time"] {
-            padding:.32rem .45rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.82rem;background:#fff;color:#1e293b;
+            padding:.32rem .45rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:6px;font-size:.82rem;background:var(--bg-ffffff, #ffffff);color:var(--fg-1e293b, #1e293b);
         }
         .edit-top-bar select:focus, .edit-top-bar input:focus { border-color:#2563eb; }
         .edit-top-bar .edit-title-label { flex:1;min-width:140px; }
         .edit-top-bar .edit-title-input { width:100%;box-sizing:border-box; }
         .edit-top-bar .edit-title-input.is-invalid { border-color:#dc2626;box-shadow:0 0 0 3px rgba(220,38,38,.12); }
-        .req { color:#dc2626;font-weight:700; }
-        .req-note { font-size:.72rem;color:#64748b;align-self:flex-end;padding-bottom:.4rem;white-space:nowrap; }
+        .req { color:var(--fg-dc2626, #dc2626);font-weight:700; }
+        .req-note { font-size:.72rem;color:var(--fg-64748b, #64748b);align-self:flex-end;padding-bottom:.4rem;white-space:nowrap; }
         .sr-only { position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0; }
-        .edit-top-bar label { font-size:.72rem;font-weight:600;color:#64748b;display:flex;flex-direction:column;gap:.1rem; }
+        .edit-top-bar label { font-size:.72rem;font-weight:600;color:var(--fg-64748b, #64748b);display:flex;flex-direction:column;gap:.1rem; }
         #eColorDot { width:38px;height:38px;border-radius:50%;cursor:pointer;border:3px solid transparent;padding:0;flex-shrink:0;transition:border-color .15s,box-shadow .15s;position:relative; }
         #eColorDot:hover { border-color:#1e293b; }
         #eColorDot.open { box-shadow:0 0 0 3px rgba(37,99,235,.3);border-color:#2563eb; }
-        #eColorPicker { position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;padding:.6rem .75rem;display:none;gap:.5rem;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.15); }
+        #eColorPicker { position:absolute;top:calc(100% + 6px);left:0;background:var(--bg-ffffff, #ffffff);border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:10px;padding:.6rem .75rem;display:none;gap:.5rem;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.15); }
         #eColorPicker.open { display:flex; }
         #eColorPicker .color-swatch { width:26px;height:26px; }
         #eColorDotWrap { position:relative;flex-shrink:0; }
         .color-swatch { width:28px;height:28px;border-radius:50%;cursor:pointer;border:3px solid transparent;padding:0; }
         #eColorDot:focus-visible, .color-swatch:focus-visible { outline:2px solid #2563eb;outline-offset:2px; }
         .color-swatch.selected { border-color:#1e293b; }
-        .edit-title-input { flex:1;min-width:140px;padding:.45rem .7rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.95rem;font-weight:500; }
+        .edit-title-input { flex:1;min-width:140px;padding:.45rem .7rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;font-size:.95rem;font-weight:500; }
         .edit-title-input:focus {border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
         .inv-name-text { flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis; }
         .mgr-toggle { display:inline-flex;align-items:center;gap:.25rem;margin-left:auto;cursor:pointer;flex-shrink:0;user-select:none;min-height:24px;position:relative; }
-        .mgr-toggle .mgr-label { font-size:.62rem;font-weight:700;text-transform:uppercase;color:#7c3aed; }
+        .mgr-toggle .mgr-label { font-size:.62rem;font-weight:700;text-transform:uppercase;color:var(--fg-7c3aed, #7c3aed); }
         /* The real checkbox stays focusable and announced; only its pixels go.
            display:none took every toggle out of the tab order. */
         .pk-toggle-input { position:absolute;opacity:0;width:1px;height:1px;margin:-1px;overflow:hidden;pointer-events:none; }
         .pk-toggle-input:focus-visible + .pk-toggle-slider, .pk-toggle-input:focus-visible + .pk-toggle-sm { outline:2px solid #2563eb;outline-offset:2px; }
         .pk-toggle-slider { position:relative;width:36px;height:20px;background:#94a3b8;box-shadow:inset 0 0 0 1px #64748b;border-radius:99px;transition:background .2s;flex-shrink:0; }
-        .pk-toggle-slider::after { content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2); }
+        .pk-toggle-slider::after { content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:var(--bg-ffffff, #ffffff);border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2); }
         .pk-toggle-input:checked + .pk-toggle-slider { background:#22c55e;box-shadow:none; }
         .pk-toggle-input:checked + .pk-toggle-slider::after { transform:translateX(16px); }
         .pk-toggle-sm { position:relative;width:28px;height:16px;background:#94a3b8;box-shadow:inset 0 0 0 1px #64748b;border-radius:99px;transition:background .2s;flex-shrink:0; }
-        .pk-toggle-sm::after { content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.2); }
+        .pk-toggle-sm::after { content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;background:var(--bg-ffffff, #ffffff);border-radius:50%;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.2); }
         .pk-toggle-input:checked + .pk-toggle-sm { background:#7c3aed;box-shadow:none; }
         .pk-toggle-input:checked + .pk-toggle-sm::after { transform:translateX(12px); }
-        #eInvitedList li[data-iname].inv-dragging { opacity:.4;background:#dbeafe; }
+        #eInvitedList li[data-iname].inv-dragging { opacity:.4;background:var(--bg-dbeafe, #dbeafe); }
         #eInvitedList { counter-reset: inv; }
         /* Hand-typed rows count too. They hold a real place in the list — the
            number IS the priority order that decides who makes capacity — so
@@ -291,36 +291,36 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         #eInvitedList li[data-iname],
         #eInvitedList li.custom-row { counter-increment: inv; }
         #eInvitedList li[data-iname] { display:flex;align-items:center;gap:.4rem; }
-        #eInvitedList li[data-iname] .inv-name-text::before { content: counter(inv) ". "; color:#64748b;font-weight:600; }
-        #eInvitedList li.custom-row .custom-row-inner::before { content: counter(inv) ". "; color:#64748b;font-weight:600;font-size:.8rem;flex:0 0 auto; }
+        #eInvitedList li[data-iname] .inv-name-text::before { content: counter(inv) ". "; color:var(--fg-64748b, #64748b);font-weight:600; }
+        #eInvitedList li.custom-row .custom-row-inner::before { content: counter(inv) ". "; color:var(--fg-64748b, #64748b);font-weight:600;font-size:.8rem;flex:0 0 auto; }
         .inv-rsvp-badge { font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:3px;text-transform:uppercase;letter-spacing:.03em;flex-shrink:0; }
-        .inv-rsvp-yes { background:#dcfce7;color:#166534; }
-        .inv-rsvp-no { background:#fee2e2;color:#991b1b; }
-        .inv-rsvp-maybe { background:#fef9c3;color:#854d0e; }
-        .inv-rsvp-waitlist { background:#eff6ff;color:#1e40af;border:1px solid #93c5fd; }
+        .inv-rsvp-yes { background:var(--bg-dcfce7, #dcfce7);color:var(--fg-166534, #166534); }
+        .inv-rsvp-no { background:var(--bg-fee2e2, #fee2e2);color:var(--fg-991b1b, #991b1b); }
+        .inv-rsvp-maybe { background:var(--bg-fef9c3, #fef9c3);color:var(--fg-854d0e, #854d0e); }
+        .inv-rsvp-waitlist { background:var(--bg-eff6ff, #eff6ff);color:var(--fg-1e40af, #1e40af);border:1px solid var(--bd-93c5fd, #93c5fd); }
         .inv-contact-ctl { flex-shrink:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:.15rem;padding:.05rem .3rem;border-radius:4px;line-height:1;background:none;border:0;font:inherit;color:inherit;min-width:24px;min-height:24px; }
         .inv-contact-ctl:focus-visible { outline:2px solid #2563eb;outline-offset:1px; }
-        .inv-contact-ctl:hover { background:#e2e8f0; }
+        .inv-contact-ctl:hover { background:var(--bg-e2e8f0, #e2e8f0); }
         /* The glyph for the address a guest is notified at sits white on a filled
            green chip; one on file but not used is a bare grey glyph, a step
            smaller, so the pair differs in shape and not only in hue. */
         .inv-contact-ctl .inv-ci { color:#fff;background:#16a34a;font-size:.88rem;line-height:1;border-radius:4px;padding:.14rem .22rem; }
-        .inv-contact-ctl .inv-ci-off { color:#64748b;background:none;font-size:.8rem;padding:.14rem .12rem; }
-        .inv-contact-ctl .inv-off { font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#92400e;background:#fef3c7;border-radius:3px;padding:.05rem .3rem; }
-        .inv-contact-ctl .inv-na { font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#991b1b;background:#fee2e2;border-radius:3px;padding:.05rem .3rem; }
-        .inv-capacity-divider { padding:.2rem .6rem;font-size:.68rem;font-weight:700;color:#b45309;background:#fef3c7;border-radius:4px;text-align:center;cursor:default;margin:.15rem 0; }
-        .inv-declined-divider { padding:.2rem .6rem;font-size:.68rem;font-weight:700;color:#475569;background:#f1f5f9;border-radius:4px;text-align:center;cursor:pointer;margin:.15rem 0; }
-        .inv-declined-divider:hover { background:#e2e8f0; }
+        .inv-contact-ctl .inv-ci-off { color:var(--fg-64748b, #64748b);background:none;font-size:.8rem;padding:.14rem .12rem; }
+        .inv-contact-ctl .inv-off { font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--fg-92400e, #92400e);background:var(--bg-fef3c7, #fef3c7);border-radius:3px;padding:.05rem .3rem; }
+        .inv-contact-ctl .inv-na { font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--fg-991b1b, #991b1b);background:var(--bg-fee2e2, #fee2e2);border-radius:3px;padding:.05rem .3rem; }
+        .inv-capacity-divider { padding:.2rem .6rem;font-size:.68rem;font-weight:700;color:var(--fg-b45309, #b45309);background:var(--bg-fef3c7, #fef3c7);border-radius:4px;text-align:center;cursor:default;margin:.15rem 0; }
+        .inv-declined-divider { padding:.2rem .6rem;font-size:.68rem;font-weight:700;color:var(--fg-475569, #475569);background:var(--bg-f1f5f9, #f1f5f9);border-radius:4px;text-align:center;cursor:pointer;margin:.15rem 0; }
+        .inv-declined-divider:hover { background:var(--bg-e2e8f0, #e2e8f0); }
         .inv-declined-item { opacity:.5;cursor:default !important; }
         .inv-declined-item .inv-rsvp-badge { display:inline-block !important; }
         .edit-invite-panel { display:grid;grid-template-columns:1fr auto 1fr;gap:.5rem;padding:0 1.25rem;flex:1;min-height:0; }
         .invite-arrows { display:flex;flex-direction:column;justify-content:center;gap:.4rem;padding:.25rem 0; }
-        .inv-arrow-btn { width:32px;height:32px;border:1.5px solid #cbd5e1;border-radius:6px;background:#fff;color:#475569;font-size:1.1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1; }
-        .inv-arrow-btn:hover { background:#eff6ff;border-color:#2563eb;color:#2563eb; }
+        .inv-arrow-btn { width:32px;height:32px;border:1.5px solid var(--bd-cbd5e1, #cbd5e1);border-radius:6px;background:var(--bg-ffffff, #ffffff);color:var(--fg-475569, #475569);font-size:1.1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1; }
+        .inv-arrow-btn:hover { background:var(--bg-eff6ff, #eff6ff);border-color:#2563eb;color:var(--fg-2563eb, #2563eb); }
         .arrow-mobile { display:none; }
-        .invite-pane { display:flex;flex-direction:column;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden;min-height:200px; }
-        .invite-pane-header { background:#f8fafc;padding:.35rem .65rem;font-size:.7rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;border-bottom:1px solid #e2e8f0; }
-        .inv-col-head { display:flex;align-items:center;gap:.4rem;padding:.25rem .6rem;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;border-bottom:1px solid #eef2f7;flex-shrink:0; }
+        .invite-pane { display:flex;flex-direction:column;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:8px;overflow:hidden;min-height:200px; }
+        .invite-pane-header { background:var(--bg-f8fafc, #f8fafc);padding:.35rem .65rem;font-size:.7rem;font-weight:700;color:var(--fg-64748b, #64748b);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;border-bottom:1px solid var(--bd-e2e8f0, #e2e8f0); }
+        .inv-col-head { display:flex;align-items:center;gap:.4rem;padding:.25rem .6rem;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--fg-64748b, #64748b);border-bottom:1px solid var(--bd-eef2f7, #eef2f7);flex-shrink:0; }
         .inv-col-head span:not(:first-child) { text-align:center; }
         .inv-col-contact { width:3.5rem;flex-shrink:0; }
         .inv-col-rsvp    { width:3.4rem;flex-shrink:0; }
@@ -328,43 +328,43 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         #eInvitedList li[data-iname] .inv-col-rsvp,
         #eInvitedList li[data-iname] .inv-col-mgr { display:inline-flex;align-items:center;justify-content:center; }
         #eInvitedList li[data-iname] .inv-col-mgr .mgr-toggle { margin-left:0; }
-        .invite-pane-search { width:100%;padding:.38rem .65rem;border:none;border-bottom:1.5px solid #e2e8f0;font-size:.85rem;box-sizing:border-box;flex-shrink:0; }
+        .invite-pane-search { width:100%;padding:.38rem .65rem;border:none;border-bottom:1.5px solid var(--bd-e2e8f0, #e2e8f0);font-size:.85rem;box-sizing:border-box;flex-shrink:0; }
         .invite-pane-search:focus {border-color:#2563eb; }
         .invite-pane-list { flex:1;overflow-y:auto;list-style:none;margin:0;padding:.2rem; }
         .invite-pane-list li { padding:.35rem .6rem;border-radius:5px;font-size:.875rem;cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-        .invite-pane-list li:hover { background:#f1f5f9; }
-        .invite-pane-list li.inv-selected { background:#dbeafe !important;color:#1e40af; }
+        .invite-pane-list li:hover { background:var(--bg-f1f5f9, #f1f5f9); }
+        .invite-pane-list li.inv-selected { background:var(--bg-dbeafe, #dbeafe) !important;color:var(--fg-1e40af, #1e40af); }
         .invite-pane-list li[role="option"]:focus-visible { outline:2px solid #2563eb;outline-offset:-2px; }
-        .invite-pane-list li.dimmed { color:#64748b;cursor:default; }
-        .invite-pane-list li.dimmed::before { content:'\2713\00a0';color:#16a34a;font-weight:700; }
+        .invite-pane-list li.dimmed { color:var(--fg-64748b, #64748b);cursor:default; }
+        .invite-pane-list li.dimmed::before { content:'\2713\00a0';color:var(--fg-16a34a, #16a34a);font-weight:700; }
         .invite-pane-list li.dimmed:hover { background:transparent; }
         .invite-pane-list li.custom-row { padding:.2rem .4rem;cursor:default; }
         .invite-pane-list li.custom-row:hover { background:transparent; }
         .inv-mem-tag { display:inline-block;font-size:.7rem;font-weight:700;text-transform:uppercase;padding:.05rem .4rem;border-radius:999px;margin-left:.4rem;vertical-align:middle; }
-        .inv-mem-yes { background:#dcfce7;color:#166534; }
-        .inv-mem-no  { background:#e2e8f0;color:#475569; }
+        .inv-mem-yes { background:var(--bg-dcfce7, #dcfce7);color:var(--fg-166534, #166534); }
+        .inv-mem-no  { background:var(--bg-e2e8f0, #e2e8f0);color:var(--fg-475569, #475569); }
         .custom-row-inner { display:flex;gap:.3rem;align-items:center;flex-wrap:wrap; }
-        .custom-row-inner input { padding:.28rem .45rem;border:1.5px solid #e2e8f0;border-radius:5px;font-size:.8rem;min-width:0; }
+        .custom-row-inner input { padding:.28rem .45rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:5px;font-size:.8rem;min-width:0; }
         .custom-row-inner .cr-name    { flex:1.5;min-width:110px; }
         .custom-row-inner .cr-contact { flex:2.5;min-width:160px; }
-        .custom-row-inner .cr-remove  { flex-shrink:0;padding:.2rem .4rem;border:1px solid #cbd5e1;border-radius:5px;background:#fff;cursor:pointer;color:#64748b;font-size:.85rem;line-height:1;min-width:24px;min-height:24px; }
-        .custom-row-inner .cr-remove:hover { background:#fee2e2;color:#dc2626;border-color:#fca5a5; }
+        .custom-row-inner .cr-remove  { flex-shrink:0;padding:.2rem .4rem;border:1px solid var(--bd-cbd5e1, #cbd5e1);border-radius:5px;background:var(--bg-ffffff, #ffffff);cursor:pointer;color:var(--fg-64748b, #64748b);font-size:.85rem;line-height:1;min-width:24px;min-height:24px; }
+        .custom-row-inner .cr-remove:hover { background:var(--bg-fee2e2, #fee2e2);color:var(--fg-dc2626, #dc2626);border-color:var(--bd-fca5a5, #fca5a5); }
         #eInviteData { display:none; }
-        .edit-toolbar { display:flex;align-items:center;gap:.6rem;padding:.4rem 1rem;flex-wrap:wrap;flex-shrink:0;border-top:1px solid #e2e8f0;background:#f8fafc; }
+        .edit-toolbar { display:flex;align-items:center;gap:.6rem;padding:.4rem 1rem;flex-wrap:wrap;flex-shrink:0;border-top:1px solid var(--bd-e2e8f0, #e2e8f0);background:var(--bg-f8fafc, #f8fafc); }
         .edit-toolbar .btn { font-size:.78rem;padding:.42rem .75rem;min-height:30px; }
         .btn-send { background:#15803d;border-color:#15803d;color:#fff; }
         .btn-send:hover { background:#166534;border-color:#166534; }
         #eAddNameBtn { min-height:24px; }
         .edit-desc-wrap { padding:0 1rem .5rem;flex-shrink:0; }
-        .edit-desc-wrap textarea { width:100%;resize:vertical;min-height:80px;max-height:150px;padding:.5rem .7rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.85rem;box-sizing:border-box;font-family:inherit; }
+        .edit-desc-wrap textarea { width:100%;resize:vertical;min-height:80px;max-height:150px;padding:.5rem .7rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;font-size:.85rem;box-sizing:border-box;font-family:inherit; }
         .edit-desc-wrap textarea:focus {border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
-        .edit-desc-toggle { font-size:.82rem;color:#2563eb;cursor:pointer;padding:.3rem 1rem;flex-shrink:0;background:none;border:0;font-family:inherit; }
+        .edit-desc-toggle { font-size:.82rem;color:var(--fg-2563eb, #2563eb);cursor:pointer;padding:.3rem 1rem;flex-shrink:0;background:none;border:0;font-family:inherit; }
         .edit-desc-toggle:hover { text-decoration:underline; }
-        .edit-poker-bar { display:flex;align-items:center;gap:.5rem;padding:.3rem 1rem;flex-wrap:wrap;flex-shrink:0;background:#f0f9ff;border-top:1px solid #bfdbfe;font-size:.78rem;color:#475569; }
+        .edit-poker-bar { display:flex;align-items:center;gap:.5rem;padding:.3rem 1rem;flex-wrap:wrap;flex-shrink:0;background:var(--bg-f0f9ff, #f0f9ff);border-top:1px solid var(--bd-bfdbfe, #bfdbfe);font-size:.78rem;color:var(--fg-475569, #475569); }
         .edit-poker-bar label { display:flex;align-items:center;gap:.25rem; }
-        .edit-poker-bar select, .edit-poker-bar input { padding:.25rem .35rem;border:1px solid #cbd5e1;border-radius:4px;font-size:.78rem;background:#fff;width:auto; }
+        .edit-poker-bar select, .edit-poker-bar input { padding:.25rem .35rem;border:1px solid var(--bd-cbd5e1, #cbd5e1);border-radius:4px;font-size:.78rem;background:var(--bg-ffffff, #ffffff);width:auto; }
         .edit-poker-bar input[type="number"] { width:60px; }
-        .edit-notify-row { display:flex;align-items:center;gap:.4rem;font-size:.8rem;cursor:pointer;user-select:none;white-space:nowrap;color:#64748b; }
+        .edit-notify-row { display:flex;align-items:center;gap:.4rem;font-size:.8rem;cursor:pointer;user-select:none;white-space:nowrap;color:var(--fg-64748b, #64748b); }
         /* Phone-only pieces, inert above 640px: the Guests band wrapper is see-through
            so the toolbar reads as before, and the sheet's title, count, Done and the
            + Add from users button stay hidden. */
@@ -374,21 +374,21 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         /* Contact-edit popup (small modal retained on the page) */
         .modal-overlay { display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:1rem; }
         .modal-overlay.open { display:flex; }
-        .modal { background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.25);width:100%;max-width:480px;padding:1.75rem; }
+        .modal { background:var(--bg-ffffff, #ffffff);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.25);width:100%;max-width:480px;padding:1.75rem; }
         .modal-header { display:flex;align-items:center;margin-bottom:.5rem; }
-        .modal-close { background:none;border:none;font-size:1rem;cursor:pointer;color:#64748b;padding:.25rem .45rem;border-radius:6px;margin-left:auto;min-width:24px;min-height:24px; }
-        .modal-close:hover { background:#e2e8f0; }
+        .modal-close { background:none;border:none;font-size:1rem;cursor:pointer;color:var(--fg-64748b, #64748b);padding:.25rem .45rem;border-radius:6px;margin-left:auto;min-width:24px;min-height:24px; }
+        .modal-close:hover { background:var(--bg-e2e8f0, #e2e8f0); }
 
         /* Guest-options dropdown rows: checkbox + bold title + muted explainer */
         .go-panel { min-width: 250px; max-width: 300px; }
         .go-row { display: flex; align-items: flex-start; gap: .5rem; padding: .32rem 0; cursor: pointer;
-            font-size: .85rem; color: #334155; white-space: normal !important; }
+            font-size: .85rem; color: var(--fg-334155, #334155); white-space: normal !important; }
         .go-row input[type=checkbox] { margin-top: .2rem; flex-shrink: 0; }
         .go-row span strong { display: block; font-size: .85rem; }
-        .go-row span small { display: block; color: #64748b; font-size: .72rem; line-height: 1.3; }
+        .go-row span small { display: block; color: var(--fg-64748b, #64748b); font-size: .72rem; line-height: 1.3; }
         /* Explicit per-row remove — visible everywhere (double-click was invisible UX) */
-        .inv-remove-x { flex-shrink:0;color:#64748b;font-weight:700;cursor:pointer;padding:0 .3rem;font-size:1.05rem;line-height:1;background:none;border:0;border-radius:4px;min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center; }
-        .inv-remove-x:hover { color:#dc2626;background:#fee2e2; }
+        .inv-remove-x { flex-shrink:0;color:var(--fg-64748b, #64748b);font-weight:700;cursor:pointer;padding:0 .3rem;font-size:1.05rem;line-height:1;background:none;border:0;border-radius:4px;min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center; }
+        .inv-remove-x:hover { color:var(--fg-dc2626, #dc2626);background:var(--bg-fee2e2, #fee2e2); }
         .inv-remove-x:focus-visible { outline:2px solid #2563eb;outline-offset:1px; }
         /* Fingers: the row and its two controls at tap size, the switches too. */
         @media (pointer: coarse) {
@@ -408,9 +408,9 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             .invite-arrows { display:none !important; }
             .edit-toolbar .btn { display:none; }
             .invite-pane-list li.dimmed { cursor:pointer; }
-            .invite-pane-list li.dimmed:hover { background:#f8fafc; }
-            .edit-actions-mobile { display:flex;gap:.5rem;position:sticky;bottom:0;background:#fff;
-                padding:.65rem .25rem calc(.65rem + env(safe-area-inset-bottom));border-top:1.5px solid #e2e8f0;z-index:40; }
+            .invite-pane-list li.dimmed:hover { background:var(--bg-f8fafc, #f8fafc); }
+            .edit-actions-mobile { display:flex;gap:.5rem;position:sticky;bottom:0;background:var(--bg-ffffff, #ffffff);
+                padding:.65rem .25rem calc(.65rem + env(safe-area-inset-bottom));border-top:1.5px solid var(--bd-e2e8f0, #e2e8f0);z-index:40; }
             .edit-actions-mobile .btn { flex:1;text-align:center; }
             .evedit-wrap { margin:.5rem auto;padding:0 .5rem; }
             /* overflow:hidden would make the card the sticky bar's scroll box, so
@@ -429,7 +429,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             .invite-pane-list { max-height:260px; }
             .invite-pane-list li { padding:.5rem .75rem;font-size:.95rem; }
             .invite-pane input[type="text"] { min-height:44px;font-size:1rem; }
-            #eAllUsersList li:not(.dimmed):not(.custom-row)::after { content:'+';float:right;color:#22c55e;font-weight:700;font-size:1.1rem; }
+            #eAllUsersList li:not(.dimmed):not(.custom-row)::after { content:'+';float:right;color:var(--fg-22c55e, #22c55e);font-weight:700;font-size:1.1rem; }
             /* No decorative × on an Invited row: the real one is the .inv-remove-x
                button, and a second mark that a tap does nothing with only confused. */
             /* The help pill and corner bubbles sit above the sticky save bar, not on
@@ -477,16 +477,16 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
 
             /* Poker and Reminders: the switch label is the card's header band, the
                existing bar below it is the body in two columns. */
-            .edit-notify-row { margin:.6rem .85rem 0;padding:.6rem .8rem;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:10px 10px 0 0;font-size:.95rem;font-weight:700;color:#1e293b; }
+            .edit-notify-row { margin:.6rem .85rem 0;padding:.6rem .8rem;background:var(--bg-f1f5f9, #f1f5f9);border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:10px 10px 0 0;font-size:.95rem;font-weight:700;color:var(--fg-1e293b, #1e293b); }
             .edit-notify-row.is-off { border-radius:10px; }
             .edit-notify-row .pk-toggle-slider { margin-left:auto; }
             #ePokerRow { order:4; }
             #ePokerFields { order:5; }
             #eRemRow { order:6; }
             #eReminderFields { order:7; }
-            .edit-poker-bar { margin:0 .85rem;padding:.6rem .8rem .75rem;background:#fff;border:1.5px solid #e2e8f0;border-top:0;border-radius:0 0 10px 10px;display:grid;grid-template-columns:1fr 1fr;gap:.55rem .6rem;font-size:.78rem;color:#475569; }
+            .edit-poker-bar { margin:0 .85rem;padding:.6rem .8rem .75rem;background:var(--bg-ffffff, #ffffff);border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-top:0;border-radius:0 0 10px 10px;display:grid;grid-template-columns:1fr 1fr;gap:.55rem .6rem;font-size:.78rem;color:var(--fg-475569, #475569); }
             .edit-poker-bar label { flex-direction:column;align-items:stretch;gap:.15rem;font-weight:600;min-width:0; }
-            .edit-poker-bar select, .edit-poker-bar input { width:100%;box-sizing:border-box;min-height:42px;font-size:.98rem;padding:.35rem .55rem;border:1.5px solid #cbd5e1;border-radius:7px;color:#1e293b; }
+            .edit-poker-bar select, .edit-poker-bar input { width:100%;box-sizing:border-box;min-height:42px;font-size:.98rem;padding:.35rem .55rem;border:1.5px solid var(--bd-cbd5e1, #cbd5e1);border-radius:7px;color:var(--fg-1e293b, #1e293b); }
             .edit-poker-bar input[type="number"] { width:100%; }
             /* The online game pair opens as inline-flex from script; on the phone it
                takes the card's full width as its own two columns. */
@@ -502,26 +502,26 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
 
             /* Guests: a header band with the Guest options dropdown, then the
                Invited pane as the only list on the page. */
-            .edit-guests-head { order:8;display:flex;align-items:center;gap:.6rem;margin:.6rem .85rem 0;padding:.6rem .8rem;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:10px 10px 0 0;font-size:.95rem;font-weight:700;color:#1e293b; }
+            .edit-guests-head { order:8;display:flex;align-items:center;gap:.6rem;margin:.6rem .85rem 0;padding:.6rem .8rem;background:var(--bg-f1f5f9, #f1f5f9);border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:10px 10px 0 0;font-size:.95rem;font-weight:700;color:var(--fg-1e293b, #1e293b); }
             .edit-guests-title { display:inline;flex:1; }
             #eGuestOptsDD .rem-dd-panel { left:auto;right:0; }
             .edit-invite-panel { order:9;display:block;padding:0 .85rem;margin-bottom:.75rem; }
             #eInviteData { order:10; }
-            .edit-invite-panel .invite-pane:last-child { border:1.5px solid #e2e8f0;border-top:0;border-radius:0 0 10px 10px;min-height:0;overflow:visible; }
-            .edit-invite-panel .invite-pane:last-child .invite-pane-header { display:flex;gap:.5rem;padding:.6rem .8rem;background:#fff;border-bottom:0; }
+            .edit-invite-panel .invite-pane:last-child { border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-top:0;border-radius:0 0 10px 10px;min-height:0;overflow:visible; }
+            .edit-invite-panel .invite-pane:last-child .invite-pane-header { display:flex;gap:.5rem;padding:.6rem .8rem;background:var(--bg-ffffff, #ffffff);border-bottom:0; }
             .ee-invited-title { display:none; }
             .ee-pick-btn { display:inline-flex;flex:1;justify-content:center;min-height:42px;font-size:.88rem !important;padding:.4rem .5rem !important;text-transform:none;letter-spacing:0; }
             #eAddNameBtn { flex:1;justify-content:center;min-height:42px;font-size:.88rem !important;padding:.4rem .5rem !important;text-transform:none;letter-spacing:0; }
             .inv-col-head { display:none; }
             #eInvitedList { max-height:none;overflow:visible;padding:.1rem .4rem .4rem; }
-            #eInvitedList li[data-iname] { display:grid;grid-template-columns:auto auto 1fr auto;grid-template-areas:"name name name x" "contact rsvp mgr x";align-items:center;gap:.1rem .6rem;padding:.55rem .4rem;white-space:normal;border-top:1px solid #f1f5f9;border-radius:0; }
+            #eInvitedList li[data-iname] { display:grid;grid-template-columns:auto auto 1fr auto;grid-template-areas:"name name name x" "contact rsvp mgr x";align-items:center;gap:.1rem .6rem;padding:.55rem .4rem;white-space:normal;border-top:1px solid var(--bd-f1f5f9, #f1f5f9);border-radius:0; }
             #eInvitedList li[data-iname]:first-child { border-top:0; }
             #eInvitedList li[data-iname] .inv-name-text { grid-area:name;font-weight:600;font-size:1rem; }
             #eInvitedList li[data-iname] .inv-contact-ctl { grid-area:contact;justify-self:start;min-width:0;width:auto;justify-content:flex-start;padding:0 .2rem; }
             #eInvitedList li[data-iname] .inv-col-rsvp { grid-area:rsvp;width:auto;justify-content:flex-start; }
             #eInvitedList li[data-iname] .inv-col-mgr { grid-area:mgr;width:auto;justify-content:flex-start; }
-            #eInvitedList li[data-iname] .inv-remove-x { grid-area:x;align-self:center;color:#dc2626;font-size:1.3rem; }
-            #eInvitedList li.custom-row { padding:.55rem .4rem;border-top:1px solid #f1f5f9; }
+            #eInvitedList li[data-iname] .inv-remove-x { grid-area:x;align-self:center;color:var(--fg-dc2626, #dc2626);font-size:1.3rem; }
+            #eInvitedList li.custom-row { padding:.55rem .4rem;border-top:1px solid var(--bd-f1f5f9, #f1f5f9); }
             .custom-row-inner { display:grid;grid-template-columns:1fr auto;gap:.35rem .5rem;align-items:center; }
             #eInvitedList li.custom-row .custom-row-inner::before { grid-column:1 / -1; }
             .custom-row-inner .cr-name { grid-column:1;min-width:0;min-height:42px;font-size:.98rem; }
@@ -531,17 +531,17 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             /* The All Users pane as a sheet. */
             #eAllUsersPane { display:none; }
             body.ee-picker-open { overflow:hidden; }
-            body.ee-picker-open #eAllUsersPane { display:flex;position:fixed;inset:0;z-index:150;border:0;border-radius:0;background:#fff;min-height:0; }
-            #eAllUsersPane .invite-pane-header { display:flex;align-items:center;gap:.6rem;padding:.65rem .85rem;font-size:1.05rem;text-transform:none;letter-spacing:0;color:#1e293b;background:#fff; }
+            body.ee-picker-open #eAllUsersPane { display:flex;position:fixed;inset:0;z-index:150;border:0;border-radius:0;background:var(--bg-ffffff, #ffffff);min-height:0; }
+            #eAllUsersPane .invite-pane-header { display:flex;align-items:center;gap:.6rem;padding:.65rem .85rem;font-size:1.05rem;text-transform:none;letter-spacing:0;color:var(--fg-1e293b, #1e293b);background:var(--bg-ffffff, #ffffff); }
             .ee-pane-title { display:none; }
             .ee-sheet-title { display:inline; }
-            .ee-sheet-count { display:inline;flex:1;font-weight:500;font-size:.85rem;color:#64748b; }
+            .ee-sheet-count { display:inline;flex:1;font-weight:500;font-size:.85rem;color:var(--fg-64748b, #64748b); }
             .ee-sheet-done { display:inline-flex;font-size:.9rem;padding:.45rem .9rem;min-height:40px; }
             body.ee-picker-open #eAllUsersPane .invite-pane-list { flex:1;max-height:none;overflow-y:auto;padding-bottom:calc(.5rem + env(safe-area-inset-bottom)); }
             #eAllUsersList li { min-height:48px;display:flex;align-items:center;flex-wrap:wrap;white-space:normal; }
             #eAllUsersList li:not(.dimmed):not(.custom-row)::after { float:none;margin-left:auto;padding-left:.5rem; }
-            #eAllUsersList li.dimmed { color:#15803d;font-weight:600;background:#f0fdf4; }
-            #eAllUsersList li.dimmed:hover { background:#f0fdf4; }
+            #eAllUsersList li.dimmed { color:var(--fg-15803d, #15803d);font-weight:600;background:var(--bg-f0fdf4, #f0fdf4); }
+            #eAllUsersList li.dimmed:hover { background:var(--bg-f0fdf4, #f0fdf4); }
             /* The help pill and its bubbles stay out of the sheet. */
             body.ee-picker-open .help-pill, body.ee-picker-open .help-stack, body.ee-picker-open .help-bubble { display:none; }
 
@@ -657,7 +657,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                         </label>
                         <label class="go-row" id="eMaxGuestsLabel" style="display:none">
                             <span><strong>Max guests</strong><small>Blank = unlimited; with Waitlist on, extras queue up</small></span>
-                            <input type="number" name="max_guests" id="eMaxGuests" min="1" max="999" placeholder="&#8734;" style="width:58px;padding:.22rem .35rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.82rem" data-act-input="pokerFieldsChanged">
+                            <input type="number" name="max_guests" id="eMaxGuests" min="1" max="999" placeholder="&#8734;" style="width:58px;padding:.22rem .35rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:6px;font-size:.82rem" data-act-input="pokerFieldsChanged">
                         </label>
                     </div>
                 </div>
@@ -702,15 +702,15 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                 </select></label>
                 </span>
                 <?php elseif ($isAdmin): ?>
-                <span style="font-size:.8rem;color:#64748b" title="Paste a FinalTable game key under Site Settings › Connected Apps to offer online play">In person only</span>
+                <span style="font-size:.8rem;color:var(--fg-64748b, #64748b)" title="Paste a FinalTable game key under Site Settings › Connected Apps to offer online play">In person only</span>
                 <?php endif; ?>
-                <span id="eCapacityHint" style="font-weight:700;color:#2563eb">8 seats</span>
+                <span id="eCapacityHint" style="font-weight:700;color:var(--fg-2563eb, #2563eb)">8 seats</span>
             </div>
 
             <!-- ── Reminders bar: a dropdown holding one row per reminder (number + unit),
                     built by pk-reminders.js; hidden when reminders are off ── -->
             <div class="edit-poker-bar" id="eReminderFields">
-                <span style="font-weight:600;color:#475569">Send reminders:</span>
+                <span style="font-weight:600;color:var(--fg-475569, #475569)">Send reminders:</span>
                 <div class="rem-dd" id="eRemDD">
                     <button type="button" class="rem-dd-btn" data-act="toggleRemDD" data-a1="@event" aria-haspopup="true" aria-expanded="false" aria-controls="eRemPanel">
                         <span class="sr-only">Reminders: </span><span id="eRemSummary">&mdash;</span> <span style="font-size:.7rem" aria-hidden="true">&#9662;</span>
@@ -725,16 +725,16 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             <style>
             .rem-dd { position: relative; display: inline-block; }
             .rem-dd-btn { display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .7rem;
-                border: 1.5px solid #cbd5e1; border-radius: 7px; background: #fff; font: inherit;
-                font-size: .85rem; color: #334155; cursor: pointer; }
-            .rem-dd-btn:hover { border-color: #93c5fd; }
+                border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 7px; background: var(--bg-ffffff, #ffffff); font: inherit;
+                font-size: .85rem; color: var(--fg-334155, #334155); cursor: pointer; }
+            .rem-dd-btn:hover { border-color: var(--bd-93c5fd, #93c5fd); }
             .rem-dd-panel { display: none; position: absolute; top: calc(100% + 4px); left: 0; z-index: 50;
-                background: #fff; border: 1.5px solid #cbd5e1; border-radius: 9px; padding: .45rem .7rem;
+                background: var(--bg-ffffff, #ffffff); border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 9px; padding: .45rem .7rem;
                 box-shadow: 0 8px 24px rgba(0,0,0,.12); min-width: 150px; }
             #eRemPanel { min-width: 300px; padding: .55rem .7rem .65rem; }
             .rem-dd.open .rem-dd-panel { display: block; }
             .rem-dd-panel label { display: flex; align-items: center; gap: .4rem; font-size: .85rem;
-                font-weight: 500; color: #334155; padding: .18rem 0; white-space: nowrap; cursor: pointer; }
+                font-weight: 500; color: var(--fg-334155, #334155); padding: .18rem 0; white-space: nowrap; cursor: pointer; }
             </style>
 
             <!-- ── Description (collapsed by default) ── -->
@@ -752,7 +752,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                            aria-label="<?= $isAdmin ? 'Search name, email, phone' : 'Search name' ?>"
                            placeholder="<?= $isAdmin ? 'Search name, email, phone&hellip;' : 'Search name&hellip;' ?>"
                            data-act-input="filterAllUsers" data-input-a1="@value" autocomplete="off">
-                    <label id="eHideNonMembersWrap" style="display:none;align-items:center;gap:.4rem;padding:.25rem .65rem .35rem;font-size:.75rem;color:#64748b;cursor:pointer">
+                    <label id="eHideNonMembersWrap" style="display:none;align-items:center;gap:.4rem;padding:.25rem .65rem .35rem;font-size:.75rem;color:var(--fg-64748b, #64748b);cursor:pointer">
                         <input type="checkbox" id="eHideNonMembers" class="pk-toggle-input" data-act-change="onHideNonMembersChange">
                         <span class="pk-toggle-sm"></span>
                         <span>Hide non-members</span>
@@ -798,7 +798,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         <?php if ($isAdmin && $event && !$isCopy): ?>
         <div style="padding:.4rem 1rem .6rem;flex-shrink:0">
             <button type="button" id="eRegenWalkinBtn"
-                    style="width:100%;padding:.38rem;border:1.5px solid #cbd5e1;border-radius:7px;background:#fff;color:#64748b;font-size:.78rem;cursor:pointer;font-weight:600"
+                    style="width:100%;padding:.38rem;border:1.5px solid var(--bd-cbd5e1, #cbd5e1);border-radius:7px;background:var(--bg-ffffff, #ffffff);color:var(--fg-64748b, #64748b);font-size:.78rem;cursor:pointer;font-weight:600"
                     data-act="regenWalkinFromEdit">
                 Regenerate walk-up link
             </button>
@@ -814,12 +814,12 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             <h2 id="invContactTitle" style="font-size:1rem;font-weight:700">Contact for <span id="invContactName"></span></h2>
             <button class="modal-close" type="button" data-act="closeContactEdit" aria-label="Close">&#x2715;</button>
         </div>
-        <label for="invContactEmail" style="display:block;font-size:.8rem;color:#475569;margin:.4rem 0 .15rem">Email</label>
+        <label for="invContactEmail" style="display:block;font-size:.8rem;color:var(--fg-475569, #475569);margin:.4rem 0 .15rem">Email</label>
         <input type="email" id="invContactEmail" autocomplete="off" placeholder="name@example.com"
-               style="width:100%;padding:.5rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.9rem;box-sizing:border-box">
-        <label for="invContactPhone" style="display:block;font-size:.8rem;color:#475569;margin:.6rem 0 .15rem">Phone</label>
+               style="width:100%;padding:.5rem .6rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;font-size:.9rem;box-sizing:border-box">
+        <label for="invContactPhone" style="display:block;font-size:.8rem;color:var(--fg-475569, #475569);margin:.6rem 0 .15rem">Phone</label>
         <input type="tel" id="invContactPhone" autocomplete="off" placeholder="(555) 123-4567"
-               style="width:100%;padding:.5rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.9rem;box-sizing:border-box">
+               style="width:100%;padding:.5rem .6rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:7px;font-size:.9rem;box-sizing:border-box">
         <div style="display:flex;gap:.5rem;margin-top:1rem">
             <button type="button" class="btn btn-primary" style="flex:1" data-act="saveContactEdit">Save</button>
             <button type="button" class="btn btn-outline" style="flex:1" data-act="closeContactEdit">Cancel</button>
@@ -939,7 +939,7 @@ function buildAllUsersList() {
         if (u.is_pending) {
             const tag = document.createElement('span');
             tag.textContent = ' (pending)';
-            tag.style.cssText = 'color:#92400e;font-size:.75rem;margin-left:.25rem';
+            tag.style.cssText = 'color:var(--fg-92400e, #92400e);font-size:.75rem;margin-left:.25rem';
             li.appendChild(tag);
         }
         if (leagueSelected) {
@@ -2069,7 +2069,7 @@ function regenWalkinFromEdit() {
         dur.value = '';
     }
 
-    selectColor((ev && ev.color) ? ev.color : '#2563eb');
+    selectColor((ev && ev.color) ? ev.color : 'var(--fg-2563eb, #2563eb)');
 
     // Build panes: invited list from server rows, all-users list (admin preload or async).
     buildAllUsersList();

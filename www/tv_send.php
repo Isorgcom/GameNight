@@ -100,7 +100,7 @@ if (!empty($_GET['sent']) && can_manage_event($db, (int)$_GET['sent'], (int)$cur
 $tv_label = preg_replace('#^https?://#', '', rtrim(get_site_url(), '/')) . '/tv';
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light"><?php /* own look; stays light in dark mode (style.css) */ ?>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

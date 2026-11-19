@@ -108,14 +108,14 @@ $site_name = get_setting('site_name', 'Game Night');
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .lp-wrap { max-width: 760px; margin: 1.25rem auto 2rem; padding: 0 1rem; }
-        .lp-card { background:#fff; border:1.5px solid #e2e8f0; border-radius:12px; padding:1.5rem; }
+        .lp-card { background:var(--bg-ffffff, #ffffff); border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:12px; padding:1.5rem; }
         .lp-tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(92px, 1fr)); gap:.6rem; margin:1rem 0 1.25rem; }
-        .lp-tile { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:.6rem .4rem; text-align:center; }
-        .lp-tile .v { font-size:1.15rem; font-weight:800; color:#1e293b; }
-        .lp-tile .l { font-size:.68rem; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-top:.1rem; }
+        .lp-tile { background:var(--bg-f8fafc, #f8fafc); border:1px solid var(--bd-e2e8f0, #e2e8f0); border-radius:8px; padding:.6rem .4rem; text-align:center; }
+        .lp-tile .v { font-size:1.15rem; font-weight:800; color:var(--fg-1e293b, #1e293b); }
+        .lp-tile .l { font-size:.68rem; font-weight:600; color:var(--fg-64748b, #64748b); text-transform:uppercase; letter-spacing:.04em; margin-top:.1rem; }
         .lp-table { width:100%; border-collapse:collapse; font-size:.85rem; }
-        .lp-table th { text-align:left; font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; padding:.4rem .5rem; border-bottom:2px solid #e2e8f0; }
-        .lp-table td { padding:.45rem .5rem; border-bottom:1px solid #f1f5f9; color:#334155; }
+        .lp-table th { text-align:left; font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:var(--fg-64748b, #64748b); padding:.4rem .5rem; border-bottom:2px solid var(--bd-e2e8f0, #e2e8f0); }
+        .lp-table td { padding:.45rem .5rem; border-bottom:1px solid var(--bd-f1f5f9, #f1f5f9); color:var(--fg-334155, #334155); }
         .lp-pos { font-weight:700; }
         @media (max-width: 640px) { .lp-hide-m { display:none; } }
     </style>
@@ -123,28 +123,28 @@ $site_name = get_setting('site_name', 'Game Night');
 <body>
 <?php require __DIR__ . '/_nav.php'; ?>
 <div role="main" class="lp-wrap">
-    <a href="<?= htmlspecialchars($backUrl) ?>" style="font-size:.85rem;color:#2563eb;text-decoration:none">&larr; <?= htmlspecialchars($league['name']) ?> leaderboard</a>
+    <a href="<?= htmlspecialchars($backUrl) ?>" style="font-size:.85rem;color:var(--fg-2563eb, #2563eb);text-decoration:none">&larr; <?= htmlspecialchars($league['name']) ?> leaderboard</a>
     <div class="lp-card" style="margin-top:.6rem">
-        <h1 style="font-size:1.35rem;font-weight:800;color:#1e293b;margin:0">
+        <h1 style="font-size:1.35rem;font-weight:800;color:var(--fg-1e293b, #1e293b);margin:0">
             <?= htmlspecialchars($player_name) ?><?= $player_known !== '' ? ' <span class="pk-known" style="font-size:.7em" title="Known as">(' . htmlspecialchars($player_known) . ')</span>' : '' ?>
-            <?php if ($is_guest): ?><span style="font-size:.7rem;color:#64748b;font-weight:600">guest</span><?php endif; ?>
+            <?php if ($is_guest): ?><span style="font-size:.7rem;color:var(--fg-64748b, #64748b);font-weight:600">guest</span><?php endif; ?>
         </h1>
-        <div style="font-size:.82rem;color:#64748b;margin-top:.2rem">
+        <div style="font-size:.82rem;color:var(--fg-64748b, #64748b);margin-top:.2rem">
             <?= htmlspecialchars($league['name']) ?> ·
             <?= $range === 'all' ? 'All time' : ($range === 'ytd' ? 'This year' : ($range === 'custom' ? 'Custom range' : "Last $range days")) ?>
         </div>
 
         <?php if (!$games): ?>
-        <p style="color:#64748b;margin-top:1.25rem">No finished games for this player in this range.</p>
+        <p style="color:var(--fg-64748b, #64748b);margin-top:1.25rem">No finished games for this player in this range.</p>
         <?php else: ?>
         <div class="lp-tiles">
             <div class="lp-tile"><div class="v"><?= $tot['games'] ?></div><div class="l">Games</div></div>
             <div class="lp-tile"><div class="v" style="color:#d4a017"><?= $tot['wins'] ?></div><div class="l">Wins</div></div>
             <div class="lp-tile"><div class="v"><?= $tot['t'] > 0 ? round($tot['itm'] / $tot['t'] * 100) . '%' : '—' ?></div><div class="l">In the $</div></div>
-            <div class="lp-tile"><div class="v" style="color:<?= $net >= 0 ? '#16a34a' : '#dc2626' ?>"><?= lp_money($net) ?></div><div class="l">Net</div></div>
-            <div class="lp-tile"><div class="v" style="color:<?= $roi >= 0 ? '#16a34a' : '#dc2626' ?>"><?= $roi ?>%</div><div class="l">ROI</div></div>
+            <div class="lp-tile"><div class="v" style="color:<?= $net >= 0 ? 'var(--fg-16a34a, #16a34a)' : 'var(--fg-dc2626, #dc2626)' ?>"><?= lp_money($net) ?></div><div class="l">Net</div></div>
+            <div class="lp-tile"><div class="v" style="color:<?= $roi >= 0 ? 'var(--fg-16a34a, #16a34a)' : 'var(--fg-dc2626, #dc2626)' ?>"><?= $roi ?>%</div><div class="l">ROI</div></div>
             <?php if ($tot['points'] > 0): ?>
-            <div class="lp-tile"><div class="v" style="color:#7c3aed"><?= $tot['points'] ?></div><div class="l">Points</div></div>
+            <div class="lp-tile"><div class="v" style="color:var(--fg-7c3aed, #7c3aed)"><?= $tot['points'] ?></div><div class="l">Points</div></div>
             <?php endif; ?>
             <div class="lp-tile"><div class="v"><?= $tot['t'] > 0 ? round($tot['scoreSum'] / $tot['t'], 1) : '—' ?></div><div class="l">Avg Score</div></div>
         </div>
@@ -161,21 +161,21 @@ $site_name = get_setting('site_name', 'Game Night');
             ?>
                 <tr>
                     <td style="white-space:nowrap"><?= htmlspecialchars($g['start_date']) ?></td>
-                    <td><a href="/event.php?id=<?= (int)$g['event_id'] ?>" style="color:#2563eb;text-decoration:none"><?= htmlspecialchars($g['title']) ?></a></td>
+                    <td><a href="/event.php?id=<?= (int)$g['event_id'] ?>" style="color:var(--fg-2563eb, #2563eb);text-decoration:none"><?= htmlspecialchars($g['title']) ?></a></td>
                     <td class="lp-hide-m"><?= $isT ? 'Tourney' : 'Cash' ?></td>
                     <td class="lp-pos" style="<?= $isT && (int)$g['finish_position'] === 1 ? 'color:#d4a017' : '' ?>">
-                        <?= $isT ? lp_ordinal($g['finish_position']) . ' <span style="color:#64748b;font-weight:400">/ ' . (int)$g['field_size'] . '</span>' : '—' ?>
+                        <?= $isT ? lp_ordinal($g['finish_position']) . ' <span style="color:var(--fg-64748b, #64748b);font-weight:400">/ ' . (int)$g['field_size'] . '</span>' : '—' ?>
                     </td>
                     <td class="lp-hide-m">$<?= number_format((int)$g['invested'] / 100, ((int)$g['invested'] % 100) ? 2 : 0) ?></td>
                     <td class="lp-hide-m">$<?= number_format((int)$g['winnings'] / 100, ((int)$g['winnings'] % 100) ? 2 : 0) ?></td>
-                    <td style="font-weight:700;color:<?= $gnet > 0 ? '#16a34a' : ($gnet < 0 ? '#dc2626' : '#64748b') ?>"><?= lp_money($gnet) ?></td>
-                    <td style="color:#7c3aed;font-weight:700"><?= (int)$g['points'] > 0 ? (int)$g['points'] . ((int)$g['bounties_won'] > 0 ? ' <span style="color:#0e7490;font-weight:600;font-size:.72rem" title="Includes bounty knockouts">🎯' . (int)$g['bounties_won'] . '</span>' : '') : '—' ?></td>
+                    <td style="font-weight:700;color:<?= $gnet > 0 ? 'var(--fg-16a34a, #16a34a)' : ($gnet < 0 ? 'var(--fg-dc2626, #dc2626)' : 'var(--fg-64748b, #64748b)') ?>"><?= lp_money($gnet) ?></td>
+                    <td style="color:var(--fg-7c3aed, #7c3aed);font-weight:700"><?= (int)$g['points'] > 0 ? (int)$g['points'] . ((int)$g['bounties_won'] > 0 ? ' <span style="color:var(--fg-0e7490, #0e7490);font-weight:600;font-size:.72rem" title="Includes bounty knockouts">🎯' . (int)$g['bounties_won'] . '</span>' : '') : '—' ?></td>
                     <td class="lp-hide-m"><?= $isT ? $g['score'] : '—' ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
         </table>
-        <p style="font-size:.72rem;color:#64748b;margin-top:.6rem">Finished games only. Tournament winnings use recorded payouts; older games may predate payout tracking.</p>
+        <p style="font-size:.72rem;color:var(--fg-64748b, #64748b);margin-top:.6rem">Finished games only. Tournament winnings use recorded payouts; older games may predate payout tracking.</p>
         <?php endif; ?>
     </div>
 </div>

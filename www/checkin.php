@@ -149,11 +149,11 @@ if ($session) {
 <div class="pk-modal-overlay" id="betaTimerModal">
     <div class="pk-modal" role="dialog" aria-modal="true" aria-labelledby="betaTimerTitle">
         <h3 id="betaTimerTitle">&#9201; Try the Tournament Timer</h3>
-        <p id="betaBannerMsg" style="font-size:.9rem;color:#475569;line-height:1.5;margin:.4rem 0 0">
+        <p id="betaBannerMsg" style="font-size:.9rem;color:var(--fg-475569, #475569);line-height:1.5;margin:.4rem 0 0">
             Designable layouts, break screens, phone views for players who scan the QR code, and sounds.
             Switch this game over to it and use it for new games too?
         </p>
-        <p style="font-size:.8rem;color:#64748b;line-height:1.45;margin:.6rem 0 0">
+        <p style="font-size:.8rem;color:var(--fg-64748b, #64748b);line-height:1.45;margin:.6rem 0 0">
             Any game can still go back to Classic in Setup, and you can change your mind any time in Settings.
         </p>
         <div class="pk-modal-actions">
@@ -182,28 +182,28 @@ if ($session) {
 <div class="pk-modal-overlay" id="jackpotModal" style="z-index:1000">
     <div class="pk-modal" role="dialog" aria-modal="true" aria-labelledby="jackpotTitle">
         <h3 id="jackpotTitle">💎 League Jackpot</h3>
-        <div id="jpBalances" style="font-size:.9rem;color:#334155;margin-bottom:.75rem"></div>
-        <label for="jpType" style="font-size:.85rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">What hit?</label>
-        <select id="jpType" style="width:100%;padding:.5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:1rem;box-sizing:border-box;margin-bottom:.6rem">
+        <div id="jpBalances" style="font-size:.9rem;color:var(--fg-334155, #334155);margin-bottom:.75rem"></div>
+        <label for="jpType" style="font-size:.85rem;font-weight:600;color:var(--fg-475569, #475569);display:block;margin-bottom:.3rem">What hit?</label>
+        <select id="jpType" style="width:100%;padding:.5rem;border:1.5px solid var(--border,var(--bd-e2e8f0, #e2e8f0));border-radius:6px;font-size:1rem;box-sizing:border-box;margin-bottom:.6rem">
             <option value="badbeat">🃏 Bad Beat</option>
             <option value="royal">👑 Royal Flush</option>
             <option value="other">💎 Other jackpot</option>
         </select>
-        <div id="jpPaidTo" style="font-size:.85rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">Paid to</div>
+        <div id="jpPaidTo" style="font-size:.85rem;font-weight:600;color:var(--fg-475569, #475569);display:block;margin-bottom:.3rem">Paid to</div>
         <div id="jpRecipients"></div>
-        <button type="button" data-act="addJackpotRecipient" style="font-size:.78rem;padding:.3rem .6rem;border-radius:4px;cursor:pointer;border:1.5px solid var(--border,#e2e8f0);background:#f8fafc;margin-top:.2rem">+ Add recipient</button>
+        <button type="button" data-act="addJackpotRecipient" style="font-size:.78rem;padding:.3rem .6rem;border-radius:4px;cursor:pointer;border:1.5px solid var(--border,var(--bd-e2e8f0, #e2e8f0));background:var(--bg-f8fafc, #f8fafc);margin-top:.2rem">+ Add recipient</button>
 
-        <div style="margin-top:.9rem;padding-top:.7rem;border-top:1.5px solid #e2e8f0">
+        <div style="margin-top:.9rem;padding-top:.7rem;border-top:1.5px solid var(--bd-e2e8f0, #e2e8f0)">
             <div style="display:flex;justify-content:space-between;align-items:center">
-                <span style="font-size:.85rem;font-weight:600;color:#475569">Fund history</span>
-                <button type="button" data-act="jpToggleAdjust" style="font-size:.72rem;padding:.25rem .55rem;border-radius:4px;cursor:pointer;border:1.5px solid var(--border,#e2e8f0);background:#f8fafc">± Adjust fund</button>
+                <span style="font-size:.85rem;font-weight:600;color:var(--fg-475569, #475569)">Fund history</span>
+                <button type="button" data-act="jpToggleAdjust" style="font-size:.72rem;padding:.25rem .55rem;border-radius:4px;cursor:pointer;border:1.5px solid var(--border,var(--bd-e2e8f0, #e2e8f0));background:var(--bg-f8fafc, #f8fafc)">± Adjust fund</button>
             </div>
             <div id="jpAdjustRow" style="display:none;margin-top:.5rem;gap:.4rem;align-items:center">
                 <span class="pk-money-wrap" style="flex:0 0 90px"><input type="number" id="jpAdjAmount" step="0.01" placeholder="-5 or 5" aria-label="Adjustment amount"></span>
-                <input type="text" id="jpAdjNote" maxlength="120" placeholder="reason…" aria-label="Reason for the adjustment" style="flex:1;padding:.45rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.85rem">
+                <input type="text" id="jpAdjNote" maxlength="120" placeholder="reason…" aria-label="Reason for the adjustment" style="flex:1;padding:.45rem .5rem;border:1.5px solid var(--border,var(--bd-e2e8f0, #e2e8f0));border-radius:6px;font-size:.85rem">
                 <button type="button" class="pk-save" data-act="confirmJackpotAdjust" style="padding:.4rem .7rem;border-radius:6px;border:none;background:#2563eb;color:#fff;font-size:.8rem;font-weight:600;cursor:pointer">Apply</button>
             </div>
-            <div id="jpHistory" style="margin-top:.5rem;max-height:180px;overflow-y:auto;scrollbar-gutter:stable;padding-right:.75rem;font-size:.78rem;color:#334155"></div>
+            <div id="jpHistory" style="margin-top:.5rem;max-height:180px;overflow-y:auto;scrollbar-gutter:stable;padding-right:.75rem;font-size:.78rem;color:var(--fg-334155, #334155)"></div>
         </div>
 
         <div class="pk-modal-actions">
@@ -217,10 +217,10 @@ if ($session) {
 <div class="pk-modal-overlay" id="saveStructModal" style="z-index:1000">
     <div class="pk-modal" role="dialog" aria-modal="true" aria-labelledby="saveStructTitle">
         <h3 id="saveStructTitle">Save Payout Structure</h3>
-        <label for="ssName" style="font-size:.85rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">Name</label>
-        <input type="text" id="ssName" maxlength="60" placeholder="e.g. Friday night 4-way" style="width:100%;padding:.5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:1rem;box-sizing:border-box">
-        <label for="ssScope" style="font-size:.85rem;font-weight:600;color:#475569;display:block;margin:.75rem 0 .3rem">Save to</label>
-        <select id="ssScope" style="width:100%;padding:.5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:1rem;box-sizing:border-box"></select>
+        <label for="ssName" style="font-size:.85rem;font-weight:600;color:var(--fg-475569, #475569);display:block;margin-bottom:.3rem">Name</label>
+        <input type="text" id="ssName" maxlength="60" placeholder="e.g. Friday night 4-way" style="width:100%;padding:.5rem;border:1.5px solid var(--border,var(--bd-e2e8f0, #e2e8f0));border-radius:6px;font-size:1rem;box-sizing:border-box">
+        <label for="ssScope" style="font-size:.85rem;font-weight:600;color:var(--fg-475569, #475569);display:block;margin:.75rem 0 .3rem">Save to</label>
+        <select id="ssScope" style="width:100%;padding:.5rem;border:1.5px solid var(--border,var(--bd-e2e8f0, #e2e8f0));border-radius:6px;font-size:1rem;box-sizing:border-box"></select>
         <div class="pk-modal-actions">
             <button data-act="closeSaveStruct">Cancel</button>
             <button class="pk-save" data-act="confirmSaveStruct">Save</button>
@@ -232,8 +232,8 @@ if ($session) {
 <div class="pk-modal-overlay" id="cashAdjustModal" data-act-self="closeCashAdjust">
     <div class="pk-modal" role="dialog" aria-modal="true" aria-labelledby="cashAdjustTitle">
         <h3 id="cashAdjustTitle">Add Money</h3>
-        <label for="cashAdjustAmount" style="font-size:.85rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">Amount ($)</label>
-        <input type="number" id="cashAdjustAmount" step="0.01" min="0" style="width:100%;padding:.5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:1rem;box-sizing:border-box">
+        <label for="cashAdjustAmount" style="font-size:.85rem;font-weight:600;color:var(--fg-475569, #475569);display:block;margin-bottom:.3rem">Amount ($)</label>
+        <input type="number" id="cashAdjustAmount" step="0.01" min="0" style="width:100%;padding:.5rem;border:1.5px solid var(--border,var(--bd-e2e8f0, #e2e8f0));border-radius:6px;font-size:1rem;box-sizing:border-box">
         <div class="pk-modal-actions">
             <button data-act="closeCashAdjust">Cancel</button>
             <button class="pk-save" id="cashAdjustOk" data-act="applyCashAdjust">Add</button>
@@ -342,7 +342,7 @@ if ($session) {
 <div class="pk-modal-overlay" id="elimModal" data-act-self="closeElim">
     <div class="pk-modal" role="dialog" aria-modal="true" aria-labelledby="elimTitle">
         <h3 id="elimTitle">Eliminate Player</h3>
-        <p id="elimMsg" style="font-size:.9rem;color:#475569;line-height:1.45;margin:0"></p>
+        <p id="elimMsg" style="font-size:.9rem;color:var(--fg-475569, #475569);line-height:1.45;margin:0"></p>
         <div class="pk-modal-actions">
             <button data-act="closeElim">Cancel</button>
             <button class="pk-save" style="background:#dc2626" data-act="confirmElim">Eliminate</button>
@@ -355,7 +355,7 @@ if ($session) {
     <div class="pk-modal" role="dialog" aria-modal="true" aria-labelledby="winnerMsg" style="text-align:center">
         <div style="font-size:2.75rem;line-height:1">🏆</div>
         <h3 id="winnerMsg" style="margin:.4rem 0 .25rem"></h3>
-        <p id="winnerSub" style="font-size:.9rem;color:#475569;line-height:1.45;margin:0"></p>
+        <p id="winnerSub" style="font-size:.9rem;color:var(--fg-475569, #475569);line-height:1.45;margin:0"></p>
         <div class="pk-modal-actions" style="justify-content:center">
             <button class="pk-save" data-act="closeWinner">Nice!</button>
         </div>

@@ -36,15 +36,15 @@ $utc_tz    = new DateTimeZone('UTC');
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .at-wrap { max-width: 900px; margin: 1.25rem auto 2rem; padding: 0 1rem; }
-        .at-table { width: 100%; border-collapse: collapse; font-size: .875rem; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
-        .at-table th { background: #f1f5f9; color: #475569; font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; padding: .55rem .75rem; text-align: left; border-bottom: 2px solid #e2e8f0; }
-        .at-table td { padding: .55rem .75rem; border-bottom: 1px solid #e2e8f0; color: #334155; }
-        .at-table tr:hover td { background: #f8fafc; cursor: pointer; }
+        .at-table { width: 100%; border-collapse: collapse; font-size: .875rem; background: var(--bg-ffffff, #ffffff); border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; overflow: hidden; }
+        .at-table th { background: var(--bg-f1f5f9, #f1f5f9); color: var(--fg-475569, #475569); font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; padding: .55rem .75rem; text-align: left; border-bottom: 2px solid var(--bd-e2e8f0, #e2e8f0); }
+        .at-table td { padding: .55rem .75rem; border-bottom: 1px solid var(--bd-e2e8f0, #e2e8f0); color: var(--fg-334155, #334155); }
+        .at-table tr:hover td { background: var(--bg-f8fafc, #f8fafc); cursor: pointer; }
         .sp-chip { font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; border-radius: 5px; padding: .08rem .4rem; }
-        .sp-open { color: #92400e; background: #fef3c7; border: 1px solid #fde68a; }
-        .sp-resolved { color: #166534; background: #dcfce7; border: 1px solid #bbf7d0; }
+        .sp-open { color: var(--fg-92400e, #92400e); background: var(--bg-fef3c7, #fef3c7); border: 1px solid var(--bd-fde68a, #fde68a); }
+        .sp-resolved { color: var(--fg-166534, #166534); background: var(--bg-dcfce7, #dcfce7); border: 1px solid var(--bd-bbf7d0, #bbf7d0); }
         .at-filter { display: inline-flex; gap: .4rem; margin: .6rem 0 .9rem; }
-        .at-filter a { font-size: .8rem; padding: .25rem .7rem; border-radius: 999px; border: 1.5px solid #cbd5e1; text-decoration: none; color: #475569; }
+        .at-filter a { font-size: .8rem; padding: .25rem .7rem; border-radius: 999px; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); text-decoration: none; color: var(--fg-475569, #475569); }
         .at-filter a.on { background: #2563eb; border-color: #2563eb; color: #fff; }
     </style>
 </head>
@@ -52,8 +52,8 @@ $utc_tz    = new DateTimeZone('UTC');
 <?php $nav_active = 'site-settings'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 <div role="main" class="at-wrap">
     <?php $admin_tab = 'tickets'; require __DIR__ . '/_admin_tabs.php'; ?>
-    <h1 style="font-size:1.3rem;font-weight:800;color:#1e293b;margin:.75rem 0 .2rem">Support Tickets</h1>
-    <p style="color:#64748b;font-size:.88rem;margin:0"><?= $openCount ?> open</p>
+    <h1 style="font-size:1.3rem;font-weight:800;color:var(--fg-1e293b, #1e293b);margin:.75rem 0 .2rem">Support Tickets</h1>
+    <p style="color:var(--fg-64748b, #64748b);font-size:.88rem;margin:0"><?= $openCount ?> open</p>
     <div class="at-filter">
         <a href="/admin_tickets.php" class="<?= $filter === '' ? 'on' : '' ?>">All</a>
         <a href="/admin_tickets.php?status=open" class="<?= $filter === 'open' ? 'on' : '' ?>">Open</a>
@@ -61,7 +61,7 @@ $utc_tz    = new DateTimeZone('UTC');
     </div>
 
     <?php if (!$rows): ?>
-    <p style="color:#64748b">No tickets<?= $filter !== '' ? " with status \"$filter\"" : '' ?>.</p>
+    <p style="color:var(--fg-64748b, #64748b)">No tickets<?= $filter !== '' ? " with status \"$filter\"" : '' ?>.</p>
     <?php else: ?>
     <div style="overflow-x:auto">
     <table class="at-table">
@@ -75,9 +75,9 @@ $utc_tz    = new DateTimeZone('UTC');
             <td><?= (int)$t['id'] ?></td>
             <td><span class="sp-chip <?= $t['status'] === 'open' ? 'sp-open' : 'sp-resolved' ?>"><?= htmlspecialchars($t['status']) ?></span></td>
             <td><?= htmlspecialchars($t['owner_name']) ?></td>
-            <td style="font-weight:600;color:#1e293b"><?= htmlspecialchars($t['subject']) ?></td>
+            <td style="font-weight:600;color:var(--fg-1e293b, #1e293b)"><?= htmlspecialchars($t['subject']) ?></td>
             <td><?= (int)$t['msg_count'] ?></td>
-            <td style="white-space:nowrap;color:#64748b"><?= htmlspecialchars($when) ?></td>
+            <td style="white-space:nowrap;color:var(--fg-64748b, #64748b)"><?= htmlspecialchars($when) ?></td>
         </tr>
         <?php endforeach; ?>
         </tbody>

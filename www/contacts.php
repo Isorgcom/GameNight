@@ -33,54 +33,54 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
         .c-wrap { max-width: 1100px; margin: 1.25rem auto; padding: 0 1rem; }
         .c-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
         .c-header h1 { font-size: 1.5rem; font-weight: 700; margin: 0; }
-        .c-header p { color: #64748b; font-size: .9rem; margin: .25rem 0 0; }
+        .c-header p { color: var(--fg-64748b, #64748b); font-size: .9rem; margin: .25rem 0 0; }
 
         .c-toolbar { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-bottom: .75rem; }
         .c-btn { background: #2563eb; color: #fff; border: none; border-radius: 6px; padding: .45rem .9rem; font-size: .85rem; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
         .c-btn:hover { background: #1d4ed8; }
-        .c-btn-ghost { background: #fff; color: #475569; border: 1.5px solid #cbd5e1; }
-        .c-btn-ghost:hover { background: #f1f5f9; }
+        .c-btn-ghost { background: var(--bg-ffffff, #ffffff); color: var(--fg-475569, #475569); border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); }
+        .c-btn-ghost:hover { background: var(--bg-f1f5f9, #f1f5f9); }
 
-        .c-add-card { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: .75rem 1rem; margin-bottom: .75rem; }
+        .c-add-card { background: var(--bg-f8fafc, #f8fafc); border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; padding: .75rem 1rem; margin-bottom: .75rem; }
         .c-add-card h3 { margin: 0 0 .5rem; font-size: 1rem; }
         .c-add-grid { display: grid; grid-template-columns: 1fr 1.5fr 1fr auto; gap: .5rem; align-items: end; }
-        .c-add-grid label { font-size: .8rem; color: #475569; font-weight: 600; display: flex; flex-direction: column; gap: .2rem; }
-        .c-add-grid input { padding: .4rem .5rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font: inherit; }
+        .c-add-grid label { font-size: .8rem; color: var(--fg-475569, #475569); font-weight: 600; display: flex; flex-direction: column; gap: .2rem; }
+        .c-add-grid input { padding: .4rem .5rem; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 6px; font: inherit; }
 
-        .c-import-card { display: none; background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 10px; padding: .75rem 1rem; margin-bottom: .75rem; gap: .75rem; flex-wrap: wrap; align-items: center; }
+        .c-import-card { display: none; background: var(--bg-fffbeb, #fffbeb); border: 1.5px solid var(--bd-fde68a, #fde68a); border-radius: 10px; padding: .75rem 1rem; margin-bottom: .75rem; gap: .75rem; flex-wrap: wrap; align-items: center; }
         .c-import-card.open { display: flex; }
 
-        #cGrid { width: 100%; border-collapse: collapse; font-size: .875rem; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
-        #cGrid th { background: #f1f5f9; color: #475569; font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; padding: .55rem .75rem; border-bottom: 2px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: left; white-space: nowrap; position: sticky; top: 0; z-index: 2; }
-        #cGrid td { padding: .5rem .75rem; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; vertical-align: middle; color: #1e293b; }
+        #cGrid { width: 100%; border-collapse: collapse; font-size: .875rem; background: var(--bg-ffffff, #ffffff); border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; overflow: hidden; }
+        #cGrid th { background: var(--bg-f1f5f9, #f1f5f9); color: var(--fg-475569, #475569); font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; padding: .55rem .75rem; border-bottom: 2px solid var(--bd-e2e8f0, #e2e8f0); border-right: 1px solid var(--bd-e2e8f0, #e2e8f0); text-align: left; white-space: nowrap; position: sticky; top: 0; z-index: 2; }
+        #cGrid td { padding: .5rem .75rem; border-bottom: 1px solid var(--bd-e2e8f0, #e2e8f0); border-right: 1px solid var(--bd-e2e8f0, #e2e8f0); vertical-align: middle; color: var(--fg-1e293b, #1e293b); }
         #cGrid tr:last-child td { border-bottom: none; }
         #cGrid td:last-child, #cGrid th:last-child { border-right: none; }
-        #cGrid tr:hover td { background: #f8fafc; }
+        #cGrid tr:hover td { background: var(--bg-f8fafc, #f8fafc); }
         #cGrid tr.c-pending td { background: #fffbeb33; }
-        #cGrid tr.c-pending:hover td { background: #fef3c7; }
+        #cGrid tr.c-pending:hover td { background: var(--bg-fef3c7, #fef3c7); }
 
-        .c-num-col { width: 44px; text-align: right; color: #64748b; font-weight: 600; }
+        .c-num-col { width: 44px; text-align: right; color: var(--fg-64748b, #64748b); font-weight: 600; }
         .c-status-col { width: 100px; text-align: center; }
         .c-name-col { min-width: 160px; }
         .c-phone-col { width: 150px; }
-        .c-notes-col { min-width: 140px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #64748b; }
+        .c-notes-col { min-width: 140px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-64748b, #64748b); }
         .c-act-col { width: 90px; text-align: center; }
 
         #cGrid tbody tr { cursor: pointer; }
-        .c-name-link { color: #2563eb; font-weight: 600; text-decoration: none; }
+        .c-name-link { color: var(--fg-2563eb, #2563eb); font-weight: 600; text-decoration: none; }
         .c-name-link:hover { text-decoration: underline; }
-        .c-muted { color: #64748b; }
-        .c-msg-btn { background: #fff; color: #2563eb; border: 1.5px solid #bfdbfe; border-radius: 6px; padding: .22rem .6rem; font-size: .75rem; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
-        .c-msg-btn:hover { background: #eff6ff; }
+        .c-muted { color: var(--fg-64748b, #64748b); }
+        .c-msg-btn { background: var(--bg-ffffff, #ffffff); color: var(--fg-2563eb, #2563eb); border: 1.5px solid var(--bd-bfdbfe, #bfdbfe); border-radius: 6px; padding: .22rem .6rem; font-size: .75rem; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
+        .c-msg-btn:hover { background: var(--bg-eff6ff, #eff6ff); }
 
         .c-badge { display: inline-block; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: .15rem .5rem; border-radius: 999px; }
-        .c-badge-linked { background: #dcfce7; color: #166534; }
-        .c-badge-pending { background: #fef3c7; color: #92400e; }
+        .c-badge-linked { background: var(--bg-dcfce7, #dcfce7); color: var(--fg-166534, #166534); }
+        .c-badge-pending { background: var(--bg-fef3c7, #fef3c7); color: var(--fg-92400e, #92400e); }
 
-        .c-del-btn { background: transparent; border: 1px solid #fecaca; color: #dc2626; border-radius: 6px; padding: .25rem .55rem; font-size: .95rem; line-height: 1; cursor: pointer; }
-        .c-del-btn:hover { background: #fee2e2; }
+        .c-del-btn { background: transparent; border: 1px solid var(--bd-fecaca, #fecaca); color: var(--fg-dc2626, #dc2626); border-radius: 6px; padding: .25rem .55rem; font-size: .95rem; line-height: 1; cursor: pointer; }
+        .c-del-btn:hover { background: var(--bg-fee2e2, #fee2e2); }
 
-        #cSaved { display: none; margin: .5rem 0; font-size: .78rem; color: #16a34a; }
+        #cSaved { display: none; margin: .5rem 0; font-size: .78rem; color: var(--fg-16a34a, #16a34a); }
 
         @media (max-width: 720px) {
             .c-add-grid { grid-template-columns: 1fr; }
@@ -94,7 +94,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
 <div role="main" class="c-wrap">
     <div class="c-header">
         <div>
-            <h1>My Contacts <span style="color:#64748b;font-weight:600">(<?= count($contacts) ?>)</span></h1>
+            <h1>My Contacts <span style="color:var(--fg-64748b, #64748b);font-weight:600">(<?= count($contacts) ?>)</span></h1>
             <p>Your private address book. Only visible to you — never shared with other users.</p>
         </div>
     </div>
@@ -118,23 +118,23 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
         <form method="post" action="/contacts_dl.php" enctype="multipart/form-data" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;flex:1">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
             <input type="hidden" name="action" value="import_csv">
-            <input type="file" name="csv_file" accept=".csv" required style="font-size:.82rem;padding:.3rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px;background:#fff">
+            <input type="file" name="csv_file" accept=".csv" required style="font-size:.82rem;padding:.3rem .5rem;border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-radius:6px;background:var(--bg-ffffff, #ffffff)">
             <button type="submit" class="c-btn">Import</button>
         </form>
-        <div style="font-size:.78rem;color:#92400e;flex-basis:100%">
+        <div style="font-size:.78rem;color:var(--fg-92400e, #92400e);flex-basis:100%">
             CSV columns: <code>name, email, phone</code>. Existing contacts (by email) are skipped.
         </div>
     </div>
 
     <?php if (!empty($_SESSION['flash'])):
         $f = $_SESSION['flash']; unset($_SESSION['flash']);
-        $c = $f['type'] === 'success' ? 'background:#dcfce7;color:#14532d;border:1px solid #86efac' : 'background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5';
+        $c = $f['type'] === 'success' ? 'background:var(--bg-dcfce7, #dcfce7);color:var(--fg-14532d, #14532d);border:1px solid var(--bd-86efac, #86efac)' : 'background:var(--bg-fee2e2, #fee2e2);color:var(--fg-7f1d1d, #7f1d1d);border:1px solid var(--bd-fca5a5, #fca5a5)';
     ?>
         <div style="padding:.55rem .85rem;border-radius:8px;font-size:.85rem;margin-bottom:.75rem;<?= $c ?>"><?= htmlspecialchars($f['msg']) ?></div>
     <?php endif; ?>
 
     <?php if (empty($contacts)): ?>
-        <div style="background:#fff;border:1.5px dashed #cbd5e1;border-radius:10px;padding:2.5rem;text-align:center;color:#64748b">
+        <div style="background:var(--bg-ffffff, #ffffff);border:1.5px dashed var(--bd-cbd5e1, #cbd5e1);border-radius:10px;padding:2.5rem;text-align:center;color:var(--fg-64748b, #64748b)">
             No contacts yet. Add one above, import a CSV, or invite people to an event — they'll be saved here automatically.
         </div>
     <?php else: ?>
@@ -196,7 +196,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
         </tbody>
     </table>
     </div>
-    <p style="color:#64748b;font-size:.78rem;margin-top:.5rem">Click any contact to edit their details, invite channel, or notes.</p>
+    <p style="color:var(--fg-64748b, #64748b);font-size:.78rem;margin-top:.5rem">Click any contact to edit their details, invite channel, or notes.</p>
     <?php endif; ?>
 </div>
 

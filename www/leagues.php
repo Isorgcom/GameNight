@@ -56,28 +56,28 @@ $csrf = csrf_token();
         .lg-wrap { max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
         .lg-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap; }
         .lg-header h1 { font-size: 1.5rem; font-weight: 700; margin: 0; }
-        .lg-tabs { display: flex; gap: .25rem; border-bottom: 1.5px solid #e2e8f0; margin-bottom: 1rem; overflow-x: auto; }
-        .lg-tab { padding: .6rem 1rem; font-weight: 600; color: #64748b; border-bottom: 2.5px solid transparent; text-decoration: none; white-space: nowrap; }
-        .lg-tab.active { color: #2563eb; border-bottom-color: #2563eb; }
-        .lg-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: .75rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
-        .lg-card .lg-title { font-size: 1.05rem; font-weight: 700; color: #1e293b; margin: 0 0 .25rem; }
-        .lg-card .lg-desc { font-size: .85rem; color: #64748b; margin: 0; }
-        .lg-card .lg-meta { font-size: .75rem; color: #64748b; margin-top: .4rem; }
+        .lg-tabs { display: flex; gap: .25rem; border-bottom: 1.5px solid var(--bd-e2e8f0, #e2e8f0); margin-bottom: 1rem; overflow-x: auto; }
+        .lg-tab { padding: .6rem 1rem; font-weight: 600; color: var(--fg-64748b, #64748b); border-bottom: 2.5px solid transparent; text-decoration: none; white-space: nowrap; }
+        .lg-tab.active { color: var(--fg-2563eb, #2563eb); border-bottom-color: #2563eb; }
+        .lg-card { background: var(--bg-ffffff, #ffffff); border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: .75rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+        .lg-card .lg-title { font-size: 1.05rem; font-weight: 700; color: var(--fg-1e293b, #1e293b); margin: 0 0 .25rem; }
+        .lg-card .lg-desc { font-size: .85rem; color: var(--fg-64748b, #64748b); margin: 0; }
+        .lg-card .lg-meta { font-size: .75rem; color: var(--fg-64748b, #64748b); margin-top: .4rem; }
         .lg-role { display: inline-block; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: .15rem .5rem; border-radius: 999px; margin-left: .4rem; vertical-align: middle; }
-        .lg-role-owner   { background: #fef3c7; color: #92400e; }
-        .lg-role-manager { background: #dbeafe; color: #1e40af; }
-        .lg-role-member  { background: #e2e8f0; color: #475569; }
+        .lg-role-owner   { background: var(--bg-fef3c7, #fef3c7); color: var(--fg-92400e, #92400e); }
+        .lg-role-manager { background: var(--bg-dbeafe, #dbeafe); color: var(--fg-1e40af, #1e40af); }
+        .lg-role-member  { background: var(--bg-e2e8f0, #e2e8f0); color: var(--fg-475569, #475569); }
         .lg-btn { background: #2563eb; color: #fff; border: none; border-radius: 6px; padding: .45rem .9rem; font-size: .85rem; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
         .lg-btn:hover { background: #1d4ed8; }
-        .lg-btn-ghost { background: transparent; color: #475569; border: 1.5px solid #cbd5e1; }
-        .lg-btn-ghost:hover { background: #f1f5f9; color: #1e293b; }
-        .lg-empty { text-align: center; padding: 2.5rem 1rem; color: #64748b; }
+        .lg-btn-ghost { background: transparent; color: var(--fg-475569, #475569); border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); }
+        .lg-btn-ghost:hover { background: var(--bg-f1f5f9, #f1f5f9); color: var(--fg-1e293b, #1e293b); }
+        .lg-empty { text-align: center; padding: 2.5rem 1rem; color: var(--fg-64748b, #64748b); }
         .lg-create-bar { margin-bottom: 1rem; }
         .lg-modal-bg { position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 100; display: none; align-items: center; justify-content: center; padding: 1rem; }
         .lg-modal-bg.open { display: flex; }
-        .lg-modal { background: #fff; border-radius: 10px; padding: 1.25rem; max-width: 420px; width: 100%; }
+        .lg-modal { background: var(--bg-ffffff, #ffffff); border-radius: 10px; padding: 1.25rem; max-width: 420px; width: 100%; }
         .lg-modal h3 { margin: 0 0 .75rem; font-size: 1.1rem; }
-        .lg-modal textarea { width: 100%; min-height: 80px; border: 1.5px solid #cbd5e1; border-radius: 6px; padding: .5rem; font: inherit; resize: vertical; }
+        .lg-modal textarea { width: 100%; min-height: 80px; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 6px; padding: .5rem; font: inherit; resize: vertical; }
         .lg-modal .lg-row { display: flex; gap: .5rem; justify-content: flex-end; margin-top: .75rem; }
     </style>
 </head>
@@ -121,7 +121,7 @@ $csrf = csrf_token();
         <div style="margin-bottom:.75rem">
             <input type="search" id="lgSearch" placeholder="Search leagues by name or description&hellip;" autocomplete="off"
                    data-act-input="filterBrowse" data-input-a1="@value"
-                   style="width:100%;padding:.55rem .75rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit">
+                   style="width:100%;padding:.55rem .75rem;border:1.5px solid var(--bd-cbd5e1, #cbd5e1);border-radius:6px;font:inherit">
         </div>
         <div id="lgNoResults" class="lg-empty" style="display:none">No leagues match your search.</div>
         <div id="lgBrowseList">
@@ -167,7 +167,7 @@ $csrf = csrf_token();
 <div class="lg-modal-bg" id="rqModal">
     <div class="lg-modal">
         <h3>Request to join <span id="rqName"></span></h3>
-        <p style="font-size:.85rem;color:#64748b;margin:.25rem 0 .5rem">Optional message to the league owner:</p>
+        <p style="font-size:.85rem;color:var(--fg-64748b, #64748b);margin:.25rem 0 .5rem">Optional message to the league owner:</p>
         <textarea id="rqMsg" placeholder="Hi, I'd like to join!"></textarea>
         <div class="lg-row">
             <button class="lg-btn lg-btn-ghost" data-act="closeRequestModal">Cancel</button>

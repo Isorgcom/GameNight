@@ -436,7 +436,7 @@ function current_user(): ?array {
     }
     if ($id === null) return null;
 
-    $stmt = get_db()->prepare('SELECT id, username, email, role, last_login, must_change_password, my_events_past_days, my_events_future_days, timezone, last_poker_default, mfa_enabled, mfa_method, mfa_offer_dismissed, avatar_path, beta_timer, push_prompt_dismissed, session_epoch, pending_email FROM users WHERE id = ?');
+    $stmt = get_db()->prepare('SELECT id, username, email, role, last_login, must_change_password, my_events_past_days, my_events_future_days, timezone, last_poker_default, mfa_enabled, mfa_method, mfa_offer_dismissed, avatar_path, beta_timer, push_prompt_dismissed, session_epoch, pending_email, theme FROM users WHERE id = ?');
     $stmt->execute([$id]);
     $row = $stmt->fetch() ?: null;
     // A password change or reset bumps users.session_epoch; a session still

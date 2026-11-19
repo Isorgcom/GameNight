@@ -21,7 +21,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
     <style>
         .help-wrap { max-width: 760px; margin: 2rem auto 4rem; padding: 0 1.5rem; }
         .help-wrap h1 { font-size: 2rem; margin-bottom: .5rem; }
-        .help-wrap .subtitle { color: #64748b; margin-bottom: 2.5rem; font-size: 1.05rem; }
+        .help-wrap .subtitle { color: var(--fg-64748b, #64748b); margin-bottom: 2.5rem; font-size: 1.05rem; }
         .help-step { margin-bottom: 2.5rem; }
         .help-step h2 { font-size: 1.35rem; margin: 0 0 .75rem; display: flex; align-items: center; gap: .6rem; }
         .help-step .step-num {
@@ -30,24 +30,24 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
             background: var(--accent, #2563eb); color: #fff;
             font-size: .95rem; font-weight: 600; flex-shrink: 0;
         }
-        .help-step p { margin: .5rem 0; line-height: 1.6; color: #334155; }
-        .help-step ul { margin: .5rem 0 .5rem 1.25rem; line-height: 1.6; color: #334155; }
+        .help-step p { margin: .5rem 0; line-height: 1.6; color: var(--fg-334155, #334155); }
+        .help-step ul { margin: .5rem 0 .5rem 1.25rem; line-height: 1.6; color: var(--fg-334155, #334155); }
         .help-step .hint {
-            background: #f1f5f9; border-left: 3px solid #94a3b8;
-            padding: .75rem 1rem; margin: .75rem 0; font-size: .92rem; color: #475569;
+            background: var(--bg-f1f5f9, #f1f5f9); border-left: 3px solid #94a3b8;
+            padding: .75rem 1rem; margin: .75rem 0; font-size: .92rem; color: var(--fg-475569, #475569);
             border-radius: 4px;
         }
         .help-step img.help-shot {
-            max-width: 100%; height: auto; border: 1px solid #e2e8f0; border-radius: 6px;
+            max-width: 100%; height: auto; border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 6px;
             margin: .75rem 0; display: block;
         }
         .help-cta {
             text-align: center; padding: 2.5rem 1rem;
-            background: #f8fafc; border-radius: 8px; margin-top: 2rem;
+            background: var(--bg-f8fafc, #f8fafc); border-radius: 8px; margin-top: 2rem;
         }
-        .help-cta p { color: #475569; margin-bottom: 1.25rem; }
-        .help-back { display: inline-block; margin-bottom: 1rem; color: #64748b; text-decoration: none; font-size: .9rem; }
-        .help-back:hover { color: #2563eb; }
+        .help-cta p { color: var(--fg-475569, #475569); margin-bottom: 1.25rem; }
+        .help-back { display: inline-block; margin-bottom: 1rem; color: var(--fg-64748b, #64748b); text-decoration: none; font-size: .9rem; }
+        .help-back:hover { color: var(--fg-2563eb, #2563eb); }
     </style>
 </head>
 <body>
