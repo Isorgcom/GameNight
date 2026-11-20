@@ -74,7 +74,7 @@ $site_name = get_setting('site_name', 'Game Night');
 $title     = (string)$event['title'];
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="light"><?php /* own look; stays light in dark mode (style.css) */ ?>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -92,7 +92,7 @@ $title     = (string)$event['title'];
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
     /* Phone-first. The desktop gets the same single column, centered. */
-    html, body { background:#f1f5f9; }
+    html, body { background:var(--bg-f1f5f9, #f1f5f9); }
     body { margin:0; font-family:inherit; }
     /* A quick second tap (a + twice, a bill twice on the keypad) is a second
        tap, never a double-tap zoom. manipulation keeps pinch-zoom and scrolling. */
@@ -104,16 +104,16 @@ $title     = (string)$event['title'];
         padding:max(.5rem, env(safe-area-inset-top)) .9rem .55rem; cursor:pointer;
         -webkit-tap-highlight-color:transparent; }
     .gd-head-top { display:flex; align-items:baseline; gap:.6rem; }
-    .gd-level { font-size:.72rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#94a3b8; white-space:nowrap; }
+    .gd-level { font-size:.72rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--fg-94a3b8, #94a3b8); white-space:nowrap; }
     .gd-clock { font-size:2.35rem; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; margin-left:auto; }
-    .gd-clock.paused { color:#f87171; }
+    .gd-clock.paused { color:var(--fg-f87171, #f87171); }
     .gd-head-blinds { display:flex; align-items:baseline; gap:.55rem; margin-top:.15rem; }
     .gd-blinds { font-size:1.15rem; font-weight:700; }
-    .gd-next { font-size:.8rem; color:#94a3b8; margin-left:auto; }
-    .gd-stats { font-size:.74rem; color:#94a3b8; margin-top:.3rem; display:flex; gap:.8rem; flex-wrap:wrap; }
+    .gd-next { font-size:.8rem; color:var(--fg-94a3b8, #94a3b8); margin-left:auto; }
+    .gd-stats { font-size:.74rem; color:var(--fg-94a3b8, #94a3b8); margin-top:.3rem; display:flex; gap:.8rem; flex-wrap:wrap; }
     .gd-stats b { color:#e2e8f0; font-weight:700; }
-    .gd-title-line { font-size:.68rem; color:#64748b; display:flex; gap:.5rem; align-items:center; margin-bottom:.15rem; }
-    .gd-title-line .gd-back { color:#94a3b8; text-decoration:none; font-size:1rem; padding:.55rem .7rem; margin:-.55rem 0 -.55rem -.7rem; }
+    .gd-title-line { font-size:.68rem; color:var(--fg-64748b, #64748b); display:flex; gap:.5rem; align-items:center; margin-bottom:.15rem; }
+    .gd-title-line .gd-back { color:var(--fg-94a3b8, #94a3b8); text-decoration:none; font-size:1rem; padding:.55rem .7rem; margin:-.55rem 0 -.55rem -.7rem; }
     .gd-title-line span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
 
     /* Timer command row: hidden until a header tap. 52px targets. */
@@ -124,101 +124,101 @@ $title     = (string)$event['title'];
         -webkit-tap-highlight-color:transparent; }
     .gd-controls button:active { background:#334155; }
     .gd-controls button.gd-play { background:#2563eb; }
-    .gd-no-timer { margin-top:.4rem; font-size:.8rem; color:#fbbf24; }
-    .gd-no-timer a { color:#fbbf24; }
+    .gd-no-timer { margin-top:.4rem; font-size:.8rem; color:var(--fg-fbbf24, #fbbf24); }
+    .gd-no-timer a { color:var(--fg-fbbf24, #fbbf24); }
 
     /* ── Strips under the header ── */
     .gd-strip { padding:.55rem .9rem; font-size:.85rem; display:flex; align-items:center; gap:.6rem; }
     .gd-net-stale { background:#fffbeb; color:#92400e; border-bottom:1.5px solid #f59e0b; }
-    .gd-net-dead  { background:#fee2e2; color:#991b1b; border-bottom:1.5px solid #dc2626; cursor:pointer; }
-    .gd-setup { background:#fffbeb; color:#92400e; border-bottom:1.5px solid #f59e0b; justify-content:space-between; }
-    .gd-winner { background:#dcfce7; color:#166534; border-bottom:1.5px solid #16a34a; font-weight:700; }
+    .gd-net-dead  { background:var(--bg-fee2e2, #fee2e2); color:var(--fg-991b1b, #991b1b); border-bottom:1.5px solid #dc2626; cursor:pointer; }
+    .gd-setup { background:var(--bg-fffbeb, #fffbeb); color:var(--fg-92400e, #92400e); border-bottom:1.5px solid #f59e0b; justify-content:space-between; }
+    .gd-winner { background:var(--bg-dcfce7, #dcfce7); color:var(--fg-166534, #166534); border-bottom:1.5px solid #16a34a; font-weight:700; }
     /* Cash games end with a reconciliation, not a champion — slate, not green,
        so the finished strip does not read as "someone won". */
-    .gd-done { background:#f1f5f9; color:#334155; border-bottom:1.5px solid #cbd5e1; font-weight:700; cursor:pointer; }
+    .gd-done { background:var(--bg-f1f5f9, #f1f5f9); color:var(--fg-334155, #334155); border-bottom:1.5px solid var(--bd-cbd5e1, #cbd5e1); font-weight:700; cursor:pointer; }
     .gd-strip .gd-strip-btn { border:none; border-radius:8px; padding:.45rem .9rem; font-weight:700;
         background:#d97706; color:#fff; cursor:pointer; min-height:44px; }
 
     /* Pending walk-ins: always visible, never behind a filter. */
     .gd-pending { background:#fffbeb; border-bottom:1.5px solid #f59e0b; padding:.3rem .9rem .45rem; }
-    .gd-pending-title { font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:#92400e; margin:.2rem 0; }
+    .gd-pending-title { font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--fg-92400e, #92400e); margin:.2rem 0; }
     .gd-pending-row { display:flex; align-items:center; gap:.5rem; padding:.25rem 0; }
-    .gd-pending-row .gd-pname { flex:1; min-width:0; font-weight:600; color:#1e293b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .gd-pending-row .gd-pname { flex:1; min-width:0; font-weight:600; color:var(--fg-1e293b, #1e293b); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .gd-pending-row button { border:none; border-radius:8px; min-height:44px; padding:0 .85rem; font-weight:700; cursor:pointer; }
     .gd-pending-row .gd-ok { background:#16a34a; color:#fff; }
-    .gd-pending-row .gd-no { background:#fff; color:#991b1b; border:1.5px solid #fca5a5; }
+    .gd-pending-row .gd-no { background:var(--bg-ffffff, #ffffff); color:var(--fg-991b1b, #991b1b); border:1.5px solid var(--bd-fca5a5, #fca5a5); }
 
     /* ── Search + view switcher ── */
     .gd-toolbar { padding:.6rem .9rem .5rem; display:flex; flex-direction:column; gap:.5rem; }
     .gd-search { width:100%; box-sizing:border-box; padding:.55rem .8rem; font-size:1rem;
-        border:1.5px solid #e2e8f0; border-radius:10px; background:#fff; }
+        border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:10px; background:var(--bg-ffffff, #ffffff); }
     #gdViewSeg { width:100%; }
     #gdViewSeg button { flex:1; min-height:44px; }
 
     /* ── Roster rows ── */
     #gdView { padding:0 .9rem; overflow:hidden; }
-    .gd-row { display:flex; align-items:center; gap:.6rem; background:#fff;
-        border:1.5px solid #e2e8f0; border-radius:12px; padding:.55rem .7rem; margin-bottom:.5rem;
+    .gd-row { display:flex; align-items:center; gap:.6rem; background:var(--bg-ffffff, #ffffff);
+        border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:12px; padding:.55rem .7rem; margin-bottom:.5rem;
         cursor:pointer; -webkit-tap-highlight-color:transparent; }
-    .gd-row:active { background:#f8fafc; }
+    .gd-row:active { background:var(--bg-f8fafc, #f8fafc); }
     /* A finished player's row stays legible: the name and the button fade, the
        money line does not (it is what the host reads back at cash-out). */
-    .gd-row.gd-out .gd-row-name { color:#64748b; }
+    .gd-row.gd-out .gd-row-name { color:var(--fg-64748b, #64748b); }
     .gd-row.gd-out .gd-primary { opacity:.72; }
     .gd-row.gd-flash { animation:gdFlash 1.6s ease-out; }
-    @keyframes gdFlash { 0% { background:#dbeafe; } 100% { background:#fff; } }
+    @keyframes gdFlash { 0% { background:var(--bg-dbeafe, #dbeafe); } 100% { background:var(--bg-ffffff, #ffffff); } }
     .gd-row-main { flex:1; min-width:0; }
-    .gd-row-name { font-weight:700; color:#1e293b; font-size:.95rem;
+    .gd-row-name { font-weight:700; color:var(--fg-1e293b, #1e293b); font-size:.95rem;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .gd-row-meta { font-size:.8rem; color:#64748b; margin-top:.15rem; display:flex; flex-wrap:wrap;
+    .gd-row-meta { font-size:.8rem; color:var(--fg-64748b, #64748b); margin-top:.15rem; display:flex; flex-wrap:wrap;
         gap:.15rem .45rem; align-items:center; }
     /* The money figures darker than their labels, the net green or red. */
-    .gd-amt { color:#334155; font-weight:600; }
-    .gd-net { color:#334155; font-weight:800; }
-    .gd-net.pos { color:#15803d; }
-    .gd-net.neg { color:#dc2626; }
+    .gd-amt { color:var(--fg-334155, #334155); font-weight:600; }
+    .gd-net { color:var(--fg-334155, #334155); font-weight:800; }
+    .gd-net.pos { color:var(--fg-15803d, #15803d); }
+    .gd-net.neg { color:var(--fg-dc2626, #dc2626); }
     .gd-badge { font-size:.62rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
         padding:.1rem .4rem; border-radius:4px; }
-    .gd-badge.playing { background:#dcfce7; color:#166534; }
-    .gd-badge.out     { background:#fee2e2; color:#991b1b; }
-    .gd-badge.idle    { background:#f1f5f9; color:#475569; }
-    .gd-badge.champ   { background:#fef3c7; color:#92400e; }
+    .gd-badge.playing { background:var(--bg-dcfce7, #dcfce7); color:var(--fg-166534, #166534); }
+    .gd-badge.out     { background:var(--bg-fee2e2, #fee2e2); color:var(--fg-991b1b, #991b1b); }
+    .gd-badge.idle    { background:var(--bg-f1f5f9, #f1f5f9); color:var(--fg-475569, #475569); }
+    .gd-badge.champ   { background:var(--bg-fef3c7, #fef3c7); color:var(--fg-92400e, #92400e); }
     /* Cash-out is a normal exit; busting for $0 keeps the red `out` badge. */
-    .gd-badge.cashed  { background:#e0f2fe; color:#075985; }
+    .gd-badge.cashed  { background:var(--bg-e0f2fe, #e0f2fe); color:var(--fg-075985, #075985); }
     .gd-primary { border:none; border-radius:10px; min-width:74px; min-height:44px;
         font-weight:800; font-size:.85rem; cursor:pointer; flex-shrink:0;
         -webkit-tap-highlight-color:transparent; }
     .gd-primary:active { filter:brightness(.92); }
     /* The row's way into the sheet for a rebuy or an add-on: quieter than the
        primary so KO stays the one loud button. */
-    .gd-more { border:1.5px solid #c4b5fd; border-radius:10px; background:#f5f3ff; color:#6d28d9;
+    .gd-more { border:1.5px solid var(--bd-c4b5fd, #c4b5fd); border-radius:10px; background:var(--bg-f5f3ff, #f5f3ff); color:var(--fg-6d28d9, #6d28d9);
         min-height:44px; max-width:5.2rem; padding:.2rem .55rem; font-weight:700; font-size:.76rem;
         line-height:1.15; cursor:pointer; flex-shrink:0; -webkit-tap-highlight-color:transparent; }
-    .gd-more:active { background:#ede9fe; }
+    .gd-more:active { background:var(--bg-ede9fe, #ede9fe); }
     .gd-primary.buyin   { background:#16a34a; color:#fff; }
     .gd-primary.ko      { background:#dc2626; color:#fff; }
     .gd-primary.reenter { background:#2563eb; color:#fff; }
-    .gd-primary.undo    { background:#f1f5f9; color:#334155; border:1.5px solid #cbd5e1; }
+    .gd-primary.undo    { background:var(--bg-f1f5f9, #f1f5f9); color:var(--fg-334155, #334155); border:1.5px solid var(--bd-cbd5e1, #cbd5e1); }
     /* Cash-out is not an elimination — cyan (the console's CASH badge colour),
        never the KO red, or the host learns to fear the primary button. */
     .gd-primary.cashout { background:#0891b2; color:#fff; min-width:84px; }
-    .gd-empty { text-align:center; color:#94a3b8; font-size:.85rem; padding:1.6rem 0; }
-    .gd-declined-line { text-align:center; color:#64748b; font-size:.85rem; padding:.6rem 0 1rem; }
-    .gd-declined-btn { background:none; border:0; color:#1d4ed8; font:inherit; font-weight:600;
+    .gd-empty { text-align:center; color:var(--fg-94a3b8, #94a3b8); font-size:.85rem; padding:1.6rem 0; }
+    .gd-declined-line { text-align:center; color:var(--fg-64748b, #64748b); font-size:.85rem; padding:.6rem 0 1rem; }
+    .gd-declined-btn { background:none; border:0; color:var(--fg-1d4ed8, #1d4ed8); font:inherit; font-weight:600;
                        text-decoration:underline; min-height:44px; padding:0 .6rem; cursor:pointer; }
 
     /* ── Seats view ── */
-    .gd-table-card { background:#fff; border:1.5px solid #e2e8f0; border-radius:12px; margin-bottom:.6rem; overflow:hidden; }
+    .gd-table-card { background:var(--bg-ffffff, #ffffff); border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:12px; margin-bottom:.6rem; overflow:hidden; }
     .gd-table-head { display:flex; align-items:center; gap:.5rem; padding:.5rem .7rem;
-        background:#f8fafc; border-bottom:1px solid #eef2f7; font-weight:800; font-size:.8rem;
-        text-transform:uppercase; letter-spacing:.05em; color:#475569; }
-    .gd-table-head .gd-count { margin-left:auto; font-weight:600; color:#94a3b8; text-transform:none; letter-spacing:0; }
-    .gd-seat-row { display:flex; align-items:center; gap:.55rem; padding:.45rem .7rem; border-bottom:1px solid #f8fafc; }
-    .gd-seat-num { width:1.6rem; height:1.6rem; border-radius:50%; background:#eff6ff; color:#1e40af;
+        background:var(--bg-f8fafc, #f8fafc); border-bottom:1px solid var(--bd-eef2f7, #eef2f7); font-weight:800; font-size:.8rem;
+        text-transform:uppercase; letter-spacing:.05em; color:var(--fg-475569, #475569); }
+    .gd-table-head .gd-count { margin-left:auto; font-weight:600; color:var(--fg-94a3b8, #94a3b8); text-transform:none; letter-spacing:0; }
+    .gd-seat-row { display:flex; align-items:center; gap:.55rem; padding:.45rem .7rem; border-bottom:1px solid var(--bd-f8fafc, #f8fafc); }
+    .gd-seat-num { width:1.6rem; height:1.6rem; border-radius:50%; background:var(--bg-eff6ff, #eff6ff); color:var(--fg-1e40af, #1e40af);
         font-weight:800; font-size:.72rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-    .gd-seat-name { flex:1; min-width:0; font-size:.9rem; font-weight:600; color:#1e293b;
+    .gd-seat-name { flex:1; min-width:0; font-size:.9rem; font-weight:600; color:var(--fg-1e293b, #1e293b);
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .gd-move-chip { border:1.5px solid #cbd5e1; background:#fff; color:#334155; border-radius:8px;
+    .gd-move-chip { border:1.5px solid var(--bd-cbd5e1, #cbd5e1); background:var(--bg-ffffff, #ffffff); color:var(--fg-334155, #334155); border-radius:8px;
         min-height:44px; padding:0 .8rem; font-weight:700; font-size:.75rem; cursor:pointer; }
     .gd-rebalance { width:100%; border:none; border-radius:10px; min-height:46px; font-weight:800;
         background:#0f172a; color:#fff; cursor:pointer; margin:.1rem 0 .8rem; }
@@ -226,7 +226,7 @@ $title     = (string)$event['title'];
     /* ── Fixed footer: add walk-in (+ cash box on a cash game) ── */
     .gd-foot { position:fixed; left:0; right:0; bottom:0; z-index:40;
         padding:.6rem .9rem max(.85rem, env(safe-area-inset-bottom));
-        background:linear-gradient(to top, #f1f5f9 65%, rgba(241,245,249,0)); pointer-events:none; }
+        background:linear-gradient(to top, var(--bg-f1f5f9, #f1f5f9) 65%, rgba(241,245,249,0)); pointer-events:none; }
     .gd-foot-row { display:flex; gap:.5rem; max-width:560px; margin:0 auto; }
     .gd-foot button { pointer-events:auto; flex:1; border:none; border-radius:12px;
         min-height:50px; font-weight:800; font-size:.95rem;
@@ -238,48 +238,48 @@ $title     = (string)$event['title'];
     .gd-sheet-back { position:fixed; inset:0; background:rgba(15,23,42,.45); z-index:90;
         opacity:0; pointer-events:none; transition:opacity .2s; }
     .gd-sheet-back.open { opacity:1; pointer-events:auto; }
-    .gd-sheet { position:fixed; left:0; right:0; bottom:0; z-index:91; background:#fff;
+    .gd-sheet { position:fixed; left:0; right:0; bottom:0; z-index:91; background:var(--bg-ffffff, #ffffff);
         border-radius:16px 16px 0 0; box-shadow:0 -8px 30px rgba(0,0,0,.25);
         transform:translateY(105%); transition:transform .26s cubic-bezier(.4,0,.2,1);
         max-width:560px; margin:0 auto;
         padding:.4rem .9rem max(1rem, env(safe-area-inset-bottom));
         max-height:78dvh; overflow-y:auto; }
     .gd-sheet.open { transform:translateY(0); }
-    .gd-sheet-grip { width:38px; height:4px; border-radius:2px; background:#cbd5e1; margin:.3rem auto .5rem; }
-    .gd-sheet-name { font-weight:800; font-size:1.05rem; color:#1e293b; }
-    .gd-sheet-sub { font-size:.85rem; color:#64748b; margin-bottom:.6rem; }
+    .gd-sheet-grip { width:38px; height:4px; border-radius:2px; background:var(--bg-cbd5e1, #cbd5e1); margin:.3rem auto .5rem; }
+    .gd-sheet-name { font-weight:800; font-size:1.05rem; color:var(--fg-1e293b, #1e293b); }
+    .gd-sheet-sub { font-size:.85rem; color:var(--fg-64748b, #64748b); margin-bottom:.6rem; }
     .gd-sheet-grid { display:flex; flex-direction:column; gap:.45rem; }
     .gd-sheet-row { display:flex; align-items:center; gap:.6rem; }
-    .gd-sheet-row .gd-lbl { flex:1; font-weight:600; font-size:.9rem; color:#334155; }
-    .gd-sheet-row .gd-sub { font-size:.75rem; color:#64748b; font-weight:400; display:block; }
+    .gd-sheet-row .gd-lbl { flex:1; font-weight:600; font-size:.9rem; color:var(--fg-334155, #334155); }
+    .gd-sheet-row .gd-sub { font-size:.75rem; color:var(--fg-64748b, #64748b); font-weight:400; display:block; }
     .gd-counter { display:flex; align-items:center; gap:.15rem; }
-    .gd-counter button { width:48px; height:48px; border:1.5px solid #cbd5e1; background:#fff;
-        border-radius:10px; font-size:1.3rem; font-weight:700; color:#334155; cursor:pointer; }
+    .gd-counter button { width:48px; height:48px; border:1.5px solid var(--bd-cbd5e1, #cbd5e1); background:var(--bg-ffffff, #ffffff);
+        border-radius:10px; font-size:1.3rem; font-weight:700; color:var(--fg-334155, #334155); cursor:pointer; }
     .gd-counter .gd-cnt { min-width:2rem; text-align:center; font-weight:800; font-size:1.05rem; }
     .gd-counter button.gd-closed { opacity:.45; }
     .gd-closed-tag { display:inline-block; margin-left:.35rem; font-size:.68rem; font-weight:600; color:#92400e; background:#fffbeb;
                      border:1px solid #f59e0b; border-radius:4px; padding:0 .3rem; vertical-align:middle; }
     #gdBreakAddon:empty { display:none; }
     .gd-break-addon { display:block; width:calc(100% - 1.5rem); margin:.35rem .75rem .25rem; min-height:44px; padding:.6rem .9rem;
-                      border:1px solid #c4b5fd; border-radius:10px; background:#f5f3ff; color:#6d28d9; font-weight:700; font-size:.9rem; }
-    .gd-sheet-btn { border:1.5px solid #cbd5e1; background:#fff; color:#334155; border-radius:10px;
+                      border:1px solid var(--bd-c4b5fd, #c4b5fd); border-radius:10px; background:var(--bg-f5f3ff, #f5f3ff); color:var(--fg-6d28d9, #6d28d9); font-weight:700; font-size:.9rem; }
+    .gd-sheet-btn { border:1.5px solid var(--bd-cbd5e1, #cbd5e1); background:var(--bg-ffffff, #ffffff); color:var(--fg-334155, #334155); border-radius:10px;
         min-height:48px; padding:0 .9rem; font-weight:700; font-size:.88rem; cursor:pointer;
         -webkit-tap-highlight-color:transparent; }
-    .gd-sheet-btn:active { background:#f1f5f9; }
-    .gd-sheet-btn.danger { color:#991b1b; border-color:#fca5a5; }
+    .gd-sheet-btn:active { background:var(--bg-f1f5f9, #f1f5f9); }
+    .gd-sheet-btn.danger { color:var(--fg-991b1b, #991b1b); border-color:var(--bd-fca5a5, #fca5a5); }
     .gd-sheet-btn.wide { width:100%; }
     .gd-sheet-btn.go { background:#16a34a; border-color:#16a34a; color:#fff; }
     /* Cash box: read-out rows and the two typed fields. */
-    .gd-cb-val { font-weight:800; font-variant-numeric:tabular-nums; color:#1e293b; }
-    .gd-cb-val.even  { color:#16a34a; }
-    .gd-cb-val.over  { color:#0891b2; }
-    .gd-cb-val.short { color:#dc2626; }
+    .gd-cb-val { font-weight:800; font-variant-numeric:tabular-nums; color:var(--fg-1e293b, #1e293b); }
+    .gd-cb-val.even  { color:var(--fg-16a34a, #16a34a); }
+    .gd-cb-val.over  { color:var(--fg-0891b2, #0891b2); }
+    .gd-cb-val.short { color:var(--fg-dc2626, #dc2626); }
     .gd-cb-input { width:120px; box-sizing:border-box; padding:.5rem .55rem; font-size:1rem;
-        text-align:right; border:1.5px solid #cbd5e1; border-radius:10px; background:#fff;
+        text-align:right; border:1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius:10px; background:var(--bg-ffffff, #ffffff);
         -moz-appearance:textfield; appearance:textfield; }
     .gd-cb-input::-webkit-outer-spin-button, .gd-cb-input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
-    .gd-cb-rule { border-top:1px solid #e2e8f0; margin:.25rem 0; }
-    .gd-sheet-close { width:100%; border:none; background:#f1f5f9; color:#334155; border-radius:10px;
+    .gd-cb-rule { border-top:1px solid var(--bd-e2e8f0, #e2e8f0); margin:.25rem 0; }
+    .gd-sheet-close { width:100%; border:none; background:var(--bg-f1f5f9, #f1f5f9); color:var(--fg-334155, #334155); border-radius:10px;
         min-height:46px; font-weight:800; margin-top:.6rem; cursor:pointer; }
 
     /* ── Snackbar (post-KO undo) ── */

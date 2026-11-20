@@ -100,7 +100,7 @@ if (!empty($_GET['sent']) && can_manage_event($db, (int)$_GET['sent'], (int)$cur
 $tv_label = preg_replace('#^https?://#', '', rtrim(get_site_url(), '/')) . '/tv';
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="light"><?php /* own look; stays light in dark mode (style.css) */ ?>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -110,24 +110,24 @@ $tv_label = preg_replace('#^https?://#', '', rtrim(get_site_url(), '/')) . '/tv'
     <style>
         .tvs { max-width: 520px; margin: 2rem auto 4rem; padding: 0 1rem; }
         .tvs h1 { font-size: 1.5rem; margin: 0 0 .4rem; }
-        .tvs-lead { color: #475569; margin: 0 0 1.4rem; line-height: 1.45; }
+        .tvs-lead { color: var(--fg-475569, #475569); margin: 0 0 1.4rem; line-height: 1.45; }
         .tvs-code { width: 100%; box-sizing: border-box; font-size: 2rem; font-weight: 800; letter-spacing: .25em;
-                    text-transform: uppercase; text-align: center; padding: .5rem; border: 2px solid #cbd5e1;
+                    text-transform: uppercase; text-align: center; padding: .5rem; border: 2px solid var(--bd-cbd5e1, #cbd5e1);
                     border-radius: 10px; font-variant-numeric: tabular-nums; }
         .tvs-code:focus { border-color: #2563eb; }
         .tvs-label { display: block; font-weight: 600; font-size: .9rem; margin: 0 0 .4rem; }
         .tvs-games { display: flex; flex-direction: column; gap: .6rem; margin-top: 1.4rem; }
         .tvs-game { display: flex; align-items: center; justify-content: space-between; gap: .8rem; width: 100%;
-                    text-align: left; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px;
-                    padding: .8rem 1rem; min-height: 56px; font: inherit; cursor: pointer; color: #0f172a; }
+                    text-align: left; background: var(--bg-ffffff, #ffffff); border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px;
+                    padding: .8rem 1rem; min-height: 56px; font: inherit; cursor: pointer; color: var(--fg-0f172a, #0f172a); }
         .tvs-game:hover, .tvs-game:focus-visible { border-color: #2563eb; }
         .tvs-game:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
         .tvs-game .t { font-weight: 700; }
-        .tvs-game .d { display: block; font-size: .82rem; color: #64748b; font-weight: 400; margin-top: .15rem; }
+        .tvs-game .d { display: block; font-size: .82rem; color: var(--fg-64748b, #64748b); font-weight: 400; margin-top: .15rem; }
         .tvs-game .go { flex: none; background: #2563eb; color: #fff; border-radius: 8px; padding: .45rem .8rem; font-weight: 700; font-size: .9rem; }
-        .tvs-live { color: #15803d; font-weight: 700; }
-        .tvs-empty { color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; }
-        .tvs-help { margin-top: 2rem; font-size: .88rem; color: #475569; line-height: 1.5; }
+        .tvs-live { color: var(--fg-15803d, #15803d); font-weight: 700; }
+        .tvs-empty { color: var(--fg-475569, #475569); background: var(--bg-f8fafc, #f8fafc); border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; padding: 1rem; }
+        .tvs-help { margin-top: 2rem; font-size: .88rem; color: var(--fg-475569, #475569); line-height: 1.5; }
     </style>
 </head>
 <body>

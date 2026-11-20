@@ -28,7 +28,7 @@ $help_sections = [
 ];
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="light" data-theme-lock><?php /* own look; stays light in dark mode (style.css) */ ?>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -45,54 +45,54 @@ $help_sections = [
         .docs-side { position: sticky; top: calc(var(--pk-nav-h, 64px) + 1.25rem);
                      align-self: start; padding-top: 2rem;
                      max-height:calc(100vh - var(--pk-nav-h, 64px) - 2rem);max-height:calc(100dvh - var(--pk-nav-h, 64px) - 2rem); overflow-y: auto; }
-        .docs-side-title { font-size: 1.05rem; font-weight: 700; color: #0f172a; margin-bottom: .9rem; }
+        .docs-side-title { font-size: 1.05rem; font-weight: 700; color: var(--fg-0f172a, #0f172a); margin-bottom: .9rem; }
         /* The global `nav` element style (dark, sticky, z-100) is for the site
            bar; this inner nav is a light rail and must opt out of all of it. */
-        .docs-side nav { display: flex; flex-direction: column; gap: 1px; border-left: 2px solid #e2e8f0;
+        .docs-side nav { display: flex; flex-direction: column; gap: 1px; border-left: 2px solid var(--bd-e2e8f0, #e2e8f0);
                          background: none; position: static; z-index: auto; padding: 0; box-shadow: none; }
         .docs-side a { display: block; padding: .42rem .9rem; margin-left: -2px; border-left: 2px solid transparent;
-                       color: #475569; text-decoration: none; font-size: .9rem; line-height: 1.35; }
-        .docs-side a:hover { color: #0f172a; background: #f1f5f9; }
-        .docs-side a.active { color: var(--accent, #2563eb); border-left-color: var(--accent, #2563eb);
-                              font-weight: 600; background: #eff6ff; }
-        .docs-side .docs-back { margin-top: 1.1rem; font-size: .82rem; color: #94a3b8; border-left: none; padding-left: 0; }
-        .docs-side .docs-back:hover { color: #2563eb; background: none; }
+                       color: var(--fg-475569, #475569); text-decoration: none; font-size: .9rem; line-height: 1.35; }
+        .docs-side a:hover { color: var(--fg-0f172a, #0f172a); background: var(--bg-f1f5f9, #f1f5f9); }
+        .docs-side a.active { color: var(--link, #2563eb); border-left-color: var(--accent, #2563eb);
+                              font-weight: 600; background: var(--bg-eff6ff, #eff6ff); }
+        .docs-side .docs-back { margin-top: 1.1rem; font-size: .82rem; color: var(--fg-94a3b8, #94a3b8); border-left: none; padding-left: 0; }
+        .docs-side .docs-back:hover { color: var(--fg-2563eb, #2563eb); background: none; }
 
         /* ── Content ── */
         .docs-main { padding-top: 2rem; min-width: 0; }
         .docs-main h1 { font-size: 2rem; margin: 0 0 .4rem; }
-        .docs-main .subtitle { color: #64748b; margin-bottom: 2.2rem; font-size: 1.02rem; }
+        .docs-main .subtitle { color: var(--fg-64748b, #64748b); margin-bottom: 2.2rem; font-size: 1.02rem; }
         .help-step { margin-bottom: 2.6rem; scroll-margin-top: calc(var(--pk-nav-h, 64px) + 1rem); }
         .help-step h2 { font-size: 1.3rem; margin: 0 0 .75rem; display: flex; align-items: center; gap: .6rem;
-                        padding-top: 1.1rem; border-top: 1px solid #e2e8f0; }
+                        padding-top: 1.1rem; border-top: 1px solid var(--bd-e2e8f0, #e2e8f0); }
         .help-step:first-of-type h2 { border-top: none; padding-top: 0; }
         .help-step .step-num { display: inline-flex; align-items: center; justify-content: center;
                                width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
                                background: var(--accent, #2563eb); color: #fff; font-size: .9rem; font-weight: 600; }
-        .help-step h3 { font-size: 1.02rem; margin: 1.3rem 0 .4rem; color: #0f172a; }
-        .help-step p { margin: .5rem 0; line-height: 1.65; color: #334155; }
-        .help-step ul { margin: .5rem 0 .5rem 1.25rem; line-height: 1.65; color: #334155; }
+        .help-step h3 { font-size: 1.02rem; margin: 1.3rem 0 .4rem; color: var(--fg-0f172a, #0f172a); }
+        .help-step p { margin: .5rem 0; line-height: 1.65; color: var(--fg-334155, #334155); }
+        .help-step ul { margin: .5rem 0 .5rem 1.25rem; line-height: 1.65; color: var(--fg-334155, #334155); }
         .help-step li { margin: .3rem 0; }
-        .help-step .hint { background: #f1f5f9; border-left: 3px solid #94a3b8;
-                           padding: .75rem 1rem; margin: .9rem 0; font-size: .92rem; color: #475569; border-radius: 4px; }
-        .help-step code { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px;
-                          padding: .1rem .35rem; font-size: .86em; color: #0f172a;
+        .help-step .hint { background: var(--bg-f1f5f9, #f1f5f9); border-left: 3px solid var(--bd-94a3b8, #94a3b8);
+                           padding: .75rem 1rem; margin: .9rem 0; font-size: .92rem; color: var(--fg-475569, #475569); border-radius: 4px; }
+        .help-step code { background: var(--bg-f1f5f9, #f1f5f9); border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 4px;
+                          padding: .1rem .35rem; font-size: .86em; color: var(--fg-0f172a, #0f172a);
                           font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
                           overflow-wrap: anywhere; }
-        .help-step kbd { font: .85em ui-monospace, SFMono-Regular, Menlo, monospace; color: #0f172a;
-                         background: #fff; border: 1px solid #cbd5e1; border-bottom-width: 2px;
+        .help-step kbd { font: .85em ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg-0f172a, #0f172a);
+                         background: var(--bg-ffffff, #ffffff); border: 1px solid var(--bd-cbd5e1, #cbd5e1); border-bottom-width: 2px;
                          border-radius: 4px; padding: .05rem .4rem; white-space: nowrap; }
         .help-table { width: 100%; border-collapse: collapse; margin: .75rem 0; font-size: .9rem; }
         /* white-space: normal on purpose: the site sheet keeps data-table cells
            on one line for phones, and inherited by the long <code> lists here
            that made the whole page 1,400px wide on an iPhone. */
-        .help-table th, .help-table td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid #e2e8f0;
+        .help-table th, .help-table td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--bd-e2e8f0, #e2e8f0);
                                          vertical-align: top; white-space: normal; }
-        .help-table th { color: #475569; font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; }
+        .help-table th { color: var(--fg-475569, #475569); font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; }
         figure.help-shot { margin: 1rem 0; }
         figure.help-shot img { max-width: 100%; height: auto; display: block;
-                               border: 1px solid #e2e8f0; border-radius: 8px; }
-        figure.help-shot figcaption { font-size: .82rem; color: #64748b; margin-top: .4rem; line-height: 1.5; }
+                               border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 8px; }
+        figure.help-shot figcaption { font-size: .82rem; color: var(--fg-64748b, #64748b); margin-top: .4rem; line-height: 1.5; }
         .shot-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
         @media (max-width: 640px) { .shot-pair { grid-template-columns: 1fr; } }
         .shot-narrow img { max-width: 340px; }
@@ -100,11 +100,11 @@ $help_sections = [
 
         /* ── Prev / next pager ── */
         .docs-pager { display: flex; gap: 1rem; margin-top: 3rem; }
-        .docs-pager a { flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: .8rem 1rem;
-                        text-decoration: none; color: #334155; background: #fff; }
+        .docs-pager a { flex: 1; border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 8px; padding: .8rem 1rem;
+                        text-decoration: none; color: var(--fg-334155, #334155); background: var(--bg-ffffff, #ffffff); }
         .docs-pager a:hover { border-color: var(--accent, #2563eb); }
         .docs-pager .dir { display: block; font-size: .72rem; text-transform: uppercase;
-                           letter-spacing: .05em; color: #94a3b8; margin-bottom: .2rem; }
+                           letter-spacing: .05em; color: var(--fg-94a3b8, #94a3b8); margin-bottom: .2rem; }
         .docs-pager .next { text-align: right; }
 
         /* ── Small screens: the sidebar becomes a sticky contents bar ── */
@@ -112,16 +112,16 @@ $help_sections = [
         @media (max-width: 860px) {
             .docs { display: block; }
             .docs-side { display: none; position: fixed; top: var(--pk-nav-h, 56px); left: 0; right: 0;
-                         background: #fff; z-index: 90; padding: 1rem 1.5rem 1.25rem;
-                         border-bottom: 1px solid #e2e8f0; box-shadow: 0 12px 24px rgba(15,23,42,.12);
+                         background: var(--bg-ffffff, #ffffff); z-index: 90; padding: 1rem 1.5rem 1.25rem;
+                         border-bottom: 1px solid var(--bd-e2e8f0, #e2e8f0); box-shadow: 0 12px 24px rgba(15,23,42,.12);
                          max-height:calc(100vh - var(--pk-nav-h, 56px));max-height:calc(100dvh - var(--pk-nav-h, 56px)); }
             .docs-side.open { display: block; }
             .docs-m-toggle { display: flex; align-items: center; gap: .5rem; position: sticky;
                              top: var(--pk-nav-h, 56px); z-index: 80; width: 100%;
-                             background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+                             background: var(--bg-f8fafc, #f8fafc); border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 8px;
                              padding: .6rem .9rem; margin: 0 0 1.2rem; font-size: .9rem; font-weight: 600;
-                             color: #334155; cursor: pointer; }
-            .docs-m-toggle::after { content: '▾'; margin-left: auto; color: #94a3b8; }
+                             color: var(--fg-334155, #334155); cursor: pointer; }
+            .docs-m-toggle::after { content: '▾'; margin-left: auto; color: var(--fg-94a3b8, #94a3b8); }
             .docs-m-toggle.open::after { content: '▴'; }
         }
     </style>
@@ -444,8 +444,8 @@ $help_sections = [
         <p>Pick a layout for a game from the Setup &rarr; Timer pane (<a href="#choose-layout">Choose what the display shows</a>), where the binding bar's switch does the pointing. Saving a layout never changes what a game shows unless that game is already using it, in which case the display picks up the new version by itself.</p>
     </div>
 
-    <div class="help-cta" style="text-align:center;padding:2.5rem 1rem;background:#f8fafc;border-radius:8px;margin-top:2rem">
-        <p style="color:#475569;margin-bottom:1.25rem">Layouts are safe to experiment with: the editor has undo everywhere, and a game only shows the layout you point it at.</p>
+    <div class="help-cta" style="text-align:center;padding:2.5rem 1rem;background:var(--bg-f8fafc, #f8fafc);border-radius:8px;margin-top:2rem">
+        <p style="color:var(--fg-475569, #475569);margin-bottom:1.25rem">Layouts are safe to experiment with: the editor has undo everywhere, and a game only shows the layout you point it at.</p>
         <a href="/timer_layouts.php" class="btn btn-primary" style="text-decoration:none">Open the layout editor</a>
     </div>
 

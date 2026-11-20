@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.39.2] - 2026-11-20
+
+### Fixed
+
+- **Table Manager, Send to TV and the timer help page follow dark mode.** Like the timer layout pages before 1.39.1, their colours had not been converted, so they were held in light mode while the rest of the site went dark. They now switch with it. The walk-up QR display stays light on purpose (a QR code scans best dark on white), and the timer screens keep their own look. (`www/table_manager.php`, `www/tv_send.php`, `www/help-timer.php`, `www/style.css`)
+
 ## [v1.39.1] - 2026-11-20
 
 ### Fixed
