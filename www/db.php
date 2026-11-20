@@ -1208,6 +1208,9 @@ JSON;
     )");
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_host_sends_user ON host_sends(user_id, created_at)"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_host_sends_event ON host_sends(event_id, created_at)"); } catch (Exception $e) {}
+    // v1.37.0: how a reset link was sent (email, sms, whatsapp). A reset finished
+    // from an emailed link proves the inbox, so it verifies the address.
+    try { $pdo->exec("ALTER TABLE password_resets ADD COLUMN channel TEXT"); } catch (Exception $e) {}
     // How many guests the send went to: the delivery limit adds these up.
     try { $pdo->exec("ALTER TABLE host_sends ADD COLUMN recipients INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     // How many of those went out as a text (SMS or WhatsApp), added by the

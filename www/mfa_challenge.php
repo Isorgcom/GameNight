@@ -41,11 +41,7 @@ $method = $_SESSION['mfa_method'] ?? ($user['mfa_method'] ?: 'totp');
 // Brute-force cap: too many failed challenges for this account (across IPs) in
 // the last 15 minutes locks the screen briefly. Mirrors login_rate_limited().
 function mfa_challenge_locked(int $user_id): bool {
-    $stmt = get_db()->prepare(
-        "SELECT COUNT(*) FROM activity_log WHERE action = ? AND created_at > datetime('now', '-15 minutes')"
-    );
-    $stmt->execute(['failed_mfa: ' . $user_id]);
-    return (int)$stmt->fetchColumn() >= 8;
+    return mfa_failures_locked($user_id);   // 8 per 15 minutes, 30 a day (auth.php)
 }
 $locked = mfa_challenge_locked($user_id);
 

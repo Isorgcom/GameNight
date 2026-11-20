@@ -42,23 +42,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $token_hash = hash('sha256', $token);
             $expires    = gmdate('Y-m-d H:i:s', strtotime('+1 hour'));
 
-            $db->prepare('INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES (?, ?, ?)')
-               ->execute([$user['id'], $token_hash, $expires]);
-
             $reset_url = get_site_url() . '/reset_password.php?token=' . $token;
             $method    = $user['verification_method'] ?? ($user['preferred_contact'] ?? 'email');
+            // A reset goes only to a channel the account has proven (v1.37.0): a
+            // phone changed in Settings is unverified until its code is entered,
+            // and texting a reset there would hand the account to whoever typed
+            // it. A phone account with an unproven phone falls back to email.
+            $phone_ok = !empty($user['phone']) && (int)($user['phone_verified'] ?? 0) === 1;
+            if ($method !== 'email' && !$phone_ok) $method = 'email';
+            $channel = ($method === 'email') ? (!empty($user['email']) ? 'email' : '') : ($method === 'whatsapp' ? 'whatsapp' : 'sms');
 
-            if ($method === 'email' && !empty($user['email'])) {
+            if ($channel !== '') {
+                $db->prepare('INSERT INTO password_resets (user_id, token_hash, expires_at, channel) VALUES (?, ?, ?, ?)')
+                   ->execute([$user['id'], $token_hash, $expires, $channel]);
+            }
+
+            if ($channel === 'email') {
                 $html = '<p>Hi ' . htmlspecialchars($user['username']) . ',</p>'
                       . '<p>Someone requested a password reset for your ' . htmlspecialchars($site_name) . ' account.</p>'
                       . '<p><a href="' . $reset_url . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">Reset My Password</a></p>'
                       . '<p style="color:#64748b;font-size:.875rem">This link expires in 1 hour. If you did not request this, you can ignore this email.</p>';
                 send_email($user['email'], $user['username'], 'Reset your ' . $site_name . ' password', $html);
-            } elseif (!empty($user['phone'])) {
-                // Phone-based reset: shorten URL and send via user's preferred channel.
-                $short = (get_setting('url_shortener_enabled') === '1') ? shorten_url($reset_url) : $reset_url;
-                $body  = $site_name . ': Reset your password (expires 1h): ' . $short;
-                if ($method === 'whatsapp') {
+            } elseif ($channel !== '') {
+                // Phone-based reset, to the proven phone. The link is never put
+                // through the URL shortener (v1.37.0): that would hand a working
+                // reset token to the shortening service and keep it in short_links.
+                $body  = $site_name . ': Reset your password (expires 1h): ' . $reset_url;
+                if ($channel === 'whatsapp') {
                     send_whatsapp($user['phone'], $body);
                 } else {
                     send_sms($user['phone'], $body);

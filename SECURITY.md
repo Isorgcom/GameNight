@@ -669,7 +669,10 @@ them) and half are conventions someone has to follow.
   told. A changed phone is unverified and `send_mfa_sms_code()` refuses to text
   it; the sign-in page asks for a recovery code instead. `users.session_epoch`
   is bumped by every password change or reset (`invalidate_other_sessions()`)
-  and `current_user()` signs out any session carrying the old value.
+  and `current_user()` signs out any session carrying the old value. Since
+  v1.37.0 the same call also clears `pending_email`, spends unused
+  `email_verifications` and `password_resets`, deletes unredeemed
+  `oauth_codes`, and runs when two-factor is turned on.
   `session.use_strict_mode` is on, and `complete_login()` discards the
   anonymous session's CSRF token so the signed-in session mints its own.
   Over HTTPS the session and remember-me cookies are `__Host-` prefixed, and
@@ -679,6 +682,22 @@ them) and half are conventions someone has to follow.
   token; `logout.php` starts no session without the cookie, because a
   cross-site POST arrives without SameSite=Lax cookies and a fresh session
   would overwrite the real one (the v1.33.1 sign-out let that through).
+- Accounts (v1.37.0, audit batch 3). Verifying a sign-up that has a password
+  asks for it (`verify_email.php`): the inbox alone does not prove who made the
+  account. A reset records its `password_resets.channel`; one finished from an
+  emailed link verifies the address, which is how the real owner takes back an
+  account someone opened with their address. A reset is texted only to a
+  `phone_verified` number and never shortened. Failed sign-ins count under
+  `login_identifier_key()` (the account id when the identifier names one), and
+  every failure costs one bcrypt comparison (`LOGIN_DUMMY_HASH`, cost 12 like
+  real hashes). A device that has signed in carries `__Host-gn_kd`, an HMAC over
+  the account id and its session epoch, and skips the per-account lock (not the
+  per-address one); the owner is emailed when that lock trips.
+  `mfa_failures_locked()` is 8 per 15 minutes and 30 a day, the daily one
+  raising security alert `mfa_lock`. An admin changing another account's
+  password, username, email, phone, role, verified flag or two-factor, or
+  deleting accounts, needs `admin_reauth_required()`: their own password within
+  the last 10 minutes (`ADMIN_REAUTH_SECONDS`).
 - League membership follows approval (v1.12.5): on a league event an approved
   invite that has an account is a member, a pending or denied one is not.
   `walkin.php` enrols only an approved walk-in, and every path that approves an

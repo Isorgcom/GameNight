@@ -11,6 +11,7 @@ $success    = false;
 $error      = '';
 $confirm    = false;   // GET with a token: show a button, do NOT consume the token
 $change     = null;    // the new address when the token confirms an email CHANGE
+$needs_pw   = false;   // a sign-up with a password: verifying asks for it (v1.37.0)
 
 // Reading the row consumes nothing. It tells a signup token (new_email NULL)
 // from an email-change token issued by Settings, which the signed-in account
@@ -19,13 +20,21 @@ $change     = null;    // the new address when the token confirms an email CHANG
 $row = null;
 if ($token_hash !== '') {
     $stmt = $db->prepare("
-        SELECT v.*, u.email FROM email_verifications v
+        SELECT v.*, u.email, u.password_hash FROM email_verifications v
         JOIN users u ON u.id = v.user_id
         WHERE v.token_hash = ? AND v.used = 0 AND v.expires_at > datetime('now')
     ");
     $stmt->execute([$token_hash]);
     $row = $stmt->fetch() ?: null;
     $change = ($row && !empty($row['new_email'])) ? (string)$row['new_email'] : null;
+    // Opening the mail proves the inbox, not that its owner made the account:
+    // anyone can sign up with someone else's address and wait for them to press
+    // Verify, and the account (theirs, with the sign-up's password) would then
+    // own the address and claim what was waiting for it. So an account created
+    // with a password asks for it here. Accounts made at the door, by a share
+    // link or by a league's API have no password and nobody can sign in to them
+    // until a reset, so they verify as before.
+    $needs_pw = $row && $change === null && (string)($row['password_hash'] ?? '') !== '';
 }
 if ($viewer && $change === null && ($token_hash === '' || $row)) { header('Location: /'); exit; }
 
@@ -60,6 +69,19 @@ if ($token_hash === '') {
             } else {
                 $error = 'This email change was cancelled or has already been applied.';
             }
+        }
+    } elseif ($needs_pw && !password_verify((string)($_POST['password'] ?? ''), (string)$row['password_hash'])) {
+        // Five wrong passwords spend the link (the token is secret, so this only
+        // stops someone holding the mail from guessing at length).
+        db_log_activity($row['user_id'], 'verify_email_bad_password', 'warning');
+        $bad = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE user_id = ? AND action = 'verify_email_bad_password' AND created_at > datetime('now', '-1 day')");
+        $bad->execute([$row['user_id']]);
+        if ((int)$bad->fetchColumn() >= 5) {
+            $db->prepare('UPDATE email_verifications SET used=1 WHERE id=?')->execute([$row['id']]);
+            $error = 'Too many wrong passwords; this link no longer works. If you did not sign up, there is nothing to do. To use this address yourself, reset the password.';
+        } else {
+            $confirm = true;
+            $error = 'That is not the password this account was created with.';
         }
     } else {
         $db->prepare('UPDATE users SET email_verified=1 WHERE id=?')->execute([$row['user_id']]);
@@ -99,12 +121,23 @@ $csrf = csrf_token();
             <h2><?= $change !== null ? 'Confirm your new email address' : 'Verify your email' ?></h2>
             <p class="subtitle"><?= $change !== null
                 ? 'Click below to make <strong>' . htmlspecialchars($change) . '</strong> the email address on your account.'
-                : 'Click below to confirm your email address and activate your account.' ?></p>
+                : ($needs_pw ? 'Enter the password you chose when you signed up to confirm this address and activate the account.'
+                             : 'Click below to confirm your email address and activate your account.') ?></p>
+            <?php if ($error !== ''): ?><div class="alert alert-error" style="text-align:left"><?= htmlspecialchars($error) ?></div><?php endif; ?>
             <form method="post" action="/verify_email.php" style="margin-top:1rem">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
                 <input type="hidden" name="token" value="<?= htmlspecialchars($token_raw) ?>">
+                <?php if ($needs_pw): ?>
+                <div class="form-group" style="text-align:left">
+                    <label for="vpw">Password</label>
+                    <input type="password" id="vpw" name="password" required autocomplete="current-password">
+                </div>
+                <?php endif; ?>
                 <button type="submit" class="btn btn-primary" style="display:inline-block"><?= $change !== null ? 'Confirm New Email Address' : 'Verify Email Address' ?></button>
             </form>
+            <?php if ($needs_pw): ?>
+            <p class="hint" style="margin-top:1rem;text-align:left">Did not sign up? Then someone else typed your address, and nothing happens unless the password is entered: you can ignore this email. To use this address yourself, <a href="/forgot_password.php">reset the password</a>; the reset is sent to this inbox and makes the account yours.</p>
+            <?php endif; ?>
         <?php else: ?>
             <h2>Verification Failed</h2>
             <div class="alert alert-error" style="text-align:left"><?= htmlspecialchars($error) ?></div>

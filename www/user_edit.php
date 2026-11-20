@@ -33,6 +33,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $action = $_POST['action'] ?? '';
 
+        // Changes that hand the account to someone need the admin's own password,
+        // once per 10 minutes (v1.37.0): the password, two-factor, deleting it,
+        // and on the profile its name, email, phone, role or verified flag.
+        $sensitive = in_array($action, ['update_password', 'reset_mfa', 'delete'], true);
+        if ($action === 'update_profile') {
+            $pe = strtolower(trim($_POST['email'] ?? ''));
+            $pp = trim($_POST['phone'] ?? ''); $pp = $pp !== '' ? normalize_phone($pp) : '';
+            $sensitive = trim($_POST['username'] ?? '') !== (string)$target['username']
+                || $pe !== strtolower((string)($target['email'] ?? ''))
+                || $pp !== (string)($target['phone'] ?? '')
+                || ($_POST['role'] ?? $target['role']) !== $target['role']
+                || (int)($_POST['email_verified'] ?? $target['email_verified'] ?? 0) !== (int)($target['email_verified'] ?? 0);
+        }
+        if ($sensitive && ($reauthErr = admin_reauth_required((int)$current['id']))) {
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => $reauthErr];
+            header("Location: /user_edit.php?id=$id");
+            exit;
+        }
+
         if ($action === 'update_profile') {
             $username = trim($_POST['username'] ?? '');
             $email    = strtolower(trim($_POST['email'] ?? ''));
@@ -141,6 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $token = csrf_token();
+$reauthFresh = admin_reauth_fresh();   // the admin entered their password in the last 10 minutes
 
 // Leagues this account belongs to, each linked to its page.
 $lq = $db->prepare(
@@ -273,11 +293,18 @@ $site_name = get_setting('site_name', 'Game Night');
                     </div>
                 </div>
 
+                <?php if (!$reauthFresh): ?>
+                <div class="form-group">
+                    <label for="admin_password_p">Your password</label>
+                    <input type="password" id="admin_password_p" name="admin_password" autocomplete="current-password">
+                    <p class="hint">Needed only to change the username, email, phone, role or verified flag, and then not again for 10 minutes.</p>
+                </div>
+                <?php endif; ?>
                 <button type="submit" class="btn btn-primary" style="width:100%;margin-top:1rem">Save Profile</button>
             </form>
         </div>
 
-        <!-- Password reset (no current password required for admin) -->
+        <!-- Password reset: the admin's own password, not the user's (v1.37.0) -->
         <div class="card" style="max-width:100%">
             <h2>Reset Password</h2>
             <p class="subtitle">Set a new password for this user.</p>
@@ -295,6 +322,13 @@ $site_name = get_setting('site_name', 'Game Night');
                     <input type="password" id="confirm_password" name="confirm_password"
                            autocomplete="new-password" required>
                 </div>
+                <?php if (!$reauthFresh): ?>
+                <div class="form-group">
+                    <label for="admin_password_pw">Your password</label>
+                    <input type="password" id="admin_password_pw" name="admin_password" autocomplete="current-password" required>
+                    <p class="hint">Your own admin password, not this user&rsquo;s. Not asked again for 10 minutes.</p>
+                </div>
+                <?php endif; ?>
                 <button type="submit" class="btn btn-primary" style="width:100%">Update Password</button>
             </form>
 
@@ -309,6 +343,13 @@ $site_name = get_setting('site_name', 'Game Night');
                   data-confirm="<?= htmlspecialchars('Reset (disable) two-factor for ' . $target['username'] . '? They will sign in with just their password until they set it up again.', ENT_QUOTES | ENT_SUBSTITUTE) ?>" data-confirm-danger="1">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="reset_mfa">
+                <?php if (!$reauthFresh): ?>
+                <div class="form-group">
+                    <label for="admin_password_mfa">Your password</label>
+                    <input type="password" id="admin_password_mfa" name="admin_password" autocomplete="current-password" required>
+                    <p class="hint">Your own admin password.</p>
+                </div>
+                <?php endif; ?>
                 <button type="submit" class="btn" style="width:100%;background:#dc2626;color:#fff;border:none;font-weight:600">Reset Two-Factor</button>
             </form>
             <?php else: ?>
@@ -371,6 +412,13 @@ $site_name = get_setting('site_name', 'Game Night');
               data-confirm="<?= htmlspecialchars('Permanently delete ' . $target['username'] . '? This cannot be undone.', ENT_QUOTES | ENT_SUBSTITUTE) ?>" data-confirm-ok="Delete" data-confirm-danger="1">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
             <input type="hidden" name="action" value="delete">
+            <?php if (!$reauthFresh): ?>
+            <div class="form-group">
+                <label for="admin_password_del">Your password</label>
+                <input type="password" id="admin_password_del" name="admin_password" autocomplete="current-password" required>
+                <p class="hint">Your own admin password.</p>
+            </div>
+            <?php endif; ?>
             <button type="submit" class="btn" style="background:#dc2626;color:#fff">
                 Delete <?= htmlspecialchars($target['username']) ?>
             </button>

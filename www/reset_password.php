@@ -52,6 +52,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // old password: whoever held one is out, including the device that
                 // prompted the reset.
                 invalidate_other_sessions((int)$reset['user_id']);
+                // A reset finished from an emailed link proves the inbox (v1.37.0).
+                // This is how the real owner of an address takes back an account
+                // someone else signed up with it: verifying that account now asks
+                // for the password it was created with, which only the sign-up knew.
+                if (($reset['channel'] ?? '') === 'email' && !empty($reset['email'])) {
+                    $vq = $db->prepare('UPDATE users SET email_verified = 1 WHERE id = ? AND email_verified = 0');
+                    $vq->execute([(int)$reset['user_id']]);
+                    if ($vq->rowCount() === 1) {
+                        claim_verified_contact((int)$reset['user_id'], (string)$reset['email']);
+                        db_log_activity((int)$reset['user_id'], 'verified email by password reset');
+                    }
+                }
                 send_account_notice((int)$reset['user_id'], 'Your password was reset', 'The password on your account was just reset through a password-reset link, and every signed-in device was signed out.');
                 // Defend against session fixation: any session ID the user had before the
                 // reset is retired. User has to sign in again with the new password.

@@ -472,6 +472,36 @@ function require_login(): array {
  * resend links on the login and MFA-setup screens. Call before send_mfa_sms_code
  * in a resend path; returns true when the cap is hit (skip the send).
  */
+/**
+ * True when an account's second-factor screen is locked: 8 wrong codes in 15
+ * minutes, or 30 in a day (v1.37.0; before, the 15-minute window alone allowed
+ * about 768 guesses a day at a 6-digit code). Reaching the daily cap tells the
+ * admins and the account's owner, once a day: a stranger at that screen knows
+ * the password.
+ */
+const MFA_FAILS_PER_15MIN = 8;
+const MFA_FAILS_PER_DAY   = 30;
+function mfa_failures_locked(int $uid): bool {
+    $db = get_db();
+    $s = $db->prepare("SELECT SUM(created_at > datetime('now', '-15 minutes')), COUNT(*) FROM activity_log
+                       WHERE action = ? AND created_at > datetime('now', '-1 day')");
+    $s->execute(['failed_mfa: ' . $uid]);
+    [$recent, $day] = array_map('intval', $s->fetch(PDO::FETCH_NUM) ?: [0, 0]);
+    if ($day >= MFA_FAILS_PER_DAY) {
+        $told = $db->prepare("SELECT 1 FROM activity_log WHERE user_id = ? AND action = 'mfa_daily_lock' AND created_at > datetime('now', '-1 day') LIMIT 1");
+        $told->execute([$uid]);
+        if (!$told->fetchColumn()) {
+            db_log_activity($uid, 'mfa_daily_lock', 'warning');
+            security_alert('mfa_lock', 'account ' . $uid);
+            send_account_notice($uid, 'Your sign-in code was guessed at',
+                'Someone signed in with your password and then entered a wrong sign-in code ' . MFA_FAILS_PER_DAY . ' times today, so the code screen is locked for the rest of the day. '
+                . 'Whoever it was knows your password: change it now.');
+        }
+        return true;
+    }
+    return $recent >= MFA_FAILS_PER_15MIN;
+}
+
 function mfa_sms_resend_rate_limited(int $uid): bool {
     if ($uid <= 0) return false;
     $db = get_db();
@@ -493,6 +523,7 @@ const SECURITY_ALERT_KINDS = [
     'verify_cap'   => ['verification % withheld: too many%', 'Verification cap hit',   'verification mail or codes withheld %d time%s by the per-account cap'],
     'suppressed'   => ['register_suppressed%',               'Opted-out address used', '%d sign-up%s used an address that asked for no sign-up mail'],
     'login_lock'   => ['login_locked%',                      'Sign-in locked',         'sign-in locked %d time%s after repeated failed attempts'],
+    'mfa_lock'     => ['mfa_daily_lock',                     'Sign-in code guessed',   'the sign-in code screen locked for the day %d time%s after 30 wrong codes (the password was right)'],
 ];
 
 /**
@@ -603,6 +634,20 @@ function login_rate_limited(): bool {
  * by rotating source IPs. Identifier is normalized (lowercased) so case
  * variations share the same counter.
  */
+/**
+ * The key failed sign-ins are counted under (v1.37.0): the account itself when
+ * the identifier names one, so its email, username and a phone typed any way
+ * share one count; otherwise the typed string, lowercased.
+ */
+function login_identifier_key(string $identifier, ?array $row): string {
+    return $row ? 'user#' . (int)$row['id'] : strtolower(trim($identifier));
+}
+
+// A valid bcrypt hash of a random string nobody knows: compared against when
+// there is no account, or the account has no password, so every failed
+// sign-in costs the same one bcrypt check (v1.37.0).
+const LOGIN_DUMMY_HASH = '$2y$12$j0G7oQVBUOf5O9N.pF8GkewyxZvKg65TgRkGMuuQliGzu4d3nxvUK';
+
 function login_rate_limited_for_identifier(string $identifier): bool {
     $norm = strtolower(trim($identifier));
     if ($norm === '') return false;
@@ -657,11 +702,14 @@ function attempt_login(string $identifier, string $password): bool|string {
     // Brute force protection: per-IP (15 min) AND per-identifier (1 hour).
     // Per-IP stops one machine from cycling through passwords quickly.
     // Per-identifier stops a botnet from attacking a single known user.
-    if (login_rate_limited() || login_rate_limited_for_identifier($identifier)) {
+    // The account is looked up first so the per-account count is the account's,
+    // however it was typed (v1.37.0); before, "Dave", "dave@x.com" and the phone
+    // in three formats were five separate allowances.
+    $row = find_user_by_identifier($identifier);
+    $key = login_identifier_key($identifier, $row);
+    if (login_rate_limited() || (login_rate_limited_for_identifier($key) && !($row && is_known_device((int)$row['id'])))) {
         return 'rate_limited';
     }
-
-    $row = find_user_by_identifier($identifier);
 
     // Constant-time guard against username enumeration: always perform exactly one
     // bcrypt operation whether or not the account exists. A real user gets a
@@ -669,24 +717,34 @@ function attempt_login(string $identifier, string $password): bool|string {
     // default cost, whose result is discarded. (The previous hardcoded dummy hash
     // was malformed — 59 chars, algo "unknown" — so password_verify short-circuited
     // and leaked a ~4x timing difference that revealed which identifiers exist.)
-    if ($row) {
-        $authed = password_verify($password, $row['password_hash']);
+    // One bcrypt comparison on every path (v1.37.0): an account with no password
+    // (made at the door) used to fail in no time, and hashing the attempt for an
+    // unknown name threw on a NUL byte, so the answer told the cases apart.
+    $pw_hash = $row ? (string)($row['password_hash'] ?? '') : '';
+    if ($pw_hash !== '') {
+        $authed = password_verify($password, $pw_hash);
     } else {
-        password_hash($password, PASSWORD_BCRYPT); // burn equivalent time, discard
+        password_verify($password, LOGIN_DUMMY_HASH);   // burn equivalent time, discard
         $authed = false;
     }
     if (!$authed) {
         $id = strtolower(trim($identifier));
-        db_log_anon_activity('failed_login: ' . $id, 'critical');
+        db_log_anon_activity('failed_login: ' . $key, 'critical');
         // The failure that reaches the cap locks sign-in from this address for
         // 15 minutes (login_rate_limited()) or for this identifier for an hour;
         // later attempts are turned away above before reaching this point, so
         // the lock is logged once and the admins told once (v1.19.9).
-        if (login_rate_limited() || login_rate_limited_for_identifier($id)) {
+        if (login_rate_limited() || login_rate_limited_for_identifier($key)) {
             $shown = strpos($id, '@') !== false ? email_masked($id)
                    : (preg_match('/^\+?[\d\s().-]{6,}$/', $id) ? '***' . substr(preg_replace('/\D/', '', $id), -4) : substr($id, 0, 1) . '***');
             db_log_anon_activity('login_locked: ' . $shown, 'warning');
             security_alert('login_lock', 'identifier ' . $shown);
+            // The owner hears about it once, when the per-account lock trips.
+            if ($row && login_rate_limited_for_identifier($key)) {
+                send_account_notice((int)$row['id'], 'Sign-in to your account was paused',
+                    'Someone typed the wrong password for your account five times in the last hour, so signing in to it is paused for an hour. '
+                    . 'Any phone or computer you have signed in from before can still sign in. If this was not you, nothing is needed, but you may want to change your password.');
+            }
         }
         return false;
     }
@@ -733,6 +791,33 @@ function complete_login(int $user_id): void {
     get_db()->prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?')
             ->execute([$user_id]);
     db_log_activity($user_id, 'login');
+    set_known_device_cookie($user_id);
+}
+
+// ── Devices that have signed in before (v1.37.0) ────────────────────────────
+// Five wrong passwords lock an account's sign-in for an hour, and anyone can
+// type them, so the lock could keep the owner out. A device that has signed
+// in to the account carries a signed cookie, and the per-account lock does
+// not apply to it (the per-address lock still does). The signature covers the
+// account's session epoch, so a password change retires every such cookie.
+function known_device_cookie_name(): string { return _is_https() ? '__Host-gn_kd' : 'gn_kd'; }
+
+function known_device_sig(int $user_id): string {
+    return hash_hmac('sha256', 'known-device:' . $user_id . ':' . user_session_epoch($user_id), APP_SECRET);
+}
+
+function set_known_device_cookie(int $user_id): void {
+    if (headers_sent()) return;
+    setcookie(known_device_cookie_name(), $user_id . '.' . known_device_sig($user_id), [
+        'expires' => time() + 365 * 86400, 'path' => '/', 'secure' => _is_https(), 'httponly' => true, 'samesite' => 'Lax',
+    ]);
+}
+
+function is_known_device(int $user_id): bool {
+    $v = (string)($_COOKIE[known_device_cookie_name()] ?? '');
+    $dot = strpos($v, '.');
+    if ($dot === false || (int)substr($v, 0, $dot) !== $user_id) return false;
+    return hash_equals(known_device_sig($user_id), substr($v, $dot + 1));
 }
 
 function logout(): void {
@@ -776,9 +861,19 @@ function invalidate_other_sessions(int $user_id, bool $keep_current = false): vo
     // Personal API tokens are sessions that happen to live in another program:
     // a password change or "sign out everywhere" ends them too.
     try { $db->prepare('DELETE FROM api_tokens WHERE user_id = ?')->execute([$user_id]); } catch (Exception $e) {}
+    // Every way back into the account that the old password's holder could
+    // have set up ends too (v1.37.0): a pending email change (and its link),
+    // any other unused verification or reset link, and a connected app's
+    // sign-in code not yet redeemed. Otherwise whoever changed the email or
+    // started a connection before the password changed could finish it after.
+    try { $db->prepare('UPDATE users SET pending_email = NULL WHERE id = ?')->execute([$user_id]); } catch (Exception $e) {}
+    try { $db->prepare('UPDATE email_verifications SET used = 1 WHERE user_id = ? AND used = 0')->execute([$user_id]); } catch (Exception $e) {}
+    try { $db->prepare('UPDATE password_resets SET used = 1 WHERE user_id = ? AND used = 0')->execute([$user_id]); } catch (Exception $e) {}
+    try { $db->prepare('DELETE FROM oauth_codes WHERE user_id = ? AND used_at IS NULL')->execute([$user_id]); } catch (Exception $e) {}
     if ($keep_current) {
         session_start_safe();
         $_SESSION['session_epoch'] = user_session_epoch($user_id);
+        set_known_device_cookie($user_id);   // its signature covers the epoch just bumped
     }
 }
 
@@ -858,6 +953,15 @@ function register_user(string $username, string $email, string $password, string
     // same "verification pending" screen) while creating nothing. (Username
     // collisions below still return a plain message: the user must be told to
     // pick another handle, and usernames are already visible to league members.)
+    // The username is checked FIRST (v1.37.0). Checked after the address, a taken
+    // username paired with an address answered "does this address have an
+    // account?": the sentinel's success screen for a registered one, the
+    // "username taken" message for a free one.
+    $stmt = $db->prepare('SELECT id FROM users WHERE LOWER(username) = LOWER(?)');
+    $stmt->execute([$username]);
+    if ($stmt->fetch()) {
+        return 'That username is already taken.';
+    }
     if ($email !== '') {
         $stmt = $db->prepare('SELECT id FROM users WHERE LOWER(email) = ?');
         $stmt->execute([$email]);
@@ -878,13 +982,6 @@ function register_user(string $username, string $email, string $password, string
         if ($stmt->fetch()) {
             return REGISTER_EXISTS_SENTINEL;
         }
-    }
-
-    // Check username uniqueness (case-insensitive)
-    $stmt = $db->prepare('SELECT id FROM users WHERE LOWER(username) = LOWER(?)');
-    $stmt->execute([$username]);
-    if ($stmt->fetch()) {
-        return 'That username is already taken.';
     }
 
     // Text is the default channel whenever a phone number is given, even alongside
@@ -1325,6 +1422,34 @@ function confirm_current_password(int $user_id, string $password): string {
         return 'wrong';
     }
     return 'ok';
+}
+
+// ── An admin re-confirming their password (v1.37.0) ─────────────────────────
+// Changing another account's password, email, phone, role, verified flag or
+// two-factor, or deleting it, hands that account to whoever holds the admin
+// session: a borrowed laptop or a stolen cookie was enough. These now need the
+// admin's own password, entered at most every 10 minutes.
+const ADMIN_REAUTH_SECONDS = 600;
+
+function admin_reauth_fresh(): bool {
+    session_start_safe();
+    return (int)($_SESSION['admin_reauth_at'] ?? 0) > time() - ADMIN_REAUTH_SECONDS;
+}
+
+/** Check the admin's password; on 'ok' the 10-minute window opens. Returns confirm_current_password()'s result. */
+function admin_reauth_try(int $admin_id, string $password): string {
+    $r = confirm_current_password($admin_id, $password);
+    if ($r === 'ok') { session_start_safe(); $_SESSION['admin_reauth_at'] = time(); }
+    return $r;
+}
+
+/** Null when the admin may make a sensitive change now (window open, or the posted admin_password is right), else the message to show. */
+function admin_reauth_required(int $admin_id): ?string {
+    if (admin_reauth_fresh()) return null;
+    $pw = (string)($_POST['admin_password'] ?? '');
+    if ($pw === '') return 'Enter your own password to make this change.';
+    $r = admin_reauth_try($admin_id, $pw);
+    return $r === 'ok' ? null : password_confirm_message($r);
 }
 
 /** The message for a confirm_current_password() result other than 'ok'. */

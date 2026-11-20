@@ -303,6 +303,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $post_tab = 'users';
         }
 
+        // Deleting a user, bulk role and bulk delete need the admin's own password once per 10
+        // minutes (v1.37.0); the forms carry a field for it when it is due.
+        if (in_array($action, ['delete', 'bulk_role', 'bulk_delete'], true) && ($reauthErr = admin_reauth_required((int)$current['id']))) {
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => $reauthErr];
+            header('Location: /admin_settings.php?tab=users');
+            exit;
+        }
+
         if ($action === 'delete') {
             $id  = (int)($_POST['id'] ?? 0);
             $err = null;
@@ -352,10 +360,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $post_tab = 'users';
         }
 
+        // The Users grid asks for the admin's password when a change needs it,
+        // then retries (v1.37.0). Answers JSON.
+        if ($action === 'admin_reauth') {
+            $r = admin_reauth_try((int)$current['id'], (string)($_POST['admin_password'] ?? ''));
+            header('Content-Type: application/json');
+            echo json_encode($r === 'ok' ? ['ok' => true] : ['ok' => false, 'error' => password_confirm_message($r)]);
+            exit;
+        }
+
         if ($action === 'update_user') {
             $id    = (int)($_POST['id'] ?? 0);
             $field = $_POST['field'] ?? '';
             $value = trim($_POST['value'] ?? '');
+            // Who the account is and where it is recovered need the admin's own
+            // password within the last 10 minutes (v1.37.0); 401 tells the grid to ask.
+            if (in_array($field, ['username', 'email', 'phone', 'role'], true) && !admin_reauth_fresh()) {
+                http_response_code(401); exit('reauth');
+            }
             $allowed_fields = ['username', 'email', 'phone', 'role', 'tier', 'preferred_contact', 'notes'];
             if ($id > 0 && in_array($field, $allowed_fields, true)) {
                 if ($field === 'role') {
@@ -2113,6 +2135,12 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 </span>
             </div>
 
+            <?php if (!admin_reauth_fresh()): ?>
+            <div class="alert" role="note" style="background:var(--bg-fffbeb, #fffbeb);border:1px solid #f59e0b;color:var(--fg-92400e, #92400e);display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+                <span>Changing a user&rsquo;s name, email, phone or role, or deleting accounts, needs your own password, then not again for 10 minutes.</span>
+                <button type="button" class="btn btn-sm btn-outline" data-act="ugReauthNow">Confirm it&rsquo;s you</button>
+            </div>
+            <?php endif; ?>
             <div id="ugBulkBar">
                 <span class="bulk-label"><span id="ugBulkCount">0</span> selected</span>
                 <form id="ugBulkDeleteForm" method="post" action="/admin_settings.php"
@@ -2120,12 +2148,14 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="bulk_delete">
                     <input type="hidden" name="tab" value="users">
+                    <?php if (!admin_reauth_fresh()): ?><input type="password" name="admin_password" required autocomplete="current-password" placeholder="Your password" aria-label="Your password" style="padding:.3rem .5rem;border:1px solid var(--bd-bfdbfe, #bfdbfe);border-radius:6px;font-size:.82rem;width:9rem"><?php endif; ?>
                     <button type="submit" class="btn btn-sm" style="background:#ef4444;color:#fff">Delete Selected</button>
                 </form>
                 <form id="ugBulkRoleForm" method="post" action="/admin_settings.php" style="display:flex;gap:.4rem;align-items:center">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="bulk_role">
                     <input type="hidden" name="tab" value="users">
+                    <?php if (!admin_reauth_fresh()): ?><input type="password" name="admin_password" required autocomplete="current-password" placeholder="Your password" aria-label="Your password" style="padding:.3rem .5rem;border:1px solid var(--bd-bfdbfe, #bfdbfe);border-radius:6px;font-size:.82rem;width:9rem"><?php endif; ?>
                     <select name="role" style="padding:.3rem .5rem;border:1px solid var(--bd-bfdbfe, #bfdbfe);border-radius:6px;font-size:.82rem;background:var(--bg-ffffff, #ffffff)">
                         <option value="user">Set role: User</option>
                         <option value="admin">Set role: Admin</option>
@@ -2260,7 +2290,26 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 saveTimer = setTimeout(() => { ind.style.display = 'none'; }, 1800);
             }
 
-            function saveField(id, field, value, el) {
+            // Username, email, phone and role need the admin's own password once
+            // per 10 minutes (v1.37.0): a 401 asks for it, then the save is retried.
+            // Cancelling puts the old value back.
+            function reauth() {
+                return pkPrompt('Enter your own password to change this. It is not asked again for 10 minutes.',
+                                { title: 'Confirm it is you', okLabel: 'Confirm', inputType: 'password' })
+                    .then(pw => {
+                        if (pw === null || pw === undefined || pw === '') return false;
+                        const fd = new FormData();
+                        fd.append('csrf_token', csrf); fd.append('action', 'admin_reauth'); fd.append('admin_password', pw);
+                        return fetch('/admin_settings.php', { method: 'POST', body: fd }).then(r => r.json())
+                            .then(j => { if (j && j.ok) return true; pkAlert((j && j.error) || 'That password did not work.'); return false; });
+                    });
+            }
+
+            // The note's button: open the 10-minute window, then reload so the
+            // row and bulk forms drop their password fields.
+            window.ugReauthNow = function () { reauth().then(ok => { if (ok) location.reload(); }); };
+
+            function saveField(id, field, value, el, prev, retried) {
                 const fd = new FormData();
                 fd.append('csrf_token', csrf);
                 fd.append('action', 'update_user');
@@ -2270,12 +2319,19 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 fd.append('value', value);
                 fetch('/admin_settings.php', { method: 'POST', body: fd })
                     .then(r => {
-                        if (r.ok) { showSaved(); }
+                        if (r.ok) { showSaved(); if (el) el.dataset.orig = value; }
+                        else if (r.status === 401 && !retried) {
+                            reauth().then(ok => {
+                                if (ok) saveField(id, field, value, el, prev, true);
+                                else if (el) { el.value = prev; el.dataset.orig = prev; }
+                            });
+                        }
                         else if (r.status === 409 && el) {
                             // last admin — revert
-                            el.value = el.dataset.orig;
+                            el.value = prev; el.dataset.orig = prev;
                             pkAlert('Cannot demote the last admin.');
                         }
+                        else if (el) { el.value = prev; el.dataset.orig = prev; }
                     });
             }
 
@@ -2283,8 +2339,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             document.querySelectorAll('#usersGrid .ug-cell-input').forEach(inp => {
                 inp.dataset.orig = inp.value;
                 inp.addEventListener('change', function () {
-                    saveField(this.dataset.id, this.dataset.field, this.value, this);
-                    this.dataset.orig = this.value;
+                    saveField(this.dataset.id, this.dataset.field, this.value, this, this.dataset.orig);
                 });
             });
 
@@ -2292,8 +2347,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             document.querySelectorAll('#usersGrid .ug-cell-select').forEach(sel => {
                 sel.dataset.orig = sel.value;
                 sel.addEventListener('change', function () {
-                    saveField(this.dataset.id, this.dataset.field, this.value, this);
-                    this.dataset.orig = this.value;
+                    saveField(this.dataset.id, this.dataset.field, this.value, this, this.dataset.orig);
                 });
             });
 
