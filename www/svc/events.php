@@ -334,11 +334,23 @@ function gn_guests_resolve(PDO $db, array $actor, $guests): array {
     $rows = []; $seen = [];
     foreach ($guests as $i => $g) {
         if (!is_array($g)) return gn_err('bad_field', "guests[$i] must be an object.", 400);
-        $bad = array_diff(array_keys($g), ['user_id', 'name', 'email', 'phone', 'role']);
+        $bad = array_diff(array_keys($g), ['user_id', 'contact_id', 'name', 'email', 'phone', 'role']);
         if ($bad) return gn_err('unknown_field', "Unknown field in guests[$i]: " . implode(', ', $bad) . '.', 400);
         $role = $g['role'] ?? 'invitee';
         if (!in_array($role, ['invitee', 'manager'], true)) return gn_err('bad_field', "guests[$i].role must be invitee or manager.", 400);
-        if (isset($g['user_id'])) {
+        // One of the actor's own contacts (v1.38.0). Contacts no longer say
+        // whether they have an account (gn_known_user_ids()), so a contact is
+        // named by its own id and the server follows its link: an invite to a
+        // contact with an account reaches that account, as on the site.
+        if (isset($g['contact_id'])) {
+            $c = $db->prepare('SELECT c.contact_name, c.contact_email, c.contact_phone, c.linked_user_id, u.username FROM user_contacts c
+                               LEFT JOIN users u ON u.id = c.linked_user_id WHERE c.id = ? AND c.owner_user_id = ?');
+            $c->execute([(int)$g['contact_id'], (int)$actor['id']]);
+            $cr = $c->fetch(PDO::FETCH_ASSOC);
+            if (!$cr) return gn_err('guest_not_found', "guests[$i]: no such contact.", 404);
+            if (!empty($cr['username'])) { $name = (string)$cr['username']; $email = ''; $phone = ''; }
+            else { $name = (string)$cr['contact_name']; $email = (string)($cr['contact_email'] ?? ''); $phone = (string)($cr['contact_phone'] ?? ''); }
+        } elseif (isset($g['user_id'])) {
             $uid = (int)$g['user_id'];
             $u = $db->prepare('SELECT id, username FROM users WHERE id = ?');
             $u->execute([$uid]);
@@ -510,10 +522,17 @@ function gn_event_update(PDO $db, array $actor, int $event_id, array $body): arr
 }
 
 /** Cancel and keep: every guest is told it is off, the event stays so it can be duplicated. */
-function gn_event_cancel(PDO $db, array $actor, int $event_id): array {
+function gn_event_cancel(PDO $db, array $actor, int $event_id, array $body = []): array {
     $ev = gn_event_guard($db, $actor, $event_id, true);
     if (isset($ev['ok'])) return $ev;
     if ($e = gn_needs_messages($actor, 'Cancelling an event')) return $e;
+    if ($bad = array_diff(array_keys($body), ['confirm'])) return gn_err('unknown_field', 'Unknown field: ' . implode(', ', $bad) . '.', 400);
+    if (empty($ev['cancelled_at'])) {
+        $n = $db->prepare("SELECT COUNT(*) FROM event_invites WHERE event_id = ? AND occurrence_date IS NULL AND COALESCE(approval_status, 'approved') = 'approved'");
+        $n->execute([$event_id]);
+        if ($e = gn_confirm($db, $actor, 'cancel_event', 'event:' . $event_id, $body['confirm'] ?? null,
+                'Cancelling "' . $ev['title'] . '" tells every guest on the list (' . (int)$n->fetchColumn() . ') by email or text that it is off. The event is kept, marked cancelled.')) return $e;
+    }
     $res = cancel_event_keep($db, $event_id, (int)$actor['id']);
     if ($res === null) return gn_err('event_not_found', 'No such event.', 404);
     return gn_ok(['event_id' => $event_id, 'title' => (string)$res['title'], 'cancelled' => true,
@@ -523,7 +542,7 @@ function gn_event_cancel(PDO $db, array $actor, int $event_id): array {
 /**
  * Delete an event for good: its guest list, messages, comments and game go
  * with it, and guests of an upcoming event are told unless notify is false
- * (a silent delete). Needs confirm: true.
+ * (a silent delete). Needs a one-time confirm code (gn_confirm()).
  */
 function gn_event_delete(PDO $db, array $actor, int $event_id, array $body): array {
     $ev = gn_event_guard($db, $actor, $event_id, true);
@@ -535,15 +554,16 @@ function gn_event_delete(PDO $db, array $actor, int $event_id, array $body): arr
     $tz = new DateTimeZone(get_setting('timezone', 'UTC'));
     $wouldTell = $notify && empty($ev['cancelled_at']) && (string)$ev['start_date'] >= (new DateTime('now', $tz))->format('Y-m-d');
     if ($wouldTell && ($e = gn_needs_messages($actor, 'Deleting an upcoming event (every guest is told; send "notify": false to delete without telling anyone)'))) return $e;
-    if (($body['confirm'] ?? null) !== true) {
-        $n = $db->prepare('SELECT COUNT(*) FROM event_invites WHERE event_id = ? AND occurrence_date IS NULL');
-        $n->execute([$event_id]);
-        return gn_err('confirmation_required', 'Deleting "' . $ev['title'] . '" removes it for good, with its guest list (' . (int)$n->fetchColumn()
+    $n = $db->prepare('SELECT COUNT(*) FROM event_invites WHERE event_id = ? AND occurrence_date IS NULL');
+    $n->execute([$event_id]);
+    // The code covers whether guests are told: one shown for a silent delete
+    // does not authorise a delete that tells everyone (v1.38.0).
+    if ($e = gn_confirm($db, $actor, 'delete_event', 'event:' . $event_id . ':' . ($wouldTell ? 'tell' : 'quiet'), $body['confirm'] ?? null,
+            'Deleting "' . $ev['title'] . '" removes it for good, with its guest list (' . (int)$n->fetchColumn()
             . '), messages, comments and any game results. It cannot be undone. '
             . ($wouldTell ? 'Every guest is told it is cancelled; send "notify": false to delete without telling anyone. '
                           : 'Nobody is notified. ')
-            . 'To keep the record and only call it off, use cancel. Send {"confirm": true} to delete.', 409);
-    }
+            . 'To keep the record and only call it off, use cancel.')) return $e;
     $db->beginTransaction();
     try {
         $db->prepare('DELETE FROM pending_notifications WHERE event_id = ?')->execute([$event_id]);
@@ -744,7 +764,7 @@ function gn_invite_update(PDO $db, array $actor, int $event_id, int $invite_id, 
  * removed, as when a host removes them on the site. The event's creator
  * cannot be removed from their own event this way.
  */
-function gn_invite_remove(PDO $db, array $actor, int $event_id, int $invite_id): array {
+function gn_invite_remove(PDO $db, array $actor, int $event_id, int $invite_id, array $body = []): array {
     $ev = gn_event_guard($db, $actor, $event_id);
     if (isset($ev['ok'])) return $ev;
     $inv = gn_invite_row($db, $event_id, $invite_id);
@@ -756,6 +776,9 @@ function gn_invite_remove(PDO $db, array $actor, int $event_id, int $invite_id):
     // On an upcoming event the guest is told (and a waitlisted guest may be
     // promoted and told), so it needs the messages scope (v1.36.0).
     if ($notify && ($e = gn_needs_messages($actor, 'Removing a guest from an upcoming event'))) return $e;
+    if ($bad = array_diff(array_keys($body), ['confirm'])) return gn_err('unknown_field', 'Unknown field: ' . implode(', ', $bad) . '.', 400);
+    if ($notify && ($e = gn_confirm($db, $actor, 'remove_guest', 'invite:' . $event_id . ':' . $invite_id, $body['confirm'] ?? null,
+            'Removing ' . $inv['username'] . ' from "' . $ev['title'] . '" tells them by email or text that they are off the list.'))) return $e;
     $db->beginTransaction();
     try {
         if ($notify) {

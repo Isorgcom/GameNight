@@ -241,6 +241,11 @@ function gn_host_message_send(PDO $db, array $actor, int $event_id, array $args)
     $rows->execute([$event_id]);
     $targets = $rows->fetchAll(PDO::FETCH_COLUMN);
     if ($lim = gn_host_message_limit($db, $event_id, (int)$actor['id'], count($targets))) return $lim;
+    // The code is tied to this exact subject, text and audience (v1.38.0), so
+    // what is sent is what the person was shown.
+    $who = ['yes' => 'everyone who said yes', 'yes_maybe' => 'everyone who said yes or maybe', 'all' => 'everyone on the list'][$audience];
+    if ($e = gn_confirm($db, $actor, 'message_guests', 'event:' . $event_id . ':' . hash('sha256', $audience . "\0" . $subject . "\0" . $body), $args['confirm'] ?? null,
+            'This sends "' . $subject . '" to ' . $who . ' (' . count($targets) . ' guest' . (count($targets) === 1 ? '' : 's') . ') by email or text, at once.')) return $e;
 
     $token = preg_match('/^[a-f0-9]{32}$/', (string)($args['token'] ?? '')) ? (string)$args['token'] : bin2hex(random_bytes(16));
     $db->prepare('INSERT INTO event_messages (event_id, occurrence_date, token, subject, body_html, audience, created_by, attachment_name, attachment_file) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')

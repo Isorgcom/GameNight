@@ -48,7 +48,8 @@ function v2_finish(array $actor, string $pattern, array $res, ?array $idem = nul
     }
     $http = (int)($res['http'] ?? 400);
     api_token_log($actor['token_id'], $http, API_V2_BASE . $pattern);
-    v2_send($http, ['ok' => false, 'error' => (string)($res['code'] ?? 'error'), 'message' => (string)($res['message'] ?? '')]);
+    v2_send($http, ['ok' => false, 'error' => (string)($res['code'] ?? 'error'), 'message' => (string)($res['message'] ?? '')]
+        + (isset($res['confirm_code']) ? ['confirm_code' => (string)$res['confirm_code']] : []));
 }
 
 /**
@@ -120,9 +121,9 @@ function v2_routes(): array {
             fn($a, $p, $q, $b) => gn_event_create($db, $a, $b)],
         ['PATCH', '/events/{id}', 'events', 'Host. Change an event: any of the create fields except guests. Only what you send changes.',
             fn($a, $p, $q, $b) => gn_event_update($db, $a, $p['id'], $b)],
-        ['POST', '/events/{id}/cancel', 'events', 'Host. Call the event off and keep it: every guest is told (so this needs the messages scope too), and it can still be duplicated.',
-            fn($a, $p, $q, $b) => gn_event_cancel($db, $a, $p['id'])],
-        ['DELETE', '/events/{id}', 'events', 'Host. Delete the event for good, with its guest list, messages and game. Body: {"confirm": true}, and "notify": false to delete without telling the guests of an upcoming event; without confirm the answer says what would be lost and who would be told. Telling the guests needs the messages scope too.',
+        ['POST', '/events/{id}/cancel', 'events', 'Host. Call the event off and keep it: every guest is told (so this needs the messages scope too), and it can still be duplicated. Call it once to get a preview and a one-time code, then again with {"confirm": "<code>"}.',
+            fn($a, $p, $q, $b) => gn_event_cancel($db, $a, $p['id'], $b)],
+        ['DELETE', '/events/{id}', 'events', 'Host. Delete the event for good, with its guest list, messages and game. Body: {"confirm": "<code>"} with the code a first call without it returns, and "notify": false to delete without telling the guests of an upcoming event; without confirm the answer says what would be lost and who would be told. Telling the guests needs the messages scope too.',
             fn($a, $p, $q, $b) => gn_event_delete($db, $a, $p['id'], $b)],
         ['POST', '/events/{id}/duplicate', 'events', 'Host. A new event copied from this one, guest list included, nobody\'s answer carried over. Body: start_at (required), title, end_at.',
             fn($a, $p, $q, $b) => gn_event_duplicate($db, $a, $p['id'], $b)],
@@ -131,8 +132,8 @@ function v2_routes(): array {
             fn($a, $p, $q, $b) => gn_invites_add($db, $a, $p['id'], $b)],
         ['PATCH', '/events/{id}/invites/{iid}', 'events', 'Host. Change one guest. Body: rsvp (yes, no, maybe or null), role (invitee or manager).',
             fn($a, $p, $q, $b) => gn_invite_update($db, $a, $p['id'], $p['iid'], $b)],
-        ['DELETE', '/events/{id}/invites/{iid}', 'events', 'Host. Take a guest off the list. On an upcoming event they are told, which needs the messages scope too.',
-            fn($a, $p, $q, $b) => gn_invite_remove($db, $a, $p['id'], $p['iid'])],
+        ['DELETE', '/events/{id}/invites/{iid}', 'events', 'Host. Take a guest off the list. On an upcoming event they are told, which needs the messages scope too, and a one-time code from a first call: {"confirm": "<code>"}.',
+            fn($a, $p, $q, $b) => gn_invite_remove($db, $a, $p['id'], $p['iid'], $b)],
         ['POST', '/events/{id}/invites/{iid}/approve', 'events', 'Host. Approve a guest who asked to come or is on the waitlist. They are told (so this needs the messages scope too), and seated if it is a poker game.',
             fn($a, $p, $q, $b) => gn_invite_decide($db, $a, $p['id'], $p['iid'], true)],
         ['POST', '/events/{id}/invites/{iid}/deny', 'events', 'Host. Turn down a guest who asked to come.',
@@ -164,7 +165,7 @@ function v2_routes(): array {
             fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'payouts', $b, $f)],
         ['POST', '/events/{id}/game/start', 'game', 'Host. Start the game.',
             fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'start', [], $f)],
-        ['POST', '/events/{id}/game/finish', 'game', 'Host. Finish the game: results and payouts are recorded, tickets issued, winners told. Body: {"confirm": true}.',
+        ['POST', '/events/{id}/game/finish', 'game', 'Host. Finish the game: results and payouts are recorded, tickets issued, winners told. Call it once without confirm to get a preview and a one-time code, then again with {"confirm": "<code>"}.',
             fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'finish', $b, $f)],
         ['POST', '/events/{id}/game/reopen', 'game', 'Host. Reopen a finished game. Refused once a ticket it issued has been used or jackpot money paid out.',
             fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'reopen', [], $f)],
@@ -202,7 +203,7 @@ function v2_routes(): array {
             fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'break_up_table', ['table' => $p['n']], $f)],
         ['POST', '/events/{id}/game/ledger/{eid}/void', 'game', 'Host. Void one money entry (a buy-in, rebuy, add-on, cash in or cash out) from a player\'s ledger. It stays in the log, struck out.',
             fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'void_entry', ['entry_id' => $p['eid']], $f)],
-        ['POST', '/events/{id}/game/clock', 'game', 'Host. Body: {"command": "play" | "pause" | "next" | "previous" | "add_minute" | "subtract_minute" | "reset_level" | "undo" | "reset"}. reset needs "confirm": true.',
+        ['POST', '/events/{id}/game/clock', 'game', 'Host. Body: {"command": "play" | "pause" | "next" | "previous" | "add_minute" | "subtract_minute" | "reset_level" | "undo" | "reset"}. reset needs "confirm": "<code>", the one-time code a first call without it returns.',
             fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'clock', $b, $f)],
 
         ['GET', '/presets', 'read', 'What a game can be set up from: game_presets (saved setups), blind_schedules and timer_layouts (built-in and saved), as the check-in console lists them.',
@@ -263,11 +264,11 @@ function v2_invite_resend(PDO $db, array $actor, int $event_id, int $invite_id):
 }
 
 function v2_host_message(PDO $db, array $actor, int $event_id, array $b): array {
-    $bad = array_diff(array_keys($b), ['subject', 'body', 'audience']);
+    $bad = array_diff(array_keys($b), ['subject', 'body', 'audience', 'confirm']);
     if ($bad) return gn_err('unknown_field', 'Unknown field: ' . implode(', ', $bad) . '.', 400);
     foreach (['subject', 'body'] as $k) if (!is_string($b[$k] ?? null)) return gn_err('bad_field', "\"$k\" is required and must be text.", 400);
     $body = v2_text_or_html($b['body']);
-    return gn_host_message_send($db, $actor, $event_id, ['subject' => $b['subject'], 'body' => $body, 'audience' => $b['audience'] ?? 'yes']);
+    return gn_host_message_send($db, $actor, $event_id, ['subject' => $b['subject'], 'body' => $body, 'audience' => $b['audience'] ?? 'yes', 'confirm' => $b['confirm'] ?? null]);
 }
 
 /** A body that uses formatting tags is HTML; anything else is plain text that keeps its line breaks. */

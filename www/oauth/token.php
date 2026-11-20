@@ -53,12 +53,28 @@ if ($grant === 'authorization_code') {
 if ($grant === 'refresh_token') {
     $rt = (string)($_POST['refresh_token'] ?? '');
     if (!preg_match('/^gnr_[a-f0-9]{64}$/', $rt)) oauth_error('invalid_grant', 'That refresh token is not valid.');
+    // The app says who it is (v1.38.0); before, client_id was optional here.
+    if ($cid === '') oauth_error('invalid_request', 'client_id is required.');
     $db->beginTransaction();
+    // A refresh token that was already rotated away being used again: two
+    // parties hold it, the app and someone who copied it. End the connection
+    // (v1.38.0); the person signs in again and is told.
+    $reuse = $db->prepare('SELECT t.id, t.user_id, cl.client_name, cl.client_id AS cid FROM api_tokens t JOIN oauth_clients cl ON cl.id = t.client_id WHERE t.prev_refresh_hash = ?');
+    $reuse->execute([hash('sha256', $rt)]);
+    if ($r = $reuse->fetch(PDO::FETCH_ASSOC)) {
+        $db->prepare('DELETE FROM api_tokens WHERE id = ?')->execute([(int)$r['id']]);
+        $db->commit();
+        db_log_activity((int)$r['user_id'], 'connected app disconnected: refresh token reused', 'warning');
+        require_once __DIR__ . '/../auth.php';   // send_account_notice(); only on this rare path
+        send_account_notice((int)$r['user_id'], 'A connected app was disconnected',
+            'An old sign-in key for ' . ($r['client_name'] ?: 'a connected app') . ' was used after it had been replaced, which happens when a copy of it is in someone else\'s hands. The app was disconnected to be safe. If you use it, connect it again from the app.');
+        oauth_error('invalid_grant', 'That refresh token is not valid. Sign in again.');
+    }
     $st = $db->prepare('SELECT t.*, cl.client_id AS cid FROM api_tokens t JOIN oauth_clients cl ON cl.id = t.client_id WHERE t.refresh_hash = ?');
     $st->execute([hash('sha256', $rt)]);
     $row = $st->fetch(PDO::FETCH_ASSOC);
     // An old refresh token (already rotated), a revoked connection and a made-up one all look the same.
-    if (!$row || ($cid !== '' && $row['cid'] !== $cid)
+    if (!$row || $row['cid'] !== $cid
         || ($row['refresh_expires_at'] && strtotime($row['refresh_expires_at'] . ' UTC') < time())) {
         $db->rollBack();
         oauth_error('invalid_grant', 'That refresh token is not valid. Sign in again.');

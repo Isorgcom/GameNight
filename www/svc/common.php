@@ -42,6 +42,40 @@ function gn_actor_has_scope(array $actor, string $scope): bool {
 }
 
 /**
+ * A one-time confirmation for a risky action from the API or a connected app
+ * (v1.38.0). Called without a valid code, it answers 409 confirmation_required
+ * with $preview (what would happen) and a fresh code, good once for 10 minutes
+ * and only for this person, this token, this action and this target. The same
+ * call with "confirm": "<code>" then goes ahead. A bare true is no longer
+ * enough: an assistant could set that on the first call because text it read
+ * told it to, and the code makes it come back with what it was shown. $target
+ * pins what is confirmed (for a message to guests, a hash of its text, so the
+ * text cannot change after the preview). The website has its own dialogs and
+ * is not asked.
+ */
+function gn_confirm(PDO $db, array $actor, string $action, string $target, $given, string $preview): ?array {
+    if (($actor['via'] ?? '') === 'web') return null;
+    $uid = (int)$actor['id']; $tid = isset($actor['token_id']) ? (int)$actor['token_id'] : null;
+    if (is_string($given) && preg_match('/^cfm_[a-f0-9]{24}$/', $given)) {
+        $u = $db->prepare("UPDATE confirm_codes SET used_at = CURRENT_TIMESTAMP
+                           WHERE code_hash = ? AND user_id = ? AND COALESCE(token_id, 0) = ? AND action = ? AND target = ?
+                             AND used_at IS NULL AND expires_at > datetime('now')");
+        // COALESCE() has no column affinity, so the token id is bound as an
+        // integer: bound as PDO's default text, 99 never equals '99' here.
+        $u->bindValue(1, hash('sha256', $given)); $u->bindValue(2, $uid, PDO::PARAM_INT); $u->bindValue(3, (int)$tid, PDO::PARAM_INT);
+        $u->bindValue(4, $action); $u->bindValue(5, $target);
+        $u->execute();
+        if ($u->rowCount() === 1) return null;
+    }
+    $code = 'cfm_' . bin2hex(random_bytes(12));
+    $db->prepare("INSERT INTO confirm_codes (code_hash, user_id, token_id, action, target, expires_at) VALUES (?, ?, ?, ?, ?, datetime('now', '+10 minutes'))")
+       ->execute([hash('sha256', $code), $uid, $tid, $action, $target]);
+    $lead = is_string($given) && $given !== '' ? 'That confirmation code is not valid for this (it is used, expired, or for something else). ' : '';
+    return gn_err('confirmation_required', $lead . $preview . ' Ask the person; if they agree, send the same request again with "confirm": "' . $code . '" (good once, for 10 minutes).', 409)
+        + ['confirm_code' => $code];
+}
+
+/**
  * Refuse an action that would tell people something when the actor's token
  * lacks the `messages` scope, else null (v1.36.0). Sending is one checkbox: a
  * connection allowed to change events but not to send must not reach anyone

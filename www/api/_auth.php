@@ -188,9 +188,17 @@ function api_token_clean_scopes($scopes): array {
 /** Log one v2 request. $path is the ROUTE PATTERN (/api/v2/events/{id}), never the raw URI. */
 function api_token_log(?int $token_id, int $status, string $path): void {
     try {
+        // A request with no usable token costs anyone nothing to send, and each
+        // one was a row (v1.38.0): keep at most one a minute per address and
+        // route, which still shows that someone is knocking.
+        if ($token_id === null && $status === 401) {
+            $seen = get_db()->prepare("SELECT 1 FROM api_request_log WHERE token_id IS NULL AND status = 401 AND ip = ? AND path = ? AND created_at > datetime('now', '-1 minute') LIMIT 1");
+            $seen->execute([$_SERVER['REMOTE_ADDR'] ?? '', $path]);
+            if ($seen->fetchColumn()) return;
+        }
         get_db()->prepare(
             'INSERT INTO api_request_log (key_id, token_id, ip, method, path, status) VALUES (NULL, ?, ?, ?, ?, ?)'
-        )->execute([$token_id, $_SERVER['REMOTE_ADDR'] ?? '', $_SERVER['REQUEST_METHOD'] ?? 'GET', $path, $status]);
+        )->execute([$token_id, $_SERVER['REMOTE_ADDR'] ?? '', $_SERVER['GN_ORIGINAL_METHOD'] ?? ($_SERVER['REQUEST_METHOD'] ?? 'GET'), $path, $status]);
     } catch (Exception $e) { /* logging is best-effort */ }
 }
 

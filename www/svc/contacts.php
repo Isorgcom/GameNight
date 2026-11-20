@@ -73,9 +73,31 @@ function gn_contact_save(PDO $db, int $owner_id, ?int $id, array $f, bool $log =
     return gn_ok(['id' => $id, 'name' => $name, 'email' => $email ?: null, 'phone' => $phone ?: null, 'notes' => $notes, 'invite_via' => $via]);
 }
 
-function gn_contact_shape(array $c): array {
-    // "Has an account" only counts when that account still exists.
-    $linked = !empty($c['linked_user_id']) && !empty($c['linked_username']);
+/**
+ * The accounts this person already knows: themselves, everyone in a league
+ * they belong to, and everyone on the list of an event they are on or host.
+ * A contact links to an account by its email or phone, so before v1.38.0
+ * typing any address into a contact answered "is there an account here, and
+ * what is it called?". Now that is told only for people already known.
+ */
+function gn_known_user_ids(PDO $db, int $uid): array {
+    $known = [$uid => true];
+    $q = $db->prepare('SELECT DISTINCT b.user_id FROM league_members a JOIN league_members b ON b.league_id = a.league_id
+                       WHERE a.user_id = ? AND b.user_id IS NOT NULL
+                       UNION SELECT DISTINCT b.user_id FROM event_invites a JOIN event_invites b ON b.event_id = a.event_id
+                       WHERE a.user_id = ? AND b.user_id IS NOT NULL
+                       UNION SELECT DISTINCT i.user_id FROM event_invites i JOIN events e ON e.id = i.event_id
+                       WHERE e.created_by = ? AND i.user_id IS NOT NULL');
+    $q->execute([$uid, $uid, $uid]);
+    foreach ($q->fetchAll(PDO::FETCH_COLUMN) as $id) $known[(int)$id] = true;
+    return $known;
+}
+
+function gn_contact_shape(array $c, ?array $known = null): array {
+    // "Has an account" only counts when that account still exists, and is told
+    // only when the account is one this person already knows (v1.38.0).
+    $linked = !empty($c['linked_user_id']) && !empty($c['linked_username'])
+           && ($known === null || isset($known[(int)$c['linked_user_id']]));
     return [
         'id'    => (int)$c['id'],
         'name'  => (string)$c['contact_name'],
@@ -99,10 +121,14 @@ function gn_contacts_list(PDO $db, array $actor, array $args = []): array {
         $sql .= " AND (LOWER(c.contact_name) LIKE ? ESCAPE '\\' OR LOWER(COALESCE(c.contact_email, '')) LIKE ? ESCAPE '\\' OR COALESCE(c.contact_phone, '') LIKE ? ESCAPE '\\')";
         array_push($params, $like, $like, $like);
     }
-    $sql .= ' ORDER BY CASE WHEN c.linked_user_id IS NULL THEN 1 ELSE 0 END, LOWER(c.contact_name) LIMIT 1000';
+    // Ordered by name in SQL; account holders the person may know about go first
+    // afterwards (ordering by the link itself would give the answer away).
+    $sql .= ' ORDER BY LOWER(c.contact_name) LIMIT 1000';
     $st = $db->prepare($sql);
     $st->execute($params);
-    $out = array_map('gn_contact_shape', $st->fetchAll(PDO::FETCH_ASSOC));
+    $known = gn_known_user_ids($db, (int)$actor['id']);
+    $out = array_map(fn($c) => gn_contact_shape($c, $known), $st->fetchAll(PDO::FETCH_ASSOC));
+    usort($out, fn($a, $b) => ($b['has_account'] <=> $a['has_account']) ?: strcasecmp($a['name'], $b['name']));
     return gn_ok(['count' => count($out), 'contacts' => $out]);
 }
 
@@ -152,7 +178,7 @@ function gn_contact_update(PDO $db, array $actor, int $id, array $body): array {
     $cur = ['name' => $row['contact_name'], 'email' => $row['contact_email'], 'phone' => $row['contact_phone'], 'notes' => $row['notes'], 'invite_via' => $row['invite_via'] ?: 'email'];
     $res = gn_contact_save($db, (int)$actor['id'], $id, $body + $cur);
     if (empty($res['ok'])) return $res;
-    return gn_ok(['contact' => gn_contact_shape(gn_contact_row($db, $actor, $id))]);
+    return gn_ok(['contact' => gn_contact_shape(gn_contact_row($db, $actor, $id), gn_known_user_ids($db, (int)$actor['id']))]);
 }
 
 /** Remove a contact from the address book. Events they are already invited to are not touched. */

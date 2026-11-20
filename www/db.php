@@ -1208,6 +1208,22 @@ JSON;
     )");
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_host_sends_user ON host_sends(user_id, created_at)"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_host_sends_event ON host_sends(event_id, created_at)"); } catch (Exception $e) {}
+    // v1.38.0: one-time confirmation codes for the API's and connected apps'
+    // risky actions (gn_confirm() in svc/common.php).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS confirm_codes (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        code_hash  TEXT    NOT NULL UNIQUE,
+        user_id    INTEGER NOT NULL,
+        token_id   INTEGER,
+        action     TEXT    NOT NULL,
+        target     TEXT    NOT NULL,
+        expires_at DATETIME NOT NULL,
+        used_at    DATETIME
+    )");
+    // v1.38.0: the refresh token a connection used before its latest rotation.
+    // Presented again, it means a copy is in someone else's hands: the
+    // connection is ended (oauth/token.php).
+    try { $pdo->exec("ALTER TABLE api_tokens ADD COLUMN prev_refresh_hash TEXT"); } catch (Exception $e) {}
     // v1.37.0: how a reset link was sent (email, sms, whatsapp). A reset finished
     // from an emailed link proves the inbox, so it verifies the address.
     try { $pdo->exec("ALTER TABLE password_resets ADD COLUMN channel TEXT"); } catch (Exception $e) {}

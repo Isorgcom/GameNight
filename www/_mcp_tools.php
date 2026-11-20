@@ -132,8 +132,8 @@ function mcp_timer_layout(PDO $db, array $actor, $ref): array {
 function mcp_body(array $a, array $drop): array { return array_diff_key($a, array_flip($drop)); }
 
 function gn_mcp_tools(): array {
-    $guest_items = ['type' => 'array', 'description' => 'People to invite. Each is {"name": "Dave", "email": "...", "phone": "..."} for someone typed in (email and phone optional), or {"user_id": 12} for a league member or contact. Add "role": "manager" to make one a co-host.',
-        'items' => ['type' => 'object', 'properties' => ['name' => mcp_s('Their name.'), 'email' => mcp_s('Email, optional.'), 'phone' => mcp_s('Phone, optional.'),
+    $guest_items = ['type' => 'array', 'description' => 'People to invite. Each is {"contact_id": 7} for one of the person\'s contacts (from list_contacts; if the contact has an account the invite reaches it), {"user_id": 12} for a league member, or {"name": "Dave", "email": "...", "phone": "..."} for someone typed in (email and phone optional). Add "role": "manager" to make one a co-host.',
+        'items' => ['type' => 'object', 'properties' => ['contact_id' => mcp_i('One of the person\'s contacts, by its id.'), 'name' => mcp_s('Their name.'), 'email' => mcp_s('Email, optional.'), 'phone' => mcp_s('Phone, optional.'),
             'user_id' => mcp_i('An account id, instead of a name.'), 'role' => mcp_e(['invitee', 'manager'], 'manager makes them a co-host.')]]];
     $event_fields = [
         'title' => mcp_s('The event\'s name.'), 'description' => mcp_s('Details shown to guests.'), 'location' => mcp_s('Address.'), 'venue_name' => mcp_s('Name of the place.'),
@@ -237,14 +237,14 @@ function gn_mcp_tools(): array {
             'description' => 'Host only. Change an event\'s details. Only what you give changes. Moving the start moves the end with it. Guests are not told about a change; if the time moved, consider message_guests.',
             'args' => $eid + $event_fields,
             'run' => fn($db, $a, $x) => gn_event_update($db, $a, (int)$x['event_id'], mcp_body($x, ['event_id']))],
-        'cancel_event' => ['title' => 'Cancel an event', 'scope' => 'events', 'hints' => ['readOnlyHint' => false, 'destructiveHint' => true, 'idempotentHint' => true], 'args' => $eid, 'required' => ['event_id'],
-            'description' => 'Host only. Call an event off. EVERY guest is told it is cancelled, by email or text, so it needs the Messages permission. The event is kept, so it can still be duplicated for a new date. Confirm with the user before calling this.',
-            'run' => fn($db, $a, $x) => gn_event_cancel($db, $a, (int)$x['event_id'])],
+        'cancel_event' => ['title' => 'Cancel an event', 'scope' => 'events', 'hints' => ['readOnlyHint' => false, 'destructiveHint' => true, 'idempotentHint' => true], 'args' => $eid + ['confirm' => mcp_s('The one-time code from the first call\'s answer (cfm_...), sent only after the user has agreed to what that answer described.')], 'required' => ['event_id'],
+            'description' => 'Host only. Call an event off. EVERY guest is told it is cancelled, by email or text, so it needs the Messages permission. The event is kept, so it can still be duplicated for a new date. Two steps: call it without confirm to get what would happen and a one-time code, show the user, and only if they agree call it again with confirm set to that code.',
+            'run' => fn($db, $a, $x) => gn_event_cancel($db, $a, (int)$x['event_id'], array_key_exists('confirm', $x) ? ['confirm' => $x['confirm']] : [])],
         'delete_event' => ['title' => 'Delete an event', 'scope' => 'events', 'hints' => ['readOnlyHint' => false, 'destructiveHint' => true], 'required' => ['event_id'],
-            'description' => 'Host only. Delete an event for good, with its guest list, messages and game results. Cannot be undone. Guests of an upcoming event are told it is cancelled, unless notify is false (a silent delete: nobody hears anything, and unsent invitations and reminders are dropped). Telling the guests needs the Messages permission. Call it first without confirm to learn what would be lost and who would be told, show the user, and only then call it with confirm true. To call an event off but keep the record, use cancel_event.',
-            'args' => $eid + ['confirm' => mcp_b('True only after the user has agreed to the deletion.'),
+            'description' => 'Host only. Delete an event for good, with its guest list, messages and game results. Cannot be undone. Guests of an upcoming event are told it is cancelled, unless notify is false (a silent delete: nobody hears anything, and unsent invitations and reminders are dropped). Telling the guests needs the Messages permission. Call it first without confirm to learn what would be lost and who would be told, show the user, and only then call it again with confirm set to the one-time code that answer gave. To call an event off but keep the record, use cancel_event.',
+            'args' => $eid + ['confirm' => mcp_s('The one-time code from the first call\'s answer (cfm_...), sent only after the user has agreed to what that answer described.'),
                               'notify' => mcp_b('False deletes silently: no guest is told. Default true.')],
-            'run' => fn($db, $a, $x) => gn_event_delete($db, $a, (int)$x['event_id'], ['confirm' => ($x['confirm'] ?? false) === true ? true : null]
+            'run' => fn($db, $a, $x) => gn_event_delete($db, $a, (int)$x['event_id'], ['confirm' => $x['confirm'] ?? null]
                                                      + (array_key_exists('notify', $x) ? ['notify' => $x['notify'] === false ? false : true] : []))],
         'duplicate_event' => ['title' => 'Copy an event to a new date', 'scope' => 'events', 'hints' => $wr, 'required' => ['event_id', 'start_at'],
             'description' => 'Host only. Make a new event from an existing one: same details, game settings and guest list, with nobody\'s answer carried over. The usual way to set up "the same game next month". Nobody is told until send_invitations.',
@@ -262,11 +262,11 @@ function gn_mcp_tools(): array {
                 return isset($g['ok']) ? $g : gn_invite_update($db, $a, (int)$x['event_id'], $g['id'], mcp_body($x, ['event_id', 'guest']));
             }],
         'remove_guest' => ['title' => 'Remove a guest', 'scope' => 'events', 'hints' => ['readOnlyHint' => false, 'destructiveHint' => true], 'required' => ['event_id', 'guest'],
-            'description' => 'Host only. Take a guest off the list. On an event still ahead, they are told they were removed, which needs the Messages permission.',
-            'args' => $eid + ['guest' => mcp_ref('The guest\'s name, or their invite id.')],
+            'description' => 'Host only. Take a guest off the list. On an event still ahead, they are told they were removed, which needs the Messages permission and two steps: the first call returns what would happen and a one-time code; call again with confirm set to it only after the user agrees.',
+            'args' => $eid + ['guest' => mcp_ref('The guest\'s name, or their invite id.'), 'confirm' => mcp_s('The one-time code from the first call\'s answer (cfm_...), sent only after the user has agreed to what that answer described.')],
             'run' => function ($db, $a, $x) {
                 $g = mcp_guest($db, $a, (int)$x['event_id'], $x['guest'] ?? '');
-                return isset($g['ok']) ? $g : gn_invite_remove($db, $a, (int)$x['event_id'], $g['id']);
+                return isset($g['ok']) ? $g : gn_invite_remove($db, $a, (int)$x['event_id'], $g['id'], array_key_exists('confirm', $x) ? ['confirm' => $x['confirm']] : []);
             }],
         'decide_guest' => ['title' => 'Approve or turn down a guest', 'scope' => 'events', 'hints' => $wr + ['idempotentHint' => true], 'required' => ['event_id', 'guest', 'decision'],
             'description' => 'Host only. Answer a guest who asked to come (status pending) or is on the waitlist. Approving tells them (so it needs the Messages permission) and, for a poker game, seats them.',
@@ -350,12 +350,13 @@ function gn_mcp_tools(): array {
             'description' => 'Host only. SENDS a reminder to invited guests who have not answered. Each guest gets at most one a day, so repeating it the same day reaches nobody new.',
             'run' => fn($db, $a, $x) => gn_guests_nudge($db, $a, (int)$x['event_id'])],
         'message_guests' => ['title' => 'Message the guests', 'scope' => 'messages', 'hints' => $wr + ['openWorldHint' => true], 'required' => ['event_id', 'subject', 'body'],
-            'description' => 'Host only. SENDS a message from the host to an event\'s guests, by email or text, at once. An event may send only a few a day (list_messages shows the limit), so write one complete message. Show the user the exact subject and text and get their go-ahead before sending.',
+            'description' => 'Host only. SENDS a message from the host to an event\'s guests, by email or text, at once. An event may send only a few a day (list_messages shows the limit), so write one complete message. Two steps: the first call (without confirm) sends nothing and returns what would go out and a one-time code; show the user the exact subject and text, and only if they agree call again with the same subject, body and audience and confirm set to that code.',
             'args' => $eid + ['subject' => mcp_s('Subject line.'), 'body' => mcp_s('The message, as plain text. Line breaks are kept.'),
-                       'audience' => mcp_e(['yes', 'yes_maybe', 'all'], 'Who gets it: those who said yes (default), yes or maybe, or everyone on the list.')],
+                       'audience' => mcp_e(['yes', 'yes_maybe', 'all'], 'Who gets it: those who said yes (default), yes or maybe, or everyone on the list.'),
+                       'confirm' => mcp_s('The one-time code from the first call\'s answer (cfm_...), sent only after the user has agreed to what that answer described.')],
             'run' => function ($db, $a, $x) {
                 if (!is_string($x['subject'] ?? null) || !is_string($x['body'] ?? null)) return gn_err('bad_field', 'subject and body are required and must be text.', 400);
-                return gn_host_message_send($db, $a, (int)$x['event_id'], ['subject' => $x['subject'], 'body' => nl2br(htmlspecialchars($x['body'], ENT_QUOTES | ENT_SUBSTITUTE)), 'audience' => $x['audience'] ?? 'yes']);
+                return gn_host_message_send($db, $a, (int)$x['event_id'], ['subject' => $x['subject'], 'body' => nl2br(htmlspecialchars($x['body'], ENT_QUOTES | ENT_SUBSTITUTE)), 'audience' => $x['audience'] ?? 'yes', 'confirm' => $x['confirm'] ?? null]);
             }],
         'add_league_member' => ['title' => 'Invite someone to a league', 'scope' => 'messages', 'hints' => $wr + ['idempotentHint' => true, 'openWorldHint' => true], 'required' => ['league_id', 'name'],
             'description' => 'League owner or manager. SENDS an invitation to join the league to someone, by email or phone. Someone with an account joins when they accept; anyone else gets a link to sign up.',
@@ -423,11 +424,11 @@ function gn_mcp_tools(): array {
                 'label' => mcp_s('A prize that is not money, e.g. "Trophy".')], 'required' => ['place']]]],
             'run' => $act('payouts')],
         'game_status' => ['title' => 'Start, finish or reopen the game', 'scope' => 'game', 'hints' => ['readOnlyHint' => false, 'destructiveHint' => true, 'idempotentHint' => true], 'required' => ['event_id', 'to'],
-            'description' => 'Host only. start begins play. finish records the final results and payouts, issues entry tickets, banks jackpot money and tells the winners: call it without confirm first, show the user what it says, then with confirm true. A game also finishes by itself when the last opponent is knocked out. reopen puts a finished game back in play.',
-            'args' => $eid + ['to' => mcp_e(['start', 'finish', 'reopen'], 'What to do.'), 'confirm' => mcp_b('For finish: true only after the user has agreed.')],
+            'description' => 'Host only. start begins play. finish records the final results and payouts, issues entry tickets, banks jackpot money and tells the winners: call it without confirm first, show the user what it says, then again with confirm set to the one-time code it returned. A game also finishes by itself when the last opponent is knocked out. reopen puts a finished game back in play.',
+            'args' => $eid + ['to' => mcp_e(['start', 'finish', 'reopen'], 'What to do.'), 'confirm' => mcp_s('The one-time code from the first call\'s answer (cfm_...), sent only after the user has agreed to what that answer described.')],
             'run' => function ($db, $a, $x, $f) {
                 if (!in_array($x['to'] ?? '', ['start', 'finish', 'reopen'], true)) return gn_err('bad_field', 'to must be start, finish or reopen.', 400);
-                return gn_game_act($db, $a, (int)$x['event_id'], $x['to'], ($x['confirm'] ?? false) === true ? ['confirm' => true] : [], $f);
+                return gn_game_act($db, $a, (int)$x['event_id'], $x['to'], array_key_exists('confirm', $x) ? ['confirm' => $x['confirm']] : [], $f);
             }],
         'add_walk_in' => ['title' => 'Add a walk-in', 'scope' => 'game', 'hints' => $wr, 'args' => $eid + ['name' => mcp_s('The player\'s name.')], 'required' => ['event_id', 'name'],
             'description' => 'Host only. Add someone who turned up without being on the list. They join the guest list as coming; take their buy-in with player_action.',
@@ -482,11 +483,11 @@ function gn_mcp_tools(): array {
             'args' => $eid + ['entry_id' => mcp_i('The entry\'s id, from get_game_log with a player.')],
             'run' => $act('void_entry')],
         'clock' => ['title' => 'Work the tournament clock', 'scope' => 'game', 'hints' => $wr, 'required' => ['event_id', 'command'],
-            'description' => 'Host only. Control a tournament\'s clock; every screen showing the timer follows. play and pause start and stop it; next and previous move a level; add_minute and subtract_minute adjust the time left; reset_level restarts the current level; undo takes back the last command; reset puts it back to level 1 and needs confirm true.',
-            'args' => $eid + ['command' => mcp_e(['play', 'pause', 'next', 'previous', 'add_minute', 'subtract_minute', 'reset_level', 'undo', 'reset'], 'What to do.'), 'confirm' => mcp_b('For reset: true only after the user has agreed.')],
+            'description' => 'Host only. Control a tournament\'s clock; every screen showing the timer follows. play and pause start and stop it; next and previous move a level; add_minute and subtract_minute adjust the time left; reset_level restarts the current level; undo takes back the last command; reset puts it back to level 1 and takes two steps: the first call returns a one-time code, send it as confirm after the user agrees.',
+            'args' => $eid + ['command' => mcp_e(['play', 'pause', 'next', 'previous', 'add_minute', 'subtract_minute', 'reset_level', 'undo', 'reset'], 'What to do.'), 'confirm' => mcp_s('The one-time code from the first call\'s answer (cfm_...), sent only after the user has agreed to what that answer described.')],
             'run' => function ($db, $a, $x, $f) {
                 $args = ['command' => $x['command'] ?? ''];
-                if (($x['confirm'] ?? false) === true) $args['confirm'] = true;
+                if (array_key_exists('confirm', $x)) $args['confirm'] = $x['confirm'];
                 return gn_game_act($db, $a, (int)$x['event_id'], 'clock', $args, $f);
             }],
     ];
