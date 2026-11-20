@@ -559,7 +559,7 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
 
     /* ── Content: full-width on mobile ── */
     .dash-wrap { padding: 0; margin: .5rem 0; }
-    .hero { padding: 2.5rem 0 2rem; }
+    .hero { padding: 2.5rem 1rem 2rem; }   /* side padding: the lead paragraph ran to the screen edges */
     .features { padding: 2rem 0; }
     .card-wrap { min-height: auto; padding: 0; margin: 0; align-items: flex-start; }
     .card { padding: .75rem .6rem; border: none; box-shadow: none; border-radius: 0; margin: 0; }

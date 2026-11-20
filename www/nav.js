@@ -105,3 +105,46 @@ if (window.matchMedia) {
     if (_navMq.addEventListener) _navMq.addEventListener('change', navThemeLabels);
 }
 
+// ── Landing page menu: inline when it fits, a popover when it does not ──────
+// (_landing.php, modern-web-guidance "navbar"). The collapsed popover is the
+// markup's default. Measure the row with the inline layout on; keep .is-wide
+// only if nothing overflows. While collapsed, re-measure only when the header
+// has grown, so a shrink never thrashes between the two layouts. The popover
+// attribute exists only in the collapsed layout; removing it closes an open
+// menu, so an open one is reopened if the layout stays collapsed.
+(function () {
+    var header = document.querySelector('.lp-topbar');
+    var inner = header && header.querySelector('.lp-top-inner');
+    var menu = document.getElementById('lpMenu');
+    if (!header || !inner || !menu) return;
+    if (!Object.prototype.hasOwnProperty.call(HTMLElement.prototype, 'popover')) {
+        // No Popover API: the inline row, allowed to wrap, as before.
+        menu.removeAttribute('popover');
+        header.classList.add('is-wide', 'no-popover');
+        return;
+    }
+    var wide = null, lastW = 0;
+    function layout() {
+        var w = header.clientWidth;
+        if (wide === false && w <= lastW) { lastW = w; return; }
+        lastW = w;
+        var wasOpen = menu.matches(':popover-open');
+        header.classList.add('is-measuring', 'is-wide');
+        menu.removeAttribute('popover');
+        wide = inner.scrollWidth <= inner.clientWidth;
+        if (!wide) {
+            header.classList.remove('is-wide');
+            menu.setAttribute('popover', 'auto');
+            if (wasOpen) { try { menu.showPopover(); } catch (e) {} }
+        }
+        requestAnimationFrame(function () { header.classList.remove('is-measuring'); });
+    }
+    if (window.ResizeObserver) {
+        var ro = new ResizeObserver(layout);
+        ro.observe(header); ro.observe(menu);
+    } else {
+        window.addEventListener('resize', layout);
+    }
+    layout();
+})();
+

@@ -11,6 +11,11 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The public landing page's menu fits on a phone.** Visitors who are not signed in see the landing page, whose top bar listed Leagues, three guides, Log in and Sign up in a row that wrapped onto two or three lines on a phone. On a narrow screen those links now sit behind a Menu button (a native pop-up that closes when you tap outside it or press Escape), leaving the site name, Sign up and the light/dark switch in one row; where they fit, the same links show inline as before. The page measures whether the row fits rather than using a fixed screen width, so a longer site name or another link moves the switch point by itself. The sun/moon switch from 1.34.0 is now on this page too; a visitor's choice is kept in the browser. (`www/_landing.php`, `www/nav.js`)
+- **The landing page's opening paragraph no longer touches the screen edges on a phone.** The phone layout gave that area no side padding at all. (`www/style.css`)
+
 ## [v1.34.0] - 2026-11-19
 
 ### Added
