@@ -1283,12 +1283,16 @@ function pk_payout_structure_for(PDO $db, int $structure_id, int $uid, bool $isA
 }
 
 /* Who may overwrite or delete a preset. Mirrors delete_payout_structure: the
- * site default is admin-only, a global belongs to admins, everything else to
- * whoever created it. */
+ * site default is admin-only, a global belongs to admins, a league's preset
+ * to that league's CURRENT owner and managers (v1.39.0: its creator kept
+ * write access after losing the role), everything else to whoever created it. */
 function pk_preset_can_write(array $struct, array $user, bool $isAdmin): bool {
     if ((int)$struct['is_default']) return $isAdmin;
     if ((int)$struct['is_global'])  return $isAdmin;
-    return $isAdmin || (int)$struct['created_by'] === (int)$user['id'];
+    if ($isAdmin) return true;
+    $lid = (int)($struct['league_id'] ?? 0);
+    if ($lid > 0) return in_array(league_role($lid, (int)$user['id']), ['owner', 'manager'], true);
+    return (int)$struct['created_by'] === (int)$user['id'];
 }
 
 /* ── Tournament Timer built-in layouts ───────────────────────────────────────

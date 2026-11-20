@@ -683,6 +683,25 @@ them) and half are conventions someone has to follow.
   token; `logout.php` starts no session without the cookie, because a
   cross-site POST arrives without SameSite=Lax cookies and a fresh session
   would overwrite the real one (the v1.33.1 sign-out let that through).
+- Game, money and the rest (v1.39.0, audit batch 5). Console writes in
+  `checkin_dl.php` that gate with `is_owner_or_manager()` also call
+  `refuse_if_cancelled()`; a new console action must do one of the two
+  (`verify_event_access()` already refuses a cancelled event). Changing a
+  game's jackpot amount needs `pk_can_manage_league_money()` on the web path as
+  on the API; league presets follow the league's current owner and managers
+  (`pk_preset_can_write()`). Money fields are 0 to 10,000,000 cents; jackpot
+  void, adjust and hit run in `BEGIN IMMEDIATE` (`jp_begin()` / `jp_fail()`)
+  with the balance read inside; a finished game's payouts are locked. The
+  walk-up token stops after the day following the event and any host can rotate
+  it. Guest standalone timers answer only to `-abs(crc32(session_id()))` of the
+  session that made them, are capped at 10 new per address an hour and pruned
+  after 7 idle days. Uploads: timer sounds 20 a day per account (5 per guest
+  address), backgrounds 30. Reset and verification mail is not sent while
+  `site_url` is empty (Host-header links). `.htaccess` denies every `_*.php`
+  and the helper files, and unsets `X-Powered-By`; nosniff comes from
+  `.htaccess` only. WAHA's API key and dashboard password come from `.env`
+  (`waha_api_key()` reads `WAHA_API_KEY`); the old literal in the public repo
+  must not be in use anywhere.
 - Accounts (v1.37.0, audit batch 3). Verifying a sign-up that has a password
   asks for it (`verify_email.php`): the inbox alone does not prove who made the
   account. A reset records its `password_resets.channel`; one finished from an

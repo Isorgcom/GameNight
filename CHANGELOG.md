@@ -11,6 +11,27 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.39.0] - 2026-11-20
+
+### Security
+
+- **A cancelled game can no longer be run.** Most of the check-in console's actions (game settings, starting and finishing, payouts, walk-ins, table moves, loading a payout preset) still worked on an event that had been cancelled. They now answer that the event was cancelled, as the rest of the console already did. An entry ticket can no longer be pointed at a cancelled event either. (`www/checkin_dl.php`)
+- **Only a league's owner or managers decide what goes into its jackpot.** A co-host who runs a game but has no league role could set the game's jackpot amount from the console (Claude and the API already refused). Now only the league's owner or managers can change it; loading a payout preset as a co-host leaves the jackpot as it was. A league's own payout presets also follow its current owner and managers: someone who created one and has since lost their role can no longer change it. (`www/checkin_dl.php`, `www/_poker_helpers.php`)
+- **Money in the console has limits and cannot be double-spent.** Buy-ins, rebuys, add-ons, bounties, jackpots, cash-ins and payouts must be between $0 and $100,000, payout points at most 100,000. Paying out the jackpot, correcting the fund and voiding an entry now happen in one step each, so two at the same moment can no longer both pass the "the fund cannot go negative" check. A finished game's payouts are locked: reopen the game to change them, since finishing already recorded points, tickets and jackpot money from them. (`www/checkin_dl.php`)
+- **A walk-up QR code stops working once the game is over.** The link worked for ever, so anyone with a photo of an old QR could keep creating accounts and having codes texted. It now works until the end of the day after the event, then says the game is over. Any host can make a new walk-up link from the QR screen or the event editor; before, only a site admin could. (`www/walkin.php`, `www/calendar.php`, `www/calendar_dl.php`, `www/event_edit.php`)
+- **A guest's timer answers only to the guest who made it.** A signed-out visitor's standalone timer could be controlled by anyone who sent its number. Ten new guest timers an hour are saved per address, and guest timers nobody has used for a week are removed. A blind schedule can have at most 100 levels. (`www/timer_dl.php`, `www/timer_classic.php`, `www/cron.php`)
+- **Uploads have daily limits.** Timer sounds (20 a day for an account, 5 for a guest) and theme background images (30 a day) had none. Deleting a theme no longer deletes a background picture that another theme still uses. (`www/timer_dl.php`)
+- **Password reset and verification links are never built from a forged address.** With no Site URL set, links in emails were built from the request's host name, which the person asking for a reset chooses. Those two emails are now not sent until an admin sets the Site URL (Site Settings, General, Site). Live has it set. (`www/forgot_password.php`, `www/auth.php`)
+- **Server tightening.** Internal page fragments and helper files now refuse direct requests. Pages no longer say which PHP version runs the site, and each page sends its no-sniff header once instead of twice. The browser-report endpoint can no longer be silenced by one sender. Embedded videos with a trick in their address (an @ or a backslash) are dropped. My Events changes its date range by a form post. (`www/.htaccess`, `www/auth.php`, `www/csp_report.php`, `www/db.php`, `www/my_events.php`)
+
+### Infrastructure
+
+- **The WhatsApp gateway's API key and dashboard password move out of the public repository.** They were written in `docker-compose.yml`, readable by anyone. They now come from the `.env` file beside it, as the webhook token already did, and the site reads the same key from there. `docker compose` refuses to start without `WAHA_API_KEY` and `WAHA_DASHBOARD_PASSWORD`; see DOCS.md, Deployment. Operators: add both to `.env` with new values (`openssl rand -hex 24`) and run `docker compose up -d`; the WhatsApp link is kept. (`docker-compose.yml`, `www/sms.php`, `www/admin_settings_dl.php`, `DOCS.md`)
+
+### Fixed
+
+- **Editing a comment or a payout prize label keeps text such as `&amp;` exactly as typed.** It came back as `&` after the edit was saved. (`www/index.php`, `www/checkin.js`)
+
 ## [v1.38.0] - 2026-11-20
 
 ### Security

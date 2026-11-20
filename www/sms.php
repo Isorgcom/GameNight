@@ -409,13 +409,24 @@ function waha_require_working_session(string $waha_url, string $session, string 
  * WORKING at least once, so installs that never use WhatsApp stay silent.
  * Disable entirely with site_setting waha_watchdog = '0'.
  */
+/**
+ * The WhatsApp gateway's API key (v1.39.0): the WAHA_API_KEY the containers
+ * get from .env, else an admin-stored setting, else the old built-in value
+ * that sat in the public docker-compose.yml.
+ */
+function waha_api_key(): string {
+    $env = getenv('WAHA_API_KEY');
+    if (is_string($env) && $env !== '') return $env;
+    return get_setting('waha_api_key', 'gamenight-waha-internal');
+}
+
 function waha_watchdog(): array {
     $out = ['status' => 'skipped', 'action' => ''];
     if (get_setting('waha_watchdog', '1') !== '1') return $out;
     $waha_url = get_setting('waha_url', 'http://waha:3000');
     if ($waha_url === '') return $out;
     $session = get_setting('waha_session', 'default');
-    $apiKey  = get_setting('waha_api_key', 'gamenight-waha-internal');
+    $apiKey  = waha_api_key();
 
     // Probe current status
     $ch = curl_init(rtrim($waha_url, '/') . '/api/sessions/' . rawurlencode($session));
@@ -550,7 +561,7 @@ function send_whatsapp(string $to, string $body): ?string {
     $waha_url = get_setting('waha_url', 'http://waha:3000');
     $session  = get_setting('waha_session', 'default');
     if (!$waha_url) return 'WhatsApp (WAHA) not configured.';
-    $apiKey = get_setting('waha_api_key', 'gamenight-waha-internal');
+    $apiKey = waha_api_key();
 
     // ── Pre-send session check: only send into a WORKING session ──
     $err = waha_require_working_session($waha_url, $session, $apiKey);

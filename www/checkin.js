@@ -2115,7 +2115,7 @@ function renderPayoutsPane() {
 }
 
 function payoutRowHtml(place, pct, points, ticket_cents, prize_label) {
-    var lbl = prize_label ? String(prize_label).replace(/"/g, '&quot;').replace(/</g, '&lt;') : '';
+    var lbl = prize_label ? String(prize_label).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;') : '';
     var ord = place + getOrdinal(place);   // each input is named by its place: the column heads are decoration
     return '<div class="row" style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;margin-bottom:.25rem">'
          + '<span style="font-size:.8rem;width:40px;flex-shrink:0">' + ord + '</span>'

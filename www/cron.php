@@ -241,6 +241,8 @@ try { $pruned += $db->exec("DELETE FROM oauth_clients WHERE created_at < datetim
                              AND id NOT IN (SELECT client_id FROM api_tokens WHERE client_id IS NOT NULL)
                              AND id NOT IN (SELECT client_pk FROM oauth_codes)"); } catch (Exception $e) {}
 try { $pruned += $db->exec("DELETE FROM confirm_codes WHERE expires_at < datetime('now', '-1 day')"); } catch (Exception $e) {}
+// Guest (signed-out) standalone timers nobody has touched in a week (v1.39.0).
+try { $pruned += $db->exec("DELETE FROM timer_state WHERE user_id = 0 AND session_id < 0 AND updated_at < datetime('now', '-7 days')"); } catch (Exception $e) {}
 // 35 days: enough to count a calendar month of a host's sends.
 try { $pruned += $db->exec("DELETE FROM host_sends WHERE created_at < datetime('now', '-35 days')"); } catch (Exception $e) {}
 // Sticky SMS conversation bindings: stale after 30 days or when the event is gone.

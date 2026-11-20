@@ -53,7 +53,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Content-Type: application/json');
             $waha_url  = get_setting('waha_url', 'http://waha:3000');
             $waha_sess = get_setting('waha_session', 'default');
-            $waha_key  = get_setting('waha_api_key', 'gamenight-waha-internal');
+            require_once __DIR__ . '/sms.php';
+            $waha_key  = waha_api_key();
             $waha_headers = ['Content-Type: application/json', 'X-Api-Key: ' . $waha_key];
 
             if ($action === 'waha_status') {

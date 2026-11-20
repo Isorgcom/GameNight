@@ -3526,6 +3526,10 @@ function sanitize_html(string $html): string {
     $iframe_src_ok = function (string $url) use ($iframe_allowed_hosts): bool {
         $url = trim($url);
         if ($url === '') return false;
+        // A backslash or an @ makes parse_url() and the browser disagree about
+        // the host ("https://evil.example\@youtube.com/" is evil.example to a
+        // browser): refused outright (v1.39.0).
+        if (strpbrk($url, "\\@") !== false) return false;
         $parts = parse_url($url);
         if (!$parts || empty($parts['scheme']) || empty($parts['host'])) return false;
         if (!in_array(strtolower($parts['scheme']), ['http', 'https'], true)) return false;

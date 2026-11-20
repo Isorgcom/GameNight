@@ -6,9 +6,11 @@ $db        = get_db();
 
 // Handle range changes from inline selects
 $allowed_past = [7,14,30,60,90,180,365];
-if (isset($_GET['past_days'])) {
-    if (in_array((int)$_GET['past_days'], $allowed_past)) {
-        $db->prepare('UPDATE users SET my_events_past_days = ? WHERE id = ?')->execute([(int)$_GET['past_days'], $current['id']]);
+// A POST with the page's token (v1.39.0): as a GET link, any other page could
+// change the setting by embedding the address.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['past_days'])) {
+    if (csrf_verify() && in_array((int)$_POST['past_days'], $allowed_past)) {
+        $db->prepare('UPDATE users SET my_events_past_days = ? WHERE id = ?')->execute([(int)$_POST['past_days'], $current['id']]);
     }
     header('Location: /my_events.php');
     exit;
@@ -287,7 +289,13 @@ details:not([open]) .me-hint-hide { display: none; }
 
 <?php require __DIR__ . '/_footer.php'; ?>
 <script nonce="<?= csp_nonce() ?>">
-function goMyEventsPastDays(v) { window.location = '/my_events.php?past_days=' + v; }
+function goMyEventsPastDays(v) {
+    var f = document.createElement('form'); f.method = 'post'; f.action = '/my_events.php';
+    [['past_days', v], ['csrf_token', <?= js_json($token) ?>]].forEach(function (p) {
+        var i = document.createElement('input'); i.type = 'hidden'; i.name = p[0]; i.value = p[1]; f.appendChild(i);
+    });
+    document.body.appendChild(f); f.submit();
+}
 </script>
 </body>
 </html>
