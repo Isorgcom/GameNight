@@ -513,7 +513,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             .edit-invite-panel .invite-pane:last-child { border:1.5px solid var(--bd-e2e8f0, #e2e8f0);border-top:0;border-radius:0 0 10px 10px;min-height:0;overflow:visible; }
             .edit-invite-panel .invite-pane:last-child .invite-pane-header { display:flex;gap:.5rem;padding:.6rem .8rem;background:var(--bg-ffffff, #ffffff);border-bottom:0; }
             .ee-invited-title { display:none; }
-            .ee-pick-btn { display:inline-flex;flex:1;justify-content:center;min-height:42px;font-size:.88rem !important;padding:.4rem .5rem !important;text-transform:none;letter-spacing:0; }
+            .ee-pick-btn { display:inline-flex;flex:1;justify-content:center;align-items:center;min-height:42px;font-size:.88rem !important;padding:.4rem .5rem !important;text-transform:none;letter-spacing:0; }
             #eAddNameBtn { flex:1;justify-content:center;min-height:42px;font-size:.88rem !important;padding:.4rem .5rem !important;text-transform:none;letter-spacing:0; }
             .inv-col-head { display:none; }
             #eInvitedList { max-height:none;overflow:visible;padding:.1rem .4rem .4rem; }
@@ -774,7 +774,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                     <div class="invite-pane-header" style="display:flex;align-items:center;gap:.5rem">
                         <span class="ee-invited-title" style="flex:1">Invited</span>
                         <button type="button" class="btn btn-outline ee-pick-btn" title="Pick people from the site's user list" data-act="openGuestPicker" aria-controls="eAllUsersPane">+ Add from users</button>
-                        <button type="button" class="btn btn-outline" style="font-size:.72rem;padding:.18rem .55rem" title="Invite someone who isn't a user — just a name, with optional email/phone" id="eAddNameBtn" data-act="addBlankInviteRow">+ Add Name</button>
+                        <button type="button" class="btn btn-primary" style="font-size:.72rem;padding:.18rem .55rem" title="Invite someone who isn't a user — just a name, with optional email/phone" id="eAddNameBtn" data-act="addBlankInviteRow">+ Add Name</button>
                     </div>
                     <div class="inv-col-head" aria-hidden="true">
                         <span style="flex:1;min-width:0">Name</span>

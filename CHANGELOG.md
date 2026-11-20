@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.37.1] - 2026-11-20
+
+### Changed
+
+- **The event editor's + Add Name button is a solid blue button**, like Add Event, so it reads as the way to put someone on the guest list. On a phone the + Add from users button beside it also has its label centred; it sat at the top of the button. (`www/event_edit.php`)
+
 ## [v1.37.0] - 2026-11-20
 
 ### Security
