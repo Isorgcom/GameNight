@@ -57,31 +57,93 @@
 /* Guest header. _nav.php deliberately renders nothing in landing mode, which
    left the page with no link home and no crawlable path to the league
    directory or the guides: every public page was an orphan except through the
-   sitemap. Plain anchors, no JS. */
-.lp-topbar { display:flex; align-items:center; gap:.5rem 1rem; flex-wrap:wrap; padding:.7rem 1.25rem;
-  background:#0f172a; color:#e2e8f0; font-size:.9rem; }
+   sitemap.
+   Responsive navigation (v1.34.1, modern-web-guidance "navbar"): ONE list of
+   links. Collapsed (the default, and what a browser without script gets) it is
+   a native popover opened by the Menu button; nav.js measures whether the
+   whole row fits and, when it does, adds .is-wide and the same list sits
+   inline. No breakpoint: a longer site name or another link moves the switch
+   point by itself. The links used to wrap onto two or three lines on a phone. */
+.lp-topbar { background:#0f172a; color:#e2e8f0; font-size:.9rem; padding:.6rem 1rem; }
+.lp-top-inner { display:flex; align-items:center; gap:.6rem; max-width:1200px; margin:0 auto; }
+.lp-top-inner > * { flex-shrink:0; white-space:nowrap; }
 .lp-topbar .lp-brand { color:#fff; font-weight:800; text-decoration:none; font-size:1.05rem; margin-right:auto; }
-.lp-topbar nav { display:flex; gap:.25rem .9rem; flex-wrap:wrap; align-items:center; }
-.lp-topbar nav a { color:#cbd5e1; text-decoration:none; padding:.35rem .15rem; }
-.lp-topbar nav a:hover { color:#fff; text-decoration:underline; }
-.lp-topbar nav a.lp-cta { color:#fff; background:#2563eb; border-radius:7px; padding:.4rem .85rem; }
-.lp-topbar nav a.lp-cta:hover { background:#1d4ed8; text-decoration:none; }
+.lp-actions { display:flex; align-items:center; gap:.6rem; }
+.lp-topbar a.lp-cta { color:#fff; background:#2563eb; border-radius:8px; padding:.5rem .9rem; text-decoration:none; font-weight:600; }
+.lp-topbar a.lp-cta:hover { background:#1d4ed8; }
+.lp-nav { order:3; }                       /* collapsed: the Menu button sits at the far right */
+.lp-menu-btn { anchor-name:--lp-menu-btn; display:inline-flex; align-items:center; gap:.4rem; min-height:40px;
+  padding:.4rem .75rem; border:1px solid rgba(255,255,255,.22); border-radius:8px; background:none;
+  color:#e2e8f0; font:inherit; font-weight:600; cursor:pointer; touch-action:manipulation; }
+.lp-menu-btn:hover { background:rgba(255,255,255,.08); }
+.lp-menu { position:fixed; inset:auto; right:1rem;
+  top:3.6rem;                              /* browsers without anchor positioning keep this */
+  top:anchor(--lp-menu-btn bottom);
+  width:min(80dvw, 18rem); max-width:calc(100dvw - 2rem); max-height:calc(100dvh - 6rem); overflow:auto;
+  margin:.5rem 0 0; padding:.4rem; list-style:none;
+  background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:12px; box-shadow:0 14px 34px rgba(0,0,0,.45); }
+.lp-menu a { display:block; padding:.8rem .9rem; border-radius:8px; color:#e2e8f0; text-decoration:none; font-size:1rem; }
+.lp-menu a:hover { background:rgba(255,255,255,.08); }
+.lp-topbar.is-wide .lp-nav { order:0; }
+.lp-topbar.is-wide .lp-menu-btn { display:none; }
+.lp-topbar.is-wide .lp-menu { position:static; display:flex; align-items:center; gap:.15rem .9rem;
+  width:auto; max-width:none; max-height:none; overflow:visible; margin:0; padding:0;
+  border:0; background:transparent; box-shadow:none; }
+.lp-topbar.is-wide .lp-menu a { padding:.4rem .15rem; color:#cbd5e1; font-size:.9rem; }
+.lp-topbar.is-wide .lp-menu a:hover { background:none; color:#fff; text-decoration:underline; }
+.lp-topbar.is-measuring * { transition:none !important; }
+/* A browser without the Popover API keeps the old wrapping row (nav.js). */
+.lp-topbar.no-popover .lp-top-inner { flex-wrap:wrap; }
+.lp-topbar.no-popover .lp-menu { flex-wrap:wrap; }
+/* Phones: the Menu button shows only its icon, so the site name keeps its
+   room; the word stays as the button's name for screen readers. */
+@media (max-width:479px) {
+  .lp-menu-btn .lp-menu-label { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+}
+@media (max-width:359px) {
+  .lp-topbar { padding:.6rem .75rem; }
+  .lp-top-inner, .lp-actions { gap:.4rem; }
+  .lp-topbar a.lp-cta { padding:.5rem .65rem; }
+  .lp-menu-btn { padding:.4rem .55rem; }
+}
+/* Last resort in the collapsed layout only: a long site name gives way (with
+   an ellipsis) before the row can overflow the screen. Never while measuring,
+   or a shrinking name would make the inline row look as if it fits. */
+.lp-topbar:not(.is-wide):not(.is-measuring) .lp-brand { flex-shrink:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
 .hero-kicker { color:var(--fg-64748b, #64748b); font-size:.8rem; letter-spacing:.14em; text-transform:uppercase; font-weight:700; margin:0 0 .6rem; }
 </style>
 <!-- ── SaaS-style marketing landing page for visitors ── -->
 <header class="lp-topbar" aria-label="Site">
+  <div class="lp-top-inner">
     <a class="lp-brand" href="/"><?= htmlspecialchars(get_setting('site_name', 'Game Night'), ENT_QUOTES | ENT_SUBSTITUTE) ?></a>
-    <nav aria-label="Public pages">
-        <a href="/league">Leagues</a>
-        <a href="/help-hosts.php">Host Guide</a>
-        <a href="/help-guests.php">Guest Guide</a>
-        <a href="/help-timer.php">Timer Guide</a>
-        <a href="/login.php">Log in</a>
+    <nav class="lp-nav" aria-label="Public pages">
+        <button type="button" class="lp-menu-btn" popovertarget="lpMenu" aria-controls="lpMenu">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            <span class="lp-menu-label">Menu</span>
+        </button>
+        <ul id="lpMenu" class="lp-menu" popover="auto">
+            <li><a href="/league">Leagues</a></li>
+            <li><a href="/help-hosts.php">Host Guide</a></li>
+            <li><a href="/help-guests.php">Guest Guide</a></li>
+            <li><a href="/help-timer.php">Timer Guide</a></li>
+            <li><a href="/login.php">Log in</a></li>
+        </ul>
+    </nav>
+    <div class="lp-actions">
         <?php if (get_setting('allow_registration', '1') === '1'): ?>
         <a class="lp-cta" href="/register.php">Sign up</a>
         <?php endif; ?>
-    </nav>
+        <?php /* The same light/dark switch as the site toolbar (_nav.php), which
+                 this page does not use. A visitor's choice goes in a cookie;
+                 nav.js (loaded below) handles the click and the menu layout. */ ?>
+        <button type="button" class="nav-theme-btn" data-nav="theme" aria-label="Switch to dark mode" title="Switch to dark mode">
+            <svg class="nav-theme-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+            <svg class="nav-theme-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v2.5M12 20v2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M1.5 12h2.5M20 12h2.5M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg>
+        </button>
+    </div>
+  </div>
 </header>
+<script src="/nav.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/nav.js') ?: 0)) ?>" defer></script>
 <div class="hero">
     <?php $_lp_banner = get_setting('header_banner_path', ''); if ($_lp_banner):
         // The banner is the largest thing above the fold (the LCP element) and
