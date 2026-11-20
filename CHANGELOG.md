@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.38.0] - 2026-11-20
+
 ### Security
 
 - **Text other people write can no longer steer Claude.** Claude reads things written by people other than you: a stranger's note asking to join your league, event descriptions, a guest's own name and notes. Someone could have planted an instruction in one. Through the connector, free text written by others now arrives under an `untrusted` label, cut to 500 characters, and Claude is told it is information, never instructions. A note asking to join a league is now limited to 500 characters. (`www/mcp.php`, `www/leagues_dl.php`)
