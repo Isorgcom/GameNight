@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.36.0] - 2026-11-20
+
 ### Security
 
 - **The daily limit on messages to guests can no longer be dodged.** The limit counted per event only, so duplicating an event reset it, and polls and the host's text commands (MSG and REMIND) were never counted at all. Every message, poll and text-command broadcast now counts, from the site, a connected app or a text, against two daily limits: per event, and per host across all their events. Polls are also refused on a cancelled event. (`www/svc/messages.php`, `www/event_polls.php`, `www/sms_admin.php`, `www/calendar.php`, `www/db.php`, `www/cron.php`)
