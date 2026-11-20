@@ -1195,6 +1195,25 @@ JSON;
     try { $pdo->exec("ALTER TABLE users ADD COLUMN beta_timer INTEGER"); } catch (Exception $e) {}
     // v1.34.0: light / dark appearance. NULL = follow the device (auto).
     try { $pdo->exec("ALTER TABLE users ADD COLUMN theme TEXT"); } catch (Exception $e) {}
+    // v1.36.0: one row per message a host sends to an event's guests (a host
+    // message, a poll, the text commands MSG and REMIND), from the site, the
+    // API or a text. The two daily caps in svc/messages.php count these; cron
+    // drops rows after 7 days.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS host_sends (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id   INTEGER NOT NULL,
+        user_id    INTEGER NOT NULL,
+        kind       TEXT    NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_host_sends_user ON host_sends(user_id, created_at)"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_host_sends_event ON host_sends(event_id, created_at)"); } catch (Exception $e) {}
+    // How many guests the send went to: the delivery limit adds these up.
+    try { $pdo->exec("ALTER TABLE host_sends ADD COLUMN recipients INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    // How many of those went out as a text (SMS or WhatsApp), added by the
+    // dispatcher as each queued notice is sent: per-host usage for any future
+    // paid tier, where texts cost money and email does not.
+    try { $pdo->exec("ALTER TABLE host_sends ADD COLUMN texts INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     // v1.35.0, one-shot: a guest linked to an account keeps no email or phone on
     // the invite row. Saves used to copy the account's own details there, and
     // the host's guest list then showed them, so anyone who could save an event

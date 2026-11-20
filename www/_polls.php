@@ -111,7 +111,7 @@ function poll_audience(PDO $db, int $eventId): array {
  * recipient. Returns the number queued. Used for both first send and the
  * "send to new respondents" resend.
  */
-function poll_send_to_audience(PDO $db, array $poll): int {
+function poll_send_to_audience(PDO $db, array $poll, int $hostSendId = 0): int {
     require_once __DIR__ . '/_notifications.php';
     $eventId = (int)$poll['event_id'];
     $pollId  = (int)$poll['id'];
@@ -126,7 +126,7 @@ function poll_send_to_audience(PDO $db, array $poll): int {
         queue_event_notification($db, $eventId, $r['username'], 'event_poll', null, [
             'poll_id'      => $pollId,
             'recipient_id' => (int)$r['id'],
-        ]);
+        ] + ($hostSendId > 0 ? ['host_send_id' => $hostSendId] : []));
         $db->prepare('UPDATE poll_recipients SET notified_at = datetime("now") WHERE id = ?')->execute([(int)$r['id']]);
         $queued++;
     }

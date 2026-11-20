@@ -551,7 +551,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // The per-event daily limit, checked before a PDF is stored for a
         // message that will not go out (svc/messages.php, shared with the API).
         require_once __DIR__ . '/svc/messages.php';
-        if ($__lim = gn_host_message_limit($db, $eid)) $fail((string)$__lim['message'], 429);
+        if ($__lim = gn_host_message_limit($db, $eid, (int)$current['id'])) $fail((string)$__lim['message'], 429);
         $subject  = trim($_POST['subject'] ?? '');
         $audience = in_array($_POST['audience'] ?? '', ['yes', 'yes_maybe', 'all'], true) ? $_POST['audience'] : 'yes';
         $body     = sanitize_html((string)($_POST['body'] ?? ''));

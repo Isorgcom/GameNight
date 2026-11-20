@@ -11,6 +11,24 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.36.0] - 2026-11-20
+
+### Security
+
+- **The daily limit on messages to guests can no longer be dodged.** The limit counted per event only, so duplicating an event reset it, and polls and the host's text commands (MSG and REMIND) were never counted at all. Every message, poll and text-command broadcast now counts, from the site, a connected app or a text, against two daily limits: per event, and per host across all their events. Polls are also refused on a cancelled event. (`www/svc/messages.php`, `www/event_polls.php`, `www/sms_admin.php`, `www/calendar.php`, `www/db.php`, `www/cron.php`)
+- **A connected app without the Messages permission can no longer reach people.** An app allowed only to change events could still cause email and texts by cancelling an event, deleting an upcoming one, removing or approving a guest, removing a league member or answering a join request, and every event it created had reminders on. Those actions now need the Messages permission and say so when it is missing; an event the app creates or copies has reminders off, and the answer says that too. Posting results, running a game and changing an event's details are unaffected. (`www/svc/common.php`, `www/svc/events.php`, `www/svc/leagues.php`, `www/_mcp_tools.php`, `www/api/v2/index.php`)
+- **Phone verification codes are limited.** The button in Settings sent a paid text every time it was pressed. It now allows 5 codes in 15 minutes and 20 a day per account, the same as the sign-in codes. (`www/settings.php`, `www/auth.php`)
+- **Resending an invitation has a brake.** A connected app can resend one guest's invitation once a day; on the site a host can resend it three times a day, enough to fix a mistyped address. (`www/svc/messages.php`)
+
+### Changed
+
+- **Site Settings, General is six sections instead of one long form.** General had grown to 28 settings in a single column with one Save at the bottom, and it was hard to find anything. It is now **Site**, **Features**, **Notifications**, **Security**, **Public pages** and **Timer**, switched with the same sliding control as Account Settings. Each section has its own Save, which saves only that section, and the page comes back on the section you saved; the share image now sits with the rest of Public pages. A section can be linked to (`/admin_settings.php?tab=general#security`), and the browser's find-in-page still finds a setting in a closed section. (`www/admin_settings.php`)
+- **Hosts can send more messages: 10 per event per day, up from 3.** A busy game night (the address, running late, one seat left, the results) no longer hits the limit. The second limit, 25 a day per host across all their events, is what now stops someone using the site to send in bulk. Both numbers are new settings under **Site Settings, General, Notifications**, where 0 turns a limit off. (`www/admin_settings.php`, `www/svc/messages.php`)
+
+### Added
+
+- **A daily limit on how many guests one host's messages reach.** The limits above count sends, but each email and text is paid per person: a host sending 25 messages to 200-guest events could reach 5,000 people a day. This one counts people, 1,000 a day per host across all their events by default, so a host with 80 guests can still send them 12 messages a day. It has its own switch and number under **Site Settings, General, Notifications**, and the refusal says how many guests the message would reach and how many are left. Poll resends count toward it too. (`www/svc/messages.php`, `www/admin_settings.php`, `www/event_polls.php`, `www/sms_admin.php`, `www/db.php`)
+
 ## [v1.35.0] - 2026-11-20
 
 ### Security

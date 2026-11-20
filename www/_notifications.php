@@ -1266,12 +1266,25 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         // parked email retries) with the event, the recipient and the kind of
         // notification being sent.
         notif_log_context($event_id, $username, $type);
+        // A host's message or poll: note where sms_log stands, so the texts this
+        // one send produced can be added to the host's usage (host_sends.texts).
+        $hs_id = in_array($type, ['event_message', 'event_poll'], true) ? (int)($payload['host_send_id'] ?? 0) : 0;
+        $hs_from = 0;
+        if ($hs_id > 0) { try { $hs_from = (int)$db->query('SELECT COALESCE(MAX(id), 0) FROM sms_log')->fetchColumn(); } catch (Throwable $e) { $hs_id = 0; } }
         send_notification(
             $user['username'], $user['email'] ?? '', $user['phone'] ?? '',
             $user['preferred_contact'] ?? 'email',
             $subject, $smsBody, $htmlBody, $waBody, $attachments
         );
         notif_log_context(null, null);
+        if ($hs_id > 0) {
+            try {
+                $tq = $db->prepare("SELECT COUNT(*) FROM sms_log WHERE id > ? AND direction = 'outbound' AND provider <> 'email' AND event_id = ? AND LOWER(username) = LOWER(?)");
+                $tq->execute([$hs_from, $event_id, $username]);
+                $tn = (int)$tq->fetchColumn();
+                if ($tn > 0) $db->prepare('UPDATE host_sends SET texts = texts + ? WHERE id = ?')->execute([$tn, $hs_id]);
+            } catch (Throwable $e) { /* usage counting never blocks delivery */ }
+        }
 
         // Determine the per-channel outcome once for the decisions below.
         $err = get_last_notification_error();

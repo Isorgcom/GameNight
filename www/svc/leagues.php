@@ -230,6 +230,8 @@ function gn_league_member_remove(PDO $db, array $actor, int $league_id, int $mem
     $tRole = $row['role'] ?? 'member';
     if ($tRole === 'owner') return gn_err('cannot_remove_owner', 'Cannot remove the owner — transfer ownership first', 409);
     if ($l['_standing'] === 'manager' && $tRole === 'manager') return gn_err('forbidden', 'Managers cannot remove other managers', 403);
+    // A member who has joined is told (v1.36.0: needs the messages scope).
+    if (!empty($row['user_id']) && ($e = gn_needs_messages($actor, 'Removing a league member'))) return $e;
 
     $db->prepare('DELETE FROM league_members WHERE id = ?')->execute([(int)$row['id']]);
     $linked = !empty($row['user_id']);
@@ -428,6 +430,8 @@ function gn_join_request_decide(PDO $db, array $actor, int $request_id, bool $ap
     $lid = (int)$req['league_id']; $target = (int)$req['user_id'];
     $l = gn_league_guard($db, $actor, $lid, ['owner', 'manager']);
     if (isset($l['ok'])) return $l;
+    // Either answer is sent to the person who asked (v1.36.0: needs the messages scope).
+    if ($e = gn_needs_messages($actor, 'Deciding a join request')) return $e;
     if ($req['status'] !== 'pending') return gn_err('already_decided', 'That request was already answered.', 409);
 
     $status = $approve ? 'approved' : 'denied';

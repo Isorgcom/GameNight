@@ -144,7 +144,7 @@ After your first login as `admin`:
 2. **Set your site name** — Go to Admin > General and give your site a name.
 3. **Set the timezone** — Important for event times to display correctly.
 4. **Upload a banner** — Go to Admin > Appearance to add your logo and header image.
-5. **Enable notifications** — Admin > General > "Enable Notifications" toggle. Off by default.
+5. **Enable notifications** — Admin > General > Notifications > "Enable Notifications" toggle. Off by default.
 6. **Configure email** — Admin > Email tab. Set up SMTP so invite emails and reminders work.
 7. **Invite your friends** — Have them register, or create accounts in Admin > Users.
 8. **Create your first event** — Open the Calendar, click "+", and set up a game night.
@@ -162,24 +162,35 @@ Overview of your site: total users, total events, total posts, and recent activi
 
 ### General Settings
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Site Name | Game Night | Displayed in the nav bar and emails |
-| Site URL | (blank) | Used in notification links. Set this to your public URL |
-| Timezone | UTC | All event times are displayed in this timezone |
-| Allow Registration | On | When off, the signup page is disabled |
-| Allow User Events | Off | When on, non-admin users can create and manage their own events |
-| Show Upcoming Events | On | Show/hide the upcoming events section on the landing page |
-| Enable Calendar | On | Show/hide the calendar page and nav link |
-| Allow Maybe RSVP | On | When off, only Yes/No RSVP options are available |
-| Enable Notifications | Off | Master switch for all email/SMS/WhatsApp notifications |
-| Security alerts | On | Tell the admins when the sign-up honeypot is hit, a sign-up is posted by a client that never ran the page, the sign-up or resend-verification limit refuses someone, verification mail or codes are withheld by the per-account cap, an opted-out address is used, sign-in is locked after failed attempts, or sign-up posts in one hour reach the burst alarm. One message per kind per hour; every hit is in the Logs tab regardless |
-| Text security alerts to | (blank) | A mobile number that receives the alerts as a text, through the SMS provider, even while Enable Notifications is off. Blank: each admin is notified the way their Preferred Contact says. Admins see every alert in their in-app inbox either way |
-| Sign-up burst alarm | 10 | Sign-up posts in one hour, counted across every address and including refused ones, at which the admins get a security alert saying how many posts came from how many addresses. Catches a bot that paces each address under the per-address limit. 0 turns it off |
+General is in six sections, switched with the same sliding control as Account Settings: **Site**, **Features**, **Notifications**, **Security**, **Public pages** and **Timer**. Each section has its own Save, which saves only that section, and the page comes back on the section you saved. A section can be linked to: `/admin_settings.php?tab=general#notifications`.
+
+| Section | Setting | Default | Description |
+|---------|---------|---------|-------------|
+| Site | Site Name | Game Night | Displayed in the nav bar and emails |
+| Site | Site URL | (blank) | Used in notification links. Set this to your public URL |
+| Site | Timezone | UTC | All event times are displayed in this timezone |
+| Features | Allow Registration | On | When off, the signup page is disabled |
+| Features | Allow User Events | Off | When on, non-admin users can create and manage their own events |
+| Features | Enable Calendar | On | Show/hide the calendar page and nav link |
+| Features | Allow Maybe RSVP | On | When off, only Yes/No RSVP options are available |
+| Notifications | Enable Notifications | Off | Master switch for all email/SMS/WhatsApp notifications |
+| Notifications | Site default reminders | 2 days and 12 hours before | The reminders every new event starts with; the host changes them on the event |
+| Notifications | Messages per event per day | 10 | Host messages and polls one event may send its guests in 24 hours, from the site, a connected app or a text command. 0 = no limit |
+| Notifications | Messages per host per day | 25 | The same count for one person across all their events. 0 = no limit |
+| Notifications | Limit guests reached per host per day | On, 1,000 | Counts people rather than sends: a message to 80 guests uses 80. Its own switch and number |
+| Notifications | Extra browser-push services | (blank) | Push service hosts beyond Google, Mozilla, Microsoft and Apple |
+| Security | Security alerts | On | Tell the admins when the sign-up honeypot is hit, a sign-up is posted by a client that never ran the page, the sign-up or resend-verification limit refuses someone, verification mail or codes are withheld by the per-account cap, an opted-out address is used, sign-in is locked after failed attempts, or sign-up posts in one hour reach the burst alarm. One message per kind per hour; every hit is in the Logs tab regardless |
+| Security | Text security alerts to | (blank) | A mobile number that receives the alerts as a text, through the SMS provider, even while Enable Notifications is off. Blank: each admin is notified the way their Preferred Contact says. Admins see every alert in their in-app inbox either way |
+| Security | Sign-up burst alarm | 10 | Sign-up posts in one hour, counted across every address and including refused ones, at which the admins get a security alert saying how many posts came from how many addresses. Catches a bot that paces each address under the per-address limit. 0 turns it off |
+| Public pages | Show Upcoming Events | On | Show/hide the upcoming events section on the landing page |
+| Public pages | Show Landing Page | Off | Logged-out visitors see the landing page instead of the posts feed |
+| Public pages | Donation URL and message | (blank) | A donation banner on the home page and a footer link |
+| Timer | Allowed video stream hosts | (blank) | Extra hosts the timer's stream panel may embed |
+| Timer | Google Cast app ID | (blank) | Turns on the timer's Cast button |
 
 #### Search & Sharing
 
-The landing page (shown to logged-out visitors when **Show Landing Page** is on) is the one page search engines are meant to find, and these settings control what they show for it. All of them live in Admin → Settings → General.
+The landing page (shown to logged-out visitors when **Show Landing Page** is on) is the one page search engines are meant to find, and these settings control what they show for it. All of them live in Admin → Settings → General → Public pages.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -491,7 +502,7 @@ When you're invited to an event, you'll receive a notification via your preferre
 
 ### How Notifications Work
 
-Notifications are sent via the user's preferred contact method (email, SMS, WhatsApp, or both). The admin must enable notifications globally in **Admin > General > Enable Notifications**.
+Notifications are sent via the user's preferred contact method (email, SMS, WhatsApp, or both). The admin must enable notifications globally in **Admin > General > Notifications > Enable Notifications**.
 
 Notification triggers:
 - **Event invite** — When you're added to an event.
@@ -1666,7 +1677,7 @@ The token rides in the URL **fragment**, so it never reaches the app's access lo
 
 | Claim | Value |
 |---|---|
-| `iss` | the site URL (Site Settings → General → Site URL; falls back to the request host, so set it) |
+| `iss` | the site URL (Site Settings → General → Site → Site URL; falls back to the request host, so set it) |
 | `aud` | the app slug |
 | `sub` | the member's user id, as a string |
 | `iat`, `exp` | issued at, and 120 seconds later; one hop, then it is spent |
@@ -1713,9 +1724,9 @@ A token's row shows what it may do, when it was created and last used, and how m
 | Permission | Allows |
 |---|---|
 | `read` | Read your leagues, events, guest lists, games, results and standings. Every token has it. |
-| `events` | Create and change events, guest lists and your contacts; add and remove seasons; post to a league; answer requests to join. Never sends anything to a guest by itself. |
+| `events` | Create and change events, guest lists and your contacts; add and remove seasons; post to a league. Never sends anything to anyone by itself: an action that would tell people (cancelling, deleting an upcoming event, removing a guest from an upcoming event, approving a guest, removing a league member, answering a request to join, turning reminders on) also needs `messages`, and is refused with `403 messages_permission_needed` without it. An event created or duplicated without `messages` has reminders off, and the answer's `note` says so. |
 | `game` | Set up and run poker games: setup, blinds, payouts, buy-ins, rebuys and add-ons, knockouts, seating, the clock, finishing. |
-| `messages` | Anything that emails or texts people: invitations, nudges, a host message, inviting someone to a league. |
+| `messages` | Anything that emails or texts people: invitations, nudges, a host message, inviting someone to a league, and the actions under `events` that tell people. |
 | `money` | Needed, with `game`, to put a jackpot amount on a game (the jackpot is the league's fund). Paying out and adjusting the fund through the API is not available yet. |
 
 **Revoke** removes a token at once. Changing your password, or signing out everywhere, revokes every token on the account. Up to 10 tokens per account.
@@ -1882,7 +1893,7 @@ Where a site lets only its admins create events, this answers `403 events_not_al
 
 #### Host messages and their limit
 
-`POST /events/{id}/messages` emails or texts every guest in the audience at once, and is not counted against the per-person daily notification limit. So an event may send **3 host messages in any 24 hours**, on the site and through the API alike; the next is refused with `429 host_message_limit`. A site admin can change the number with the `host_message_daily_cap` setting (`0` removes the limit). `body` may be plain text, whose line breaks are kept, or simple HTML, which is sanitised.
+`POST /events/{id}/messages` emails or texts every guest in the audience at once, and is not counted against the per-person daily notification limit. So an event may send **10 host messages in any 24 hours**, and one person **25 across all their events**, on the site, through the API, by text command and as polls alike; the next is refused with `429 host_message_limit`, and the message says which limit was reached. A third limit counts people rather than sends: the guests one person's messages and polls reach in 24 hours, **1,000** by default, with its own switch (`host_delivery_cap_enabled`, `host_delivery_daily_cap`); a message that would pass it is refused before anything is sent. A site admin changes both under **Site Settings, General, Notifications** (`host_message_daily_cap`, `host_message_sender_daily_cap`; `0` removes a limit). Resending one guest's invitation is allowed once a day through the API (three times a day on the site); the next is `429 resend_limit`. `body` may be plain text, whose line breaks are kept, or simple HTML, which is sanitised.
 
 #### `GET /api/v2/events/{id}/game`
 
@@ -2505,7 +2516,7 @@ chown -R www-data:www-data db/ www/uploads/
 ```
 
 ### Emails not sending
-1. Verify **Enable Notifications** is on in Admin > General.
+1. Verify **Enable Notifications** is on in Admin > General > Notifications.
 2. Check your SMTP credentials in Admin > Email.
 3. Use **Send Test Email** to diagnose. Test emails bypass the notification toggle.
 4. Check the Activity Log for error messages.
@@ -2516,10 +2527,10 @@ chown -R www-data:www-data db/ www/uploads/
 3. Ensure phone numbers are in the correct format (the system normalizes to E.164).
 
 ### Calendar not showing
-Check Admin > General > **Enable Calendar** is toggled on.
+Check Admin > General > Features > **Enable Calendar** is toggled on.
 
 ### Users can't create events
-Enable **Allow Users to Create Events** in Admin > General.
+Enable **Allow Users to Create Events** in Admin > General > Features.
 
 ### Forgot admin password
 If you've lost access to the admin account, you can reset the database:

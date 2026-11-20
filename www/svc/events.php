@@ -402,6 +402,11 @@ function gn_event_create(PDO $db, array $actor, array $body): array {
     if ($e = gn_event_end_before_start($actor, $in)) return $e;
     $g = gn_guests_resolve($db, $actor, $guests);
     if (isset($g['ok'])) return $g;
+    // Reminders reach the guests. Without the messages scope they default to
+    // off, and asking for them is refused (v1.36.0).
+    $quiet = !gn_actor_has_scope($actor, 'messages');
+    if ($quiet && !empty($in['reminders_enabled']) && ($e = gn_needs_messages($actor, 'Turning on reminders'))) return $e;
+    if ($quiet) $in['reminders_enabled'] = '';
 
     $in += ['action' => 'add', 'visibility' => !empty($in['league_id']) ? 'league' : 'invitees_only',
             'reminders_enabled' => '1', 'waitlist_enabled' => '1'];
@@ -418,7 +423,8 @@ function gn_event_create(PDO $db, array $actor, array $body): array {
         if (empty($res['ok'])) { $db->rollBack(); return gn_err('event_not_saved', (string)$res['error'], 400); }
         $db->commit();
     } catch (Throwable $e) { if ($db->inTransaction()) $db->rollBack(); throw $e; }
-    return gn_event_get($db, $actor, (int)$res['event_id']) + ['created' => true];
+    return gn_event_get($db, $actor, (int)$res['event_id']) + ['created' => true]
+        + ($quiet ? ['note' => 'Reminders are off: this connection is not allowed to send messages.'] : []);
 }
 
 /** The stored event as editor field names, in the actor's timezone: what the edit form would post unchanged. */
@@ -459,6 +465,7 @@ function gn_event_update(PDO $db, array $actor, int $event_id, array $body): arr
     if (!$body) return gn_err('nothing_to_change', 'Send at least one field to change.', 400);
     $x = gn_event_body_to_input($db, $actor, $body);
     if (isset($x['ok'])) return $x;
+    if (!empty($x['in']['reminders_enabled']) && ($e = gn_needs_messages($actor, 'Turning on reminders'))) return $e;
 
     $stored = gn_event_stored_input($db, $actor, $ev);
     $in     = $x['in'] + $stored;
@@ -506,6 +513,7 @@ function gn_event_update(PDO $db, array $actor, int $event_id, array $body): arr
 function gn_event_cancel(PDO $db, array $actor, int $event_id): array {
     $ev = gn_event_guard($db, $actor, $event_id, true);
     if (isset($ev['ok'])) return $ev;
+    if ($e = gn_needs_messages($actor, 'Cancelling an event')) return $e;
     $res = cancel_event_keep($db, $event_id, (int)$actor['id']);
     if ($res === null) return gn_err('event_not_found', 'No such event.', 404);
     return gn_ok(['event_id' => $event_id, 'title' => (string)$res['title'], 'cancelled' => true,
@@ -524,11 +532,12 @@ function gn_event_delete(PDO $db, array $actor, int $event_id, array $body): arr
     if ($bad) return gn_err('unknown_field', 'Unknown field: ' . implode(', ', $bad) . '.', 400);
     if (array_key_exists('notify', $body) && !is_bool($body['notify'])) return gn_err('bad_field', 'notify must be true or false.', 400);
     $notify = ($body['notify'] ?? true) !== false;
+    $tz = new DateTimeZone(get_setting('timezone', 'UTC'));
+    $wouldTell = $notify && empty($ev['cancelled_at']) && (string)$ev['start_date'] >= (new DateTime('now', $tz))->format('Y-m-d');
+    if ($wouldTell && ($e = gn_needs_messages($actor, 'Deleting an upcoming event (every guest is told; send "notify": false to delete without telling anyone)'))) return $e;
     if (($body['confirm'] ?? null) !== true) {
         $n = $db->prepare('SELECT COUNT(*) FROM event_invites WHERE event_id = ? AND occurrence_date IS NULL');
         $n->execute([$event_id]);
-        $tz = new DateTimeZone(get_setting('timezone', 'UTC'));
-        $wouldTell = $notify && empty($ev['cancelled_at']) && (string)$ev['start_date'] >= (new DateTime('now', $tz))->format('Y-m-d');
         return gn_err('confirmation_required', 'Deleting "' . $ev['title'] . '" removes it for good, with its guest list (' . (int)$n->fetchColumn()
             . '), messages, comments and any game results. It cannot be undone. '
             . ($wouldTell ? 'Every guest is told it is cancelled; send "notify": false to delete without telling anyone. '
@@ -573,6 +582,9 @@ function gn_event_duplicate(PDO $db, array $actor, int $event_id, array $body): 
     if (!array_key_exists('end_at', $body)) { $in['end_date'] = ''; $in['end_time'] = ''; }
     $in = $x['in'] + $in;
     $in['action'] = 'add'; unset($in['id']);
+    // The copy reaches its guests through reminders: off without the messages scope (v1.36.0).
+    $quiet = !gn_actor_has_scope($actor, 'messages');
+    if ($quiet) $in['reminders_enabled'] = '';
     if ($e = gn_event_end_before_start($actor, $in)) return $e;
     if ($in['visibility'] === 'public' && !$actor['is_admin']) $in['visibility'] = !empty($in['league_id']) ? 'league' : 'invitees_only';
 
@@ -592,7 +604,8 @@ function gn_event_duplicate(PDO $db, array $actor, int $event_id, array $body): 
         if (empty($res['ok'])) { $db->rollBack(); return gn_err('event_not_saved', (string)$res['error'], 400); }
         $db->commit();
     } catch (Throwable $e) { if ($db->inTransaction()) $db->rollBack(); throw $e; }
-    return gn_event_get($db, $actor, (int)$res['event_id']) + ['created' => true, 'copied_from' => $event_id];
+    return gn_event_get($db, $actor, (int)$res['event_id']) + ['created' => true, 'copied_from' => $event_id]
+        + ($quiet ? ['note' => 'Reminders are off on the copy: this connection is not allowed to send messages.'] : []);
 }
 
 // ── Guest list ───────────────────────────────────────────────────────────────
@@ -740,6 +753,9 @@ function gn_invite_remove(PDO $db, array $actor, int $event_id, int $invite_id):
     $tz = new DateTimeZone(get_setting('timezone', 'UTC'));
     $today = (new DateTime('now', $tz))->format('Y-m-d');
     $notify = (string)$ev['start_date'] >= $today;
+    // On an upcoming event the guest is told (and a waitlisted guest may be
+    // promoted and told), so it needs the messages scope (v1.36.0).
+    if ($notify && ($e = gn_needs_messages($actor, 'Removing a guest from an upcoming event'))) return $e;
     $db->beginTransaction();
     try {
         if ($notify) {
@@ -768,6 +784,8 @@ function gn_invite_decide(PDO $db, array $actor, int $event_id, int $invite_id, 
     $want   = $approve ? 'approved' : 'denied';
     if ($status === $want) return gn_ok(['event_id' => $event_id, 'invite_id' => $invite_id, 'name' => (string)$inv['username'], 'status' => $want, 'changed' => false]);
 
+    // Approval tells the guest (v1.36.0: needs the messages scope).
+    if ($approve && ($e = gn_needs_messages($actor, 'Approving a guest'))) return $e;
     $seat = '';
     if ($approve) {
         // The shared sequence: status, league enrolment, the poker roster and
