@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.35.0] - 2026-11-20
+
 ### Security
 
 - **A guest list no longer reveals the email and phone of an account holder.** When a host added someone by username and left the contact fields blank, the event editor filled them in from that person's account and the guest list then showed them to the host, so anyone who could create an event could read any account's email address and phone number by typing a username. The calendar page went further: it put every guest's email and phone into the page for anyone who could see the event, guests included. An invite linked to an account now holds no address at all; invitations and reminders read the account at send time, so nobody stops receiving anything. A one-time clean-up on the first page load after the update removes the addresses already copied onto such invites (typed-in guests without an account keep theirs). Found in the 2026-11-20 security audit. (`www/_event_save.php`, `www/calendar.php`, `www/event_invites_dl.php`, `www/checkin_dl.php`, `www/_poker_helpers.php`, `www/svc/events.php`, `www/api/v1/events.php`, `www/_public_join.php`, `www/db.php`)
