@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.37.0] - 2026-11-20
+
 ### Security
 
 - **Signing up with someone else's email address no longer wins you that address.** Anyone could register an account with another person's email and their own password, then wait for the real owner to press Verify in the genuine email; the account, with the stranger's password, then owned the address and claimed any league or contact invitations waiting for it. Verifying a new account now asks for the password it was signed up with. The real owner of the address, who never chose one, can ignore the email, or use **Forgot password**: a reset sent to that inbox and completed now verifies the address and makes the account theirs. Accounts made at the door, by a share link or by a league's API have no password and verify as before. (`www/verify_email.php`, `www/reset_password.php`, `www/forgot_password.php`)
