@@ -34,6 +34,28 @@ if ($league_id > 0) {
     }
 }
 
+// Which picker rows are accounts, and whether each account has an email and a
+// phone (v1.35.0). The editor shows those guests as reachable through their
+// account; it never needs the address, and the save keeps none on the invite.
+function _mark_accounts(PDO $db, array &$users): void {
+    $names = [];
+    foreach ($users as $u) { $n = strtolower((string)($u['username'] ?? '')); if ($n !== '') $names[$n] = true; }
+    $acct = [];
+    foreach (array_chunk(array_keys($names), 400) as $chunk) {
+        $q = $db->prepare("SELECT LOWER(username) AS n, (COALESCE(email, '') <> '') AS e, (COALESCE(phone, '') <> '') AS p
+                           FROM users WHERE LOWER(username) IN (" . implode(',', array_fill(0, count($chunk), '?')) . ")");
+        $q->execute($chunk);
+        foreach ($q->fetchAll() as $r) $acct[$r['n']] = $r;
+    }
+    foreach ($users as &$u) {
+        $a = $acct[strtolower((string)($u['username'] ?? ''))] ?? null;
+        $u['is_account'] = $a ? 1 : 0;
+        $u['has_email']  = $a ? (int)$a['e'] : 0;
+        $u['has_phone']  = $a ? (int)$a['p'] : 0;
+    }
+    unset($u);
+}
+
 function _add_seen(array &$users, array &$seen, array $row): void {
     $key = strtolower($row['username'] ?? '');
     if ($key === '' || isset($seen[$key])) return;
@@ -83,7 +105,8 @@ if ($isAdmin) {
         foreach ($q->fetchAll() as $r) { $r['pref'] = $prefOf($r); _add_seen($users, $seen, $r); }
         usort($users, function($a, $b) { return strcasecmp($a['display_name'] ?? '', $b['display_name'] ?? ''); });
     }
-    echo json_encode(['ok' => true, 'users' => $users]);
+    _mark_accounts($db, $users);
+echo json_encode(['ok' => true, 'users' => $users]);
     exit;
 }
 
@@ -132,8 +155,8 @@ unset($_pcRow);
 if ($league_id > 0) {
     // Must be a member of this league to see its roster. Contact details are
     // for the league's owner and managers: a plain member gets names only
-    // (_event_save.php fills in email/phone from the account when the picker
-    // sends none) and never the typed-in details of pending contacts.
+    // (an account is reached through the account itself; no address is ever
+    // copied onto the invite) and never the typed-in details of pending contacts.
     $role = league_role($league_id, $uid);
     if ($role === null) {
         echo json_encode(['ok' => false, 'error' => 'Not a member of that league.']);
@@ -178,11 +201,13 @@ if ($league_id > 0) {
     foreach ($personal as $r) { _add_seen($users, $seen, $r); }
 
     usort($users, function($a, $b) { return strcasecmp($a['display_name'] ?? '', $b['display_name'] ?? ''); });
-    echo json_encode(['ok' => true, 'users' => $users]);
+    _mark_accounts($db, $users);
+echo json_encode(['ok' => true, 'users' => $users]);
     exit;
 }
 
 // No league picked → personal contacts only.
 foreach ($personal as $r) { _add_seen($users, $seen, $r); }
 usort($users, function($a, $b) { return strcasecmp($a['display_name'] ?? '', $b['display_name'] ?? ''); });
+_mark_accounts($db, $users);
 echo json_encode(['ok' => true, 'users' => $users]);

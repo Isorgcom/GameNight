@@ -6,10 +6,19 @@ require_once __DIR__ . '/auth.php';
 // SameSite=Lax, which still rides along on a top-level GET). A GET now shows a
 // one-button confirmation instead, so an old bookmark or link still works.
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Sign out only on a POST that carries this browser's own session cookie
+    // and a valid token; anything else gets the confirmation page. A POST from
+    // another site arrives without the SameSite=Lax cookies, and until v1.35.0
+    // that skipped the check: the reply expired the remember-me cookie, started
+    // a fresh session over the real one and sent Clear-Site-Data. So no session
+    // is even started here unless the cookie arrived.
+    $sessCookie = _is_https() ? SESSION_COOKIE_HTTPS : 'PHPSESSID';
+    if (!isset($_COOKIE[$sessCookie])) {
+        header('Location: /logout.php');
+        exit;
+    }
     session_start_safe();
-    // A stale or missing token (an old tab) gets the confirmation page rather
-    // than a silent sign-out a forged POST could also trigger.
-    if (!csrf_verify() && current_user()) {
+    if (!csrf_verify()) {
         header('Location: /logout.php');
         exit;
     }

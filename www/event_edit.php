@@ -124,14 +124,16 @@ if ($eid > 0) {
     // Invites: occurrence-specific rows when managing one date, else base rows.
     if ($occDate) {
         $is = $db->prepare("SELECT ei.username, ei.phone, ei.email, ei.rsvp, ei.event_role, ei.approval_status, ei.sort_order,
-                                   u.preferred_contact AS pref
+                                   u.preferred_contact AS pref,
+                                   (u.id IS NOT NULL) AS acct, (COALESCE(u.email, '') <> '') AS acct_email, (COALESCE(u.phone, '') <> '') AS acct_phone
                             FROM event_invites ei LEFT JOIN users u ON u.id = ei.user_id
                             WHERE ei.event_id = ? AND ei.occurrence_date = ?
                             ORDER BY COALESCE(ei.sort_order, 999999), ei.username");
         $is->execute([$eid, $occDate]);
     } else {
         $is = $db->prepare("SELECT ei.username, ei.phone, ei.email, ei.rsvp, ei.event_role, ei.approval_status, ei.sort_order,
-                                   u.preferred_contact AS pref
+                                   u.preferred_contact AS pref,
+                                   (u.id IS NOT NULL) AS acct, (COALESCE(u.email, '') <> '') AS acct_email, (COALESCE(u.phone, '') <> '') AS acct_phone
                             FROM event_invites ei LEFT JOIN users u ON u.id = ei.user_id
                             WHERE ei.event_id = ? AND ei.occurrence_date IS NULL
                             ORDER BY COALESCE(ei.sort_order, 999999), ei.username");
@@ -172,7 +174,8 @@ if ($eid > 0) {
         $event['end_date'] = null;
 
         $is = $db->prepare("SELECT ei.username, ei.phone, ei.email, ei.event_role, ei.approval_status, ei.sort_order,
-                                   u.preferred_contact AS pref
+                                   u.preferred_contact AS pref,
+                                   (u.id IS NOT NULL) AS acct, (COALESCE(u.email, '') <> '') AS acct_email, (COALESCE(u.phone, '') <> '') AS acct_phone
                             FROM event_invites ei LEFT JOIN users u ON u.id = ei.user_id
                             WHERE ei.event_id = ? AND ei.occurrence_date IS NULL
                             ORDER BY COALESCE(ei.sort_order, 999999), ei.username");
@@ -837,7 +840,7 @@ const CSRF              = <?= js_json($token, JSON_HEX_TAG) ?>;
 const IS_ADMIN          = <?= $isAdmin ? 'true' : 'false' ?>;
 const CAN_CREATE_EVENTS = <?= $canCreateEvents ? 'true' : 'false' ?>;
 const CURRENT_USER_ID   = <?= js_json($current['id'] ?? null, JSON_HEX_TAG) ?>;
-const EVENT             = <?= $event ? json_encode($event, JSON_HEX_TAG) : 'null' ?>;
+const EVENT             = <?= js_json($event ?: null) ?>;
 const EVENT_INVITES     = <?= js_json($eventInvitesRows, JSON_HEX_TAG) ?>;
 <?php
 // The event's league's known-as names by lower-cased screen name (v1.13.0),
@@ -852,7 +855,7 @@ if (!empty($event['league_id'])) {
 }
 ?>
 const KNOWN_AS          = <?= js_json($knownByName, JSON_FORCE_OBJECT) ?>;
-const EVENT_POKER       = <?= $pokerRow ? json_encode($pokerRow, JSON_HEX_TAG) : 'null' ?>;
+const EVENT_POKER       = <?= js_json($pokerRow ?: null) ?>;
 const PREFILL_DATE      = <?= js_json($prefillDate, JSON_HEX_TAG) ?>;
 const LAST_POKER_DEFAULT = <?= ((int)($current['last_poker_default'] ?? 1)) ? 'true' : 'false' ?>;
 var ALL_USERS           = <?= js_json(array_values($allUsers), JSON_HEX_TAG) ?>;
@@ -930,6 +933,7 @@ function buildAllUsersList() {
         li.dataset.uemail   = u.email     || '';
         li.dataset.uphone   = u.phone     || '';
         li.dataset.upref    = u.pref      || '';
+        li.dataset.uacct    = u.is_account ? ('1' + (u.has_email ? 'e' : '') + (u.has_phone ? 'p' : '')) : '';
         li.dataset.member   = u.is_league_member ? '1' : '0';
         li.setAttribute('role', 'option'); li.setAttribute('aria-selected', 'false'); li.tabIndex = -1;
         li.textContent = display;
@@ -956,7 +960,7 @@ function buildAllUsersList() {
                 if (this.classList.contains('dimmed')) {
                     if (this.dataset.uname) removeInvite(this.dataset.uname);
                 } else if (this.dataset.uname) {
-                    inviteUser(this.dataset.uname, this.dataset.uphone, this.dataset.uemail, '', '', '', this.dataset.upref);
+                    inviteUser(this.dataset.uname, this.dataset.uphone, this.dataset.uemail, '', '', '', this.dataset.upref, this.dataset.uacct);
                 }
                 return;
             }
@@ -968,7 +972,7 @@ function buildAllUsersList() {
             if (this.classList.contains('dimmed') || !this.dataset.uname) return;
             e.preventDefault();
             if (window.getSelection) { try { window.getSelection().removeAllRanges(); } catch (err) {} }
-            inviteUser(this.dataset.uname, this.dataset.uphone, this.dataset.uemail, '', '', '', this.dataset.upref);
+            inviteUser(this.dataset.uname, this.dataset.uphone, this.dataset.uemail, '', '', '', this.dataset.upref, this.dataset.uacct);
             this.classList.remove('inv-selected');
         });
         ul.appendChild(li);
@@ -1020,7 +1024,10 @@ function onHideNonMembersChange() {
 }
 
 // ── Invited pane ──────────────────────────────────────────────────────────────
-function inviteUser(username, phone, email, rsvp, role, approvalStatus, pref) {
+// acct: '' for a typed-in guest, else '1' plus 'e' / 'p' when their account has
+// an email / a phone. A guest with an account is reached through it (v1.35.0):
+// the page is told only THAT they are reachable, never the address.
+function inviteUser(username, phone, email, rsvp, role, approvalStatus, pref, acct) {
     // Skip if already invited
     const existing = Array.from(document.querySelectorAll('#eInvitedList li[data-iname]'))
         .map(li => li.dataset.iname.toLowerCase());
@@ -1028,12 +1035,14 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus, pref) {
 
     const li = document.createElement('li');
     li.dataset.iname    = username;
-    li.dataset.iphone   = phone  || '';
-    li.dataset.iemail   = email  || '';
+    // An account holder's row keeps no address (the save stores none for them).
+    li.dataset.iphone   = acct ? '' : (phone || '');
+    li.dataset.iemail   = acct ? '' : (email || '');
     li.dataset.irsvp    = rsvp   || '';
     li.dataset.irole    = role   || 'invitee';
     li.dataset.istatus  = approvalStatus || 'approved';
     li.dataset.ipref    = pref   || '';   // how they are notified: email / sms / whatsapp / both / none, or '' for the default rule
+    li.dataset.iacct    = acct   || '';
     li.setAttribute('role', 'option'); li.setAttribute('aria-selected', 'false'); li.tabIndex = -1;
 
     const nameSpan = document.createElement('span');
@@ -1049,9 +1058,17 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus, pref) {
     contactCtl.type = 'button';
     contactCtl.className = 'inv-contact-ctl inv-col-contact';
     contactCtl.title = 'Click to edit email / phone';
-    contactCtl.setAttribute('aria-label', contactLabel(username, li.dataset.iemail, li.dataset.iphone, li.dataset.ipref));
-    contactCtl.innerHTML = invContactCtlInner(li.dataset.iemail, li.dataset.iphone, li.dataset.ipref);
-    contactCtl.addEventListener('click', function(e) { e.stopPropagation(); openContactEdit(li); });
+    contactCtl.setAttribute('aria-label', contactLabel(username, invEffEmail(li), invEffPhone(li), li.dataset.ipref));
+    contactCtl.innerHTML = invContactCtlInner(invEffEmail(li), invEffPhone(li), li.dataset.ipref);
+    if (li.dataset.iacct) contactCtl.title = 'Has an account: invitations go to the email and phone on it';
+    contactCtl.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (li.dataset.iacct) {
+            pkAlert(invEsc(li.dataset.iname || 'This guest') + ' has an account, so invitations and reminders go to the email and phone on their account. They can change those in their own settings.');
+            return;
+        }
+        openContactEdit(li);
+    });
     contactCtl.addEventListener('dblclick', function(e) { e.stopPropagation(); });
     li.appendChild(contactCtl);
 
@@ -1158,6 +1175,13 @@ function contactChannelWord(ch) {
     if (ch.email) return 'notified by email';
     return '';
 }
+// What the glyph shows: the address typed for this guest or, for a guest with
+// an account, a stand-in when the account has one (the address itself is not
+// sent to the page).
+// pkAlert renders HTML: a guest's name goes through this first.
+function invEsc(v) { return String(v).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function invEffEmail(li) { return li.dataset.iemail || ((li.dataset.iacct || '').indexOf('e') >= 0 ? 'account' : ''); }
+function invEffPhone(li) { return li.dataset.iphone || ((li.dataset.iacct || '').indexOf('p') >= 0 ? 'account' : ''); }
 function invContactCtlInner(email, phone, pref) {
     var hasE = !!(email && String(email).trim());
     var hasP = !!(phone && String(phone).trim());
@@ -1460,14 +1484,14 @@ function listKeydown(e) {
 function moveRight() {
     var selected = document.querySelectorAll('#eAllUsersList li.inv-selected:not(.dimmed)');
     selected.forEach(function(li) {
-        inviteUser(li.dataset.uname, li.dataset.uphone, li.dataset.uemail, '', '', '', li.dataset.upref);
+        inviteUser(li.dataset.uname, li.dataset.uphone, li.dataset.uemail, '', '', '', li.dataset.upref, li.dataset.uacct);
         li.classList.remove('inv-selected');
     });
 }
 function moveAllRight() {
     var visible = document.querySelectorAll('#eAllUsersList li:not(.dimmed):not([style*="display: none"]):not([style*="display:none"])');
     visible.forEach(function(li) {
-        if (li.dataset.uname) inviteUser(li.dataset.uname, li.dataset.uphone, li.dataset.uemail, '', '', '', li.dataset.upref);
+        if (li.dataset.uname) inviteUser(li.dataset.uname, li.dataset.uphone, li.dataset.uemail, '', '', '', li.dataset.upref, li.dataset.uacct);
     });
 }
 function moveLeft() {
@@ -2075,7 +2099,8 @@ function regenWalkinFromEdit() {
     buildAllUsersList();
     document.getElementById('eInvitedList').innerHTML = '';
     EVENT_INVITES.forEach(function(inv) {
-        inviteUser(inv.username, inv.phone || '', inv.email || '', inv.rsvp || '', inv.event_role || 'invitee', inv.approval_status || 'approved', inv.pref || '');
+        inviteUser(inv.username, inv.phone || '', inv.email || '', inv.rsvp || '', inv.event_role || 'invitee', inv.approval_status || 'approved', inv.pref || '',
+            +inv.acct ? ('1' + (+inv.acct_email ? 'e' : '') + (+inv.acct_phone ? 'p' : '')) : '');
     });
     syncInviteState();
     filterAllUsers('');

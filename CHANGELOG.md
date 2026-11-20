@@ -11,6 +11,25 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.35.0] - 2026-11-20
+
+### Security
+
+- **A guest list no longer reveals the email and phone of an account holder.** When a host added someone by username and left the contact fields blank, the event editor filled them in from that person's account and the guest list then showed them to the host, so anyone who could create an event could read any account's email address and phone number by typing a username. The calendar page went further: it put every guest's email and phone into the page for anyone who could see the event, guests included. An invite linked to an account now holds no address at all; invitations and reminders read the account at send time, so nobody stops receiving anything. A one-time clean-up on the first page load after the update removes the addresses already copied onto such invites (typed-in guests without an account keep theirs). Found in the 2026-11-20 security audit. (`www/_event_save.php`, `www/calendar.php`, `www/event_invites_dl.php`, `www/checkin_dl.php`, `www/_poker_helpers.php`, `www/svc/events.php`, `www/api/v1/events.php`, `www/_public_join.php`, `www/db.php`)
+- **Nobody joins a league by someone else's act.** A link to a league page ending in `?join=1` joined any signed-in visitor who opened it, and a host adding an account to a league event (as a guest, a walk-in, or by buying them in) made that account a league member. Membership shows the league's owner and managers the member's email and phone, so either path handed out contact details. The link now only brings the Join button into view, and a guest the host added gets a league invitation they accept. People who put themselves on the list (the share link, the walk-up QR code, signing up from the calendar) still join when approved, as before. (`www/league_public.php`, `www/db.php`, `www/checkin_dl.php`, `www/walkin.php`, `www/calendar.php`, `www/calendar_dl.php`)
+- **Another website can no longer sign you out.** The sign-out change in 1.33.1 still let a form on another site sign a visitor out: the request arrived without the browser's cookies, which skipped the check meant to stop it. Sign-out now needs this browser's own session and a valid token, and anything else gets the "Sign out?" page. (`www/logout.php`)
+- **The cookies from before 1.33.1 no longer sign anyone in.** The old unprefixed session and remember-me cookies were carried over once so the rename signed nobody out, but carrying them over also let a cookie planted under the old name stand in for the protected one. They are now only deleted. Anyone still on an old cookie signs in once more. (`www/auth.php`)
+- **An event chat keeps a hidden guest list hidden.** When the host hides the guest list, the event chat no longer lists its members to guests; the host and co-hosts still see them. (`www/message_thread.php`)
+- **Smaller leaks closed.** The walk-up page greeted a returning guest by username, which told whoever typed an email or phone at the door which account it belongs to; it now says "Welcome back!". Comments on a public post show "A member" instead of the commenter's username to visitors who are not signed in. A confirmation prompt on a form now shows its text as plain text, so an event title in an admin's "Delete event" prompt can no longer add links or styling to the dialog. (`www/walkin.php`, `www/post_public.php`, `www/pk-dispatch.js`)
+
+### Changed
+
+- **Guests with an account show as "reachable through their account" in the event editor.** Their contact button shows which channels the account has without showing the address, and clicking it explains that invitations go to the email and phone on their own account, which they change in their settings. Typed-in guests without an account work as before. (`www/event_edit.php`, `www/calendar_contacts_dl.php`)
+
+### Fixed
+
+- **One stray byte in an event title or description can no longer break the event editor or the check-in console.** Three values written into those pages' scripts could come out empty when the text held invalid UTF-8, which stopped every control on the page from working. (`www/event_edit.php`, `www/checkin.php`)
+
 ## [v1.34.2] - 2026-11-20
 
 ### Changed

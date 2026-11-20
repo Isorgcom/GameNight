@@ -135,10 +135,12 @@ problem quickly gets ignored. On a clean tree the whole command prints nothing.
 ### 2d. JSON written into a script block
 
 ```bash
-grep -rn '<?= json_encode(' www/ --include=*.php
+grep -rnE '<\?=[^;]*\bjson_encode\(' www/ --include=*.php | grep -v "htmlspecialchars(json_encode"
 ```
 
-Prints nothing on a clean tree. A value written into `<script>` as
+Prints nothing on a clean tree. (Before v1.35.0 the pattern was `<?= json_encode(`,
+which missed `<?= $x ? json_encode($x) : 'null' ?>`; three such lines in
+`checkin.php` and `event_edit.php` had survived it.) A value written into `<script>` as
 `var X = <?= … ?>;` goes through `js_json()` (`db.php`), never bare
 `json_encode()`. The HTML parser reads a script block before JavaScript does:
 `json_encode()` escapes `/`, so `</script>` cannot appear, but `<!--` and
@@ -194,6 +196,14 @@ username. Prints nothing on a clean tree. Three rules, from the 2026-10-24 audit
    caller's account id, or the invite row's own link copied when it was queued),
    else to the contact details on the invite row. `dispatch_queued_notification()`
    never resolves a username to an account.
+4. *An invite linked to an account holds no email or phone* (v1.35.0). Every
+   path that writes an invite (`_event_save.php`, the console's walk-in, the
+   API, ticket awards, self sign-up, the share link) stores NULL for a linked
+   row; delivery reads the account at send time (rule 3). Until then the editor
+   copied the account's own address onto the row and the host's guest list
+   showed it, so typing any username revealed that account's email and phone.
+   Pages tell a host only *whether* such a guest is reachable (`has_account`,
+   `no_contact`), and `calendar.php` puts no email or phone in its script at all.
 
 The bound-parameter form `LOWER(username) = LOWER(?)` is still legitimate in two
 places, and the sweep leaves them alone: a host acting on a roster name inside an
@@ -662,10 +672,24 @@ them) and half are conventions someone has to follow.
   and `current_user()` signs out any session carrying the old value.
   `session.use_strict_mode` is on, and `complete_login()` discards the
   anonymous session's CSRF token so the signed-in session mints its own.
+  Over HTTPS the session and remember-me cookies are `__Host-` prefixed, and
+  since v1.35.0 the old unprefixed `PHPSESSID` / `gn_remember` are only expired,
+  never adopted (adopting them let a planted cookie stand in for the prefixed
+  one). Sign-out is a POST that must carry the session cookie AND a valid
+  token; `logout.php` starts no session without the cookie, because a
+  cross-site POST arrives without SameSite=Lax cookies and a fresh session
+  would overwrite the real one (the v1.33.1 sign-out let that through).
 - League membership follows approval (v1.12.5): on a league event an approved
   invite that has an account is a member, a pending or denied one is not.
   `walkin.php` enrols only an approved walk-in, and every path that approves an
-  invite later calls `league_enrol_if_approved()` in `db.php`.
+  invite later calls `league_enrol_if_approved()` in `db.php`. Since v1.35.0
+  nobody becomes a member by someone else's act: a guest who put themselves on
+  the list (`event_invites.join_source` set: share link, walk-up QR, self
+  sign-up) joins, and a guest the host added gets `league_invite_account()`, an
+  invitation they accept. Membership shows the league's owner and managers the
+  account's email and phone, so a host could otherwise enrol anyone and read
+  their contact details. For the same reason `/league/<slug>?join=1` only
+  focuses the Join button; it never sends the request on load.
 - Pending league and contact rows are claimed by a PROVEN address only
   (v1.12.5): `claim_verified_contact()` in `auth.php` runs from the
   verification pages, the Surge code in Settings and admin imports, never from

@@ -633,7 +633,7 @@ function gn_invites_add(PDO $db, array $actor, int $event_id, array $body): arra
     $added = []; $skipped = [];
     $db->beginTransaction();
     try {
-        $acct = $db->prepare('SELECT id, username, email, phone FROM users WHERE LOWER(username) = LOWER(?)');
+        $acct = $db->prepare('SELECT id, username FROM users WHERE LOWER(username) = LOWER(?)');
         $ins  = $db->prepare("INSERT INTO event_invites (event_id, username, user_id, phone, email, rsvp, event_role, approval_status, sort_order, rsvp_token)
                               VALUES (?, ?, ?, ?, ?, NULL, ?, 'approved', ?, ?)");
         foreach ($g['rows'] as [$name, $email, $phone, $role]) {
@@ -643,8 +643,10 @@ function gn_invites_add(PDO $db, array $actor, int $event_id, array $body): arra
             // a typed-in name for someone with no account stays unlinked.
             $acct->execute([$canon]);
             $u = $acct->fetch(PDO::FETCH_ASSOC) ?: null;
-            $phone_raw = $phone !== '' ? $phone : (string)($u['phone'] ?? '');
-            $email_raw = $email !== '' ? $email : (string)($u['email'] ?? '');
+            // A guest with an account is reached through it: the row keeps no email
+            // or phone (v1.35.0), never a copy of the account's own.
+            $phone_raw = $u ? '' : $phone;
+            $email_raw = $u ? '' : $email;
             $ins->execute([$event_id, $canon, $u ? (int)$u['id'] : null,
                            ($phone_raw !== '' ? normalize_phone($phone_raw) : '') ?: null, $email_raw ?: null,
                            $role, ++$sort, bin2hex(random_bytes(16))]);

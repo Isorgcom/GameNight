@@ -389,8 +389,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$existing_signup) {
                 // Self-signup: approval gate fires if the event has requires_approval=1.
                 $approval = invite_approval_status($eid, 'self');
-                $db->prepare('INSERT INTO event_invites (event_id, username, user_id, phone, email, rsvp, rsvp_token, approval_status) VALUES (?, ?, ?, ?, ?, NULL, ?, ?)')
-                   ->execute([$eid, $current['username'], (int)$current['id'], $udata['phone'] ?? null, $udata['email'] ?? null, bin2hex(random_bytes(16)), $approval]);
+                // join_source 'self': they asked to be there, so approval may make them a
+                // league member (league_enrol_if_approved). No address kept: reached
+                // through the account (v1.35.0).
+                $db->prepare("INSERT INTO event_invites (event_id, username, user_id, phone, email, rsvp, rsvp_token, approval_status, join_source) VALUES (?, ?, ?, NULL, NULL, NULL, ?, ?, 'self')")
+                   ->execute([$eid, $current['username'], (int)$current['id'], bin2hex(random_bytes(16)), $approval]);
                 db_log_activity($current['id'], "signed up for event id: $eid" . ($approval === 'pending' ? ' (pending approval)' : ''));
                 if ($approval === 'pending') {
                     $signup_pending = true;
@@ -791,7 +794,10 @@ $ev_invites     = [];  // [eid][] — base rows (occurrence_date IS NULL)
 $ev_invites_occ = [];  // [eid][occ_date][] — per-occurrence rows
 if (!empty($allPageEids)) {
     $iph = implode(',', array_fill(0, count($allPageEids), '?'));
-    $is  = $db->prepare("SELECT event_id, username, phone, email, rsvp, occurrence_date, event_role, approval_status, sort_order FROM event_invites WHERE event_id IN ($iph) ORDER BY COALESCE(sort_order, 999999), username");
+    $is  = $db->prepare("SELECT ei.event_id, ei.username, ei.user_id, ei.phone, ei.email, ei.rsvp, ei.occurrence_date, ei.event_role, ei.approval_status, ei.sort_order,
+                                (u.id IS NOT NULL AND (COALESCE(u.email, '') <> '' OR COALESCE(u.phone, '') <> '')) AS acct_reachable
+                         FROM event_invites ei LEFT JOIN users u ON u.id = ei.user_id
+                         WHERE ei.event_id IN ($iph) ORDER BY COALESCE(ei.sort_order, 999999), ei.username");
     $is->execute($allPageEids);
     foreach ($is->fetchAll() as $inv) {
         if ($inv['occurrence_date'] === null) {
@@ -830,7 +836,8 @@ $managedEventIds = [];
 if ($current && !$isAdmin) {
     foreach ($ev_invites as $eid => $_invList) {
         foreach ($_invList as $_inv) {
-            if (strcasecmp($_inv['username'], $current['username']) === 0 && ($_inv['event_role'] ?? '') === 'manager') {
+            // By account id, never by name (see SECURITY.md, invites matched to accounts).
+            if ((int)($_inv['user_id'] ?? 0) === (int)$current['id'] && ($_inv['event_role'] ?? '') === 'manager') {
                 $managedEventIds[] = (int)$eid;
             }
         }
@@ -901,29 +908,33 @@ if (!empty($allPageEids)) {
     foreach ($cbs->fetchAll() as $cbr) $ev_created_by[(int)$cbr['id']] = (int)$cbr['created_by'];
 }
 
-// Contact details (phone/email) are kept in the invite data so the event editor can show
-// and edit each invitee's contact inline. `no_contact` flags invitees with neither, to warn
-// the host they can't be notified.
+// The invite data goes into this page's script for every visible event, so it
+// carries NO email or phone (v1.35.0): until then any guest who opened the
+// calendar got every other guest's address. Only `no_contact` (can this person
+// be notified at all?) and `sent` are kept; hosts manage contact details on the
+// event page and in the editor, which check that the viewer runs the event.
 {
+    $_ev_strip = function (array &$inv): void {
+        $inv['no_contact'] = (trim((string)($inv['phone'] ?? '')) === '' && trim((string)($inv['email'] ?? '')) === ''
+                              && empty($inv['acct_reachable']));
+        unset($inv['phone'], $inv['email'], $inv['user_id'], $inv['acct_reachable']);
+    };
     foreach ($ev_invites as $eid => &$_invList) {
         $creatorId = $ev_created_by[(int)$eid] ?? 0;
         foreach ($_invList as &$_inv) {
-            if (trim((string)($_inv['phone'] ?? '')) === '' && trim((string)($_inv['email'] ?? '')) === '' && $creatorId > 0) {
+            // A typed-in guest with nothing on the row may still be reachable through
+            // the host's own contacts (the dispatcher looks there too).
+            if (trim((string)($_inv['phone'] ?? '')) === '' && trim((string)($_inv['email'] ?? '')) === '' && empty($_inv['acct_reachable']) && $creatorId > 0) {
                 $resolved = invitee_contact_from_contacts($db, $creatorId, (string)$_inv['username']);
-                if ($resolved['email'] !== '' || $resolved['phone'] !== '') {
-                    $_inv['email'] = $resolved['email'];
-                    $_inv['phone'] = $resolved['phone'];
-                }
+                if ($resolved['email'] !== '' || $resolved['phone'] !== '') $_inv['acct_reachable'] = 1;
             }
-            $_inv['no_contact'] = (trim((string)($_inv['phone'] ?? '')) === '' && trim((string)($_inv['email'] ?? '')) === '');
             $_inv['sent'] = !empty($ev_invite_sent[(int)$eid][strtolower($_inv['username'])]);
+            $_ev_strip($_inv);
         }
     }
     foreach ($ev_invites_occ as &$_occMap) {
         foreach ($_occMap as &$_invList) {
-            foreach ($_invList as &$_inv) {
-                $_inv['no_contact'] = (trim((string)($_inv['phone'] ?? '')) === '' && trim((string)($_inv['email'] ?? '')) === '');
-            }
+            foreach ($_invList as &$_inv) $_ev_strip($_inv);
         }
     }
     unset($_invList, $_inv, $_occMap);

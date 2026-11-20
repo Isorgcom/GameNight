@@ -93,18 +93,22 @@ function event_save(PDO $db, array $current, bool $isAdmin, bool $allowMaybe, ar
         // username only when that username IS an existing account; a typed-in name
         // for someone with no account stays NULL and grants nothing.
         $ins = $db->prepare("INSERT INTO event_invites (event_id, username, user_id, phone, email, rsvp, rsvp_token, rsvp_token_flips, occurrence_date, event_role, approval_status, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?)");
-        // Build a lookup of user contact info for auto-filling
+        // Usernames that are accounts, to link the invite by user_id. Only the id:
+        // an account's own email and phone are never copied onto the invite row
+        // (v1.35.0). Notifications to a linked invite read the account at send
+        // time (_notifications.php), so a copy was never needed for delivery, and
+        // it let any host read anyone's contact details by typing their username.
         $userLookup = [];
-        $uAll = $db->query('SELECT id, username, email, phone FROM users ORDER BY username')->fetchAll();
+        $uAll = $db->query('SELECT id, username FROM users')->fetchAll();
         foreach ($uAll as $uRow) $userLookup[strtolower($uRow['username'])] = $uRow;
 
         for ($i = 0; $i < count($inv_usernames); $i++) {
             if ($inv_usernames[$i] === '') continue;
             $role = in_array($inv_roles[$i] ?? '', ['invitee', 'manager'], true) ? $inv_roles[$i] : 'invitee';
-            // Auto-fill phone/email from user record if not provided
+            // Only what the host typed is stored (never the account's own details).
             $uKey = strtolower($inv_usernames[$i]);
-            $phone_raw = $inv_phones[$i] !== '' ? $inv_phones[$i] : ($userLookup[$uKey]['phone'] ?? '');
-            $email_raw = $inv_emails[$i] !== '' ? $inv_emails[$i] : ($userLookup[$uKey]['email'] ?? '');
+            $phone_raw = $inv_phones[$i] ?? '';
+            $email_raw = $inv_emails[$i] ?? '';
             $phone_norm = $phone_raw !== '' ? normalize_phone($phone_raw) : '';
             // Reuse this invitee's existing token + flip count when they were already on the
             // event (keeps their emailed RSVP link alive across edits); mint a fresh token
@@ -124,6 +128,10 @@ function event_save(PDO $db, array $current, bool $isAdmin, bool $allowMaybe, ar
             $tokenFlips = (int)($prior['rsvp_token_flips'] ?? 0);
             $sortOrd = $inv_sort_orders[$i] ?? ($i + 1);
             $linked = $userLookup[strtolower(trim($inv_usernames[$i]))]['id'] ?? null;
+            // A guest with an account is reached through the account, so their row
+            // keeps no email or phone at all: not a copy of the account's, and not
+            // one the editor posted back (the picker hands managers real addresses).
+            if ($linked !== null) { $phone_norm = ''; $email_raw = ''; }
             $ins->execute([$eid, canonical_username($inv_usernames[$i]), $linked, $phone_norm ?: null, $email_raw ?: null, $rsvp, $token, $tokenFlips, $invite_occ_date, $role, $sortOrd]);
             // Only track new invitees for base (all-occurrence) saves so notifications go out
             if (!$invite_occ_date && !in_array(strtolower($inv_usernames[$i]), $old_names, true)) {

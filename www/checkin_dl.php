@@ -1304,7 +1304,7 @@ if ($action === 'add_walkin') {
     }
 
     // Check if a user with this username exists
-    $userChk = $db->prepare('SELECT id, username, email FROM users WHERE LOWER(username) = LOWER(?)');
+    $userChk = $db->prepare('SELECT id, username FROM users WHERE LOWER(username) = LOWER(?)');
     $userChk->execute([$name]);
     $existingUser = $userChk->fetch();
     $user_id = $existingUser ? (int)$existingUser['id'] : null;
@@ -1313,8 +1313,10 @@ if ($action === 'add_walkin') {
     $eiChk = $db->prepare('SELECT id FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL');
     $eiChk->execute([$s['event_id'], $name]);
     if (!$eiChk->fetch()) {
-        $db->prepare("INSERT INTO event_invites (event_id, username, user_id, email, rsvp, approval_status) VALUES (?, ?, ?, ?, 'yes', 'approved')")
-           ->execute([$s['event_id'], $existingUser['username'] ?? trim($name), $user_id, $existingUser['email'] ?? null]);
+        // No email or phone copied from the account (v1.35.0): delivery reads the
+        // account itself, and a copy here showed the host anyone's address.
+        $db->prepare("INSERT INTO event_invites (event_id, username, user_id, rsvp, approval_status) VALUES (?, ?, ?, 'yes', 'approved')")
+           ->execute([$s['event_id'], $existingUser['username'] ?? trim($name), $user_id]);
     } else {
         // If they were pending/denied, approve them since the host is adding them manually.
         $db->prepare("UPDATE event_invites SET rsvp = 'yes', approval_status = 'approved' WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL")
@@ -1347,7 +1349,8 @@ if ($action === 'add_walkin') {
     // until the next get_session ran sync_invitees and quietly corrected it.
     $db->prepare("UPDATE poker_players SET rsvp = 'yes' WHERE id = ?")->execute([$newId]);
 
-    if ($user_id) auto_add_to_league($db, (int)$s['event_id'], (int)$user_id);
+    // The host added them: a league invitation, not a membership (v1.35.0).
+    if ($user_id) league_enrol_if_approved($db, (int)$s['event_id'], $existingUser['username']);
 
     db_log_activity((int)$current['id'], "added walk-in '$name' (player id=$newId) to poker session id=$session_id");
     pk_log($db, $session_id, (int)$current['id'], 'add', $newId, $name, null, 'Added to roster');

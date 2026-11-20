@@ -1195,6 +1195,20 @@ JSON;
     try { $pdo->exec("ALTER TABLE users ADD COLUMN beta_timer INTEGER"); } catch (Exception $e) {}
     // v1.34.0: light / dark appearance. NULL = follow the device (auto).
     try { $pdo->exec("ALTER TABLE users ADD COLUMN theme TEXT"); } catch (Exception $e) {}
+    // v1.35.0, one-shot: a guest linked to an account keeps no email or phone on
+    // the invite row. Saves used to copy the account's own details there, and
+    // the host's guest list then showed them, so anyone who could save an event
+    // could read any account's address by typing its username. Delivery to a
+    // linked guest reads the account at send time, so nothing is lost. Rows whose
+    // account no longer exists keep theirs (delivery falls back to the row).
+    try {
+        if (get_setting('invite_account_contact_cleared', '') !== '1') {
+            $pdo->exec("UPDATE event_invites SET email = NULL, phone = NULL
+                        WHERE user_id IS NOT NULL AND user_id IN (SELECT id FROM users)
+                          AND (email IS NOT NULL OR phone IS NOT NULL)");
+            set_setting('invite_account_contact_cleared', '1');
+        }
+    } catch (Exception $e) {}
     // Highest TOTP time-step this user has already authenticated with. Used to
     // reject reuse of a still-valid code within its window (one-time use per step).
     try { $pdo->exec("ALTER TABLE users ADD COLUMN mfa_totp_last_step INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
@@ -4075,22 +4089,35 @@ function auto_add_to_league(PDO $db, int $event_id, int $user_id): void {
 }
 
 /**
- * On a league event, an APPROVED invite that has an account is a league
- * member; a pending or denied one is not. Called wherever an invite becomes
- * approved (the host approving a walk-in or self sign-up, the console's
- * buy-in and roster actions, the requires-approval switch turned off), for
- * one roster name or, with null, every approved row of the event. A walk-in
- * used to join the league the moment it arrived, denied or not (audit M3).
+ * On a league event, an APPROVED invite that has an account leads to league
+ * membership; a pending or denied one does not. Called wherever an invite
+ * becomes approved (the host approving a walk-in or self sign-up, the
+ * console's buy-in and roster actions, the requires-approval switch turned
+ * off), for one roster name or, with null, every approved row of the event.
+ *
+ * Who put the guest on the list decides how (v1.35.0). A guest who asked to
+ * be there (join_source set: share link, walk-up QR, self sign-up) joins the
+ * league. A guest the HOST added gets a league invitation they accept: nobody
+ * becomes a member by someone else's act, because membership shows the
+ * league's owner and managers the account's email and phone.
  */
 function league_enrol_if_approved(PDO $db, int $event_id, ?string $username = null): void {
     if ($event_id <= 0) return;
-    $sql  = "SELECT DISTINCT user_id FROM event_invites
+    $ev = $db->prepare('SELECT league_id, created_by FROM events WHERE id = ?');
+    $ev->execute([$event_id]);
+    $e = $ev->fetch();
+    if (!$e || (int)$e['league_id'] <= 0) return;
+    $sql  = "SELECT user_id, MAX(CASE WHEN COALESCE(join_source, '') <> '' THEN 1 ELSE 0 END) AS self_joined
+             FROM event_invites
              WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'approved' AND user_id IS NOT NULL";
     $args = [$event_id];
     if ($username !== null) { $sql .= ' AND LOWER(username) = LOWER(?)'; $args[] = $username; }
-    $q = $db->prepare($sql);
+    $q = $db->prepare($sql . ' GROUP BY user_id');
     $q->execute($args);
-    foreach ($q->fetchAll(PDO::FETCH_COLUMN) as $uid) auto_add_to_league($db, $event_id, (int)$uid);
+    foreach ($q->fetchAll() as $r) {
+        if ((int)$r['self_joined'] === 1) auto_add_to_league($db, $event_id, (int)$r['user_id']);
+        else league_invite_account($db, (int)$e['league_id'], (int)$r['user_id'], '', '', (int)$e['created_by']);
+    }
 }
 
 /**

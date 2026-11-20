@@ -67,6 +67,15 @@ $isGroup = $conv && !empty($conv['is_group']);
 $isEventChat = $conv && !empty($conv['event_id']) && dm_event_chat_event_exists($db, (int)$conv['event_id']);
 $title   = $conv ? dm_conversation_title($db, $conv, $uid) : $other['username'];
 $members = $conv ? dm_participants($db, (int)$conv['id']) : [];
+// An event chat's members are the people going. When the host has hidden the
+// guest list, only whoever runs the event sees that list here (v1.35.0).
+$hideMembers = false;
+if ($isEventChat) {
+    $hg = $db->prepare('SELECT hide_guest_list FROM events WHERE id = ?');
+    $hg->execute([(int)$conv['event_id']]);
+    $hideMembers = (int)$hg->fetchColumn() === 1
+        && !can_manage_event($db, (int)$conv['event_id'], $uid, ($current['role'] ?? '') === 'admin');
+}
 
 $messages = [];
 if ($conv) {
@@ -162,7 +171,9 @@ $lastId = $messages ? (int)end($messages)['id'] : 0;
             <button class="btn btn-outline" type="button" style="font-size:.8rem;padding:.3rem .6rem" data-act="clearConvo">Delete conversation</button>
         <?php endif; ?>
     </div>
-    <?php if ($isGroup): ?>
+    <?php if ($isGroup && $hideMembers): ?>
+    <p class="dt-members">Membership follows the event roster (host + everyone going). The host keeps the guest list private.</p>
+    <?php elseif ($isGroup): ?>
     <p class="dt-members"><?= count($members) ?> members: <?= htmlspecialchars(implode(', ', array_map(fn($p) => $p['username'], $members))) ?><?= $isEventChat ? ' &middot; membership follows the event roster (host + everyone going)' : '' ?></p>
     <?php endif; ?>
     <?php if ($addable): ?>

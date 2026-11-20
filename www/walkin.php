@@ -90,7 +90,10 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $username = $res['username'];
                 $approved = in_array($res['status'], ['approved', 'already'], true);
-                if ($res["status"] === "already") auto_add_to_league($db, $event_id, (int)$res["user_id"]);
+                // Already on the list: league membership by the usual rule (a guest the
+                // host added gets an invitation, not a membership). Whoever is at the
+                // door may have typed someone else's contact (v1.35.0).
+                if ($res["status"] === "already") league_enrol_if_approved($db, $event_id, (string)$username);
 
                 // Remember for next walk-up (30 days)
                 setcookie('walkin_name', $in['display_name'], time() + 86400 * 30, '/', '', true, true);
@@ -105,7 +108,7 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($approved) {
                     $success = $res['is_new_user']
                         ? "You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>! Have fun."
-                        : "Welcome back, " . htmlspecialchars($username) . "! You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>.";
+                        : "Welcome back! You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>.";
 
                     // At the door: seat them now if a game is set up.
                     $psess = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
