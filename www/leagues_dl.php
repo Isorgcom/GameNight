@@ -292,7 +292,9 @@ case 'delete_league': {
 
 case 'request_join': {
     $league_id = (int)($_POST['league_id'] ?? 0);
-    $msg = trim($_POST['message'] ?? '');
+    // A note to the league's managers, read by people and by their assistants:
+    // 500 characters is plenty (v1.38.0; it had no limit).
+    $msg = mb_substr(trim((string)($_POST['message'] ?? '')), 0, 500);
     $L = $db->prepare('SELECT * FROM leagues WHERE id = ?');
     $L->execute([$league_id]);
     $league = $L->fetch();

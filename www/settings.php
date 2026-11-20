@@ -405,12 +405,19 @@ $st_when = fn(?string $utc, string $fmt) => $utc ? (new DateTime($utc, new DateT
 $tq->execute([$current['id']]);
 $api_tokens    = $tq->fetchAll();
 // Apps connected by signing in (OAuth): one row per app.
-$cq = $db->prepare('SELECT t.id, t.label, t.scopes, t.created_at, t.last_used_at, t.client_id AS client_pk, c.client_id AS client_ref, c.kind,
+$cq = $db->prepare('SELECT t.id, t.label, t.scopes, t.created_at, t.last_used_at, t.client_id AS client_pk, c.client_id AS client_ref, c.kind, c.redirect_uris,
                            (SELECT COUNT(*) FROM api_request_log r WHERE r.token_id = t.id) AS requests
                       FROM api_tokens t JOIN oauth_clients c ON c.id = t.client_id
                      WHERE t.user_id = ? ORDER BY t.id DESC');
 $cq->execute([$current['id']]);
 $connected_apps = $cq->fetchAll();
+// Where each app really lives (v1.38.0): an app names itself, so the card also
+// shows the host of its client document, or of the address it returns to.
+foreach ($connected_apps as &$_ca) {
+    $_u = $_ca['kind'] === 'cimd' ? (string)$_ca['client_ref'] : (string)((json_decode((string)$_ca['redirect_uris'], true) ?: [''])[0] ?? '');
+    $_ca['host'] = (string)(parse_url($_u, PHP_URL_HOST) ?: '');
+}
+unset($_ca);
 // Each token's most recent requests, for its "Recent activity" list. The path
 // stored is the route pattern (/api/v2/events/{id}), never the raw address.
 $token_activity = [];
@@ -1022,6 +1029,7 @@ $site_name = get_setting('site_name', 'Game Night');
                     <div class="st-row">
                         <div class="st-row-main">
                             <span class="st-row-title"><?= htmlspecialchars($t['label'], ENT_QUOTES | ENT_SUBSTITUTE) ?></span>
+                            <?php if (($t['host'] ?? '') !== ''): ?><span class="st-row-sub">From <?= htmlspecialchars($t['host'], ENT_QUOTES | ENT_SUBSTITUTE) ?></span><?php endif; ?>
                             <span class="st-row-sub">Can: <?= htmlspecialchars(implode(', ', api_token_clean_scopes((string)$t['scopes'])), ENT_QUOTES | ENT_SUBSTITUTE) ?></span>
                             <span class="st-row-sub">
                                 Connected <?= htmlspecialchars($st_when((string)$t['created_at'], 'M j, Y'), ENT_QUOTES | ENT_SUBSTITUTE) ?>

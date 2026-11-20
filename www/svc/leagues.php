@@ -201,9 +201,10 @@ function gn_league_member_add(PDO $db, array $actor, int $league_id, array $body
     $res = league_add_one_contact($db, $league_id, (string)$l['name'], $name, $email, $phone, (int)$actor['id']);
     if ($res === 'invalid') return gn_err('bad_field', 'Provide a valid name and an email or phone number.', 400);
     return gn_ok(['league_id' => $league_id, 'name' => $name,
-                  // already: on the roster or already invited. invited: has an account, sent an invitation to accept.
-                  // pending: no account yet, added as a pending member and sent a sign-up link.
-                  'result' => in_array($res, ['already', 'invited', 'pending'], true) ? $res : 'invited',
+                  // already: on the roster or already invited. invited: sent an invitation
+                  // (to accept, or to sign up first). Whether the address has an account is
+                  // not said (v1.38.0): the two answers used to tell anyone that.
+                  'result' => $res === 'already' ? 'already' : 'invited',
                   'message_sent' => $res !== 'already' && get_setting('notifications_enabled', '0') === '1']);
 }
 

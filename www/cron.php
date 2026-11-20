@@ -234,6 +234,13 @@ $pruned += $db->exec("DELETE FROM event_notifications_sent WHERE event_id NOT IN
 
 // Logs: older than 90 days
 $pruned += $db->exec("DELETE FROM sms_log WHERE created_at < datetime('now', '-90 days')");
+// Connected-app registrations (a fetched client document or /oauth/register)
+// that never got a token in 30 days are dropped (v1.38.0): both can be made
+// by anyone before signing in, and nothing else ever removed them.
+try { $pruned += $db->exec("DELETE FROM oauth_clients WHERE created_at < datetime('now', '-30 days')
+                             AND id NOT IN (SELECT client_id FROM api_tokens WHERE client_id IS NOT NULL)
+                             AND id NOT IN (SELECT client_pk FROM oauth_codes)"); } catch (Exception $e) {}
+try { $pruned += $db->exec("DELETE FROM confirm_codes WHERE expires_at < datetime('now', '-1 day')"); } catch (Exception $e) {}
 // 35 days: enough to count a calendar month of a host's sends.
 try { $pruned += $db->exec("DELETE FROM host_sends WHERE created_at < datetime('now', '-35 days')"); } catch (Exception $e) {}
 // Sticky SMS conversation bindings: stale after 30 days or when the event is gone.

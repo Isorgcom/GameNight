@@ -405,6 +405,10 @@ function gn_legacy_bridge(PDO $db, array $actor, string $script, array $post, ca
 
     gn_act_as($user);
     $_POST = $post; $_GET = []; $_REQUEST = $post;
+    // The console only takes POST. The request's own method is kept for the
+    // request log (v1.38.0): logged as POST, a bridged PUT/PATCH/DELETE never
+    // matched the write limit's per-method count.
+    $_SERVER['GN_ORIGINAL_METHOD'] = $_SERVER['GN_ORIGINAL_METHOD'] ?? ($_SERVER['REQUEST_METHOD'] ?? 'POST');
     $_SERVER['REQUEST_METHOD'] = 'POST';
     ob_start();
     require __DIR__ . '/../' . $script;     // prints its JSON answer and exits
@@ -526,7 +530,11 @@ function gn_game_act(PDO $db, array $actor, int $event_id, string $act, array $a
                 $pl = $p['place'] ?? null; $pct = $p['percentage'] ?? 0;
                 if (!is_int($pl) || $pl < 1 || $pl > 100 || isset($seen[$pl])) return gn_err('bad_field', "places[$i].place must be a place number, each used once.", 400);
                 if ((!is_int($pct) && !is_float($pct)) || $pct < 0 || $pct > 100) return gn_err('bad_field', "places[$i].percentage must be from 0 to 100.", 400);
-                foreach (['points', 'ticket_cents'] as $k) if (isset($p[$k]) && (!is_int($p[$k]) || $p[$k] < 0)) return gn_err('bad_field', "places[$i].$k must be a whole number that is not negative.", 400);
+                // Upper bounds too (v1.38.0): a league's standings and its ticket
+                // money should never take a number no real night produces.
+                foreach (['points' => 100000, 'ticket_cents' => 10000000] as $k => $max) {
+                    if (isset($p[$k]) && (!is_int($p[$k]) || $p[$k] < 0 || $p[$k] > $max)) return gn_err('bad_field', "places[$i].$k must be a whole number from 0 to $max.", 400);
+                }
                 $seen[$pl] = true;
                 $post['places'][] = $pl; $post['percentages'][] = $pct; $post['points'][] = (int)($p['points'] ?? 0);
                 $post['tickets'][] = ((int)($p['ticket_cents'] ?? 0)) / 100;       // the console's field is dollars
@@ -542,9 +550,8 @@ function gn_game_act(PDO $db, array $actor, int $event_id, string $act, array $a
             break;
         case 'finish':
             if ($s['status'] === 'finished') return gn_ok(gn_game_after($db, $event_id, null) + ['changed' => false]);
-            if (($a['confirm'] ?? null) !== true) {
-                return gn_err('confirmation_required', 'Finishing the game records the final results and payouts, issues any entry tickets, banks jackpot money to the league fund and tells the winners. It can usually be reopened, but not once a ticket has been used or jackpot money paid out. Send {"confirm": true} to finish.', 409);
-            }
+            if ($e = gn_confirm($db, $actor, 'finish_game', 'event:' . $event_id, $a['confirm'] ?? null,
+                    'Finishing the game records the final results and payouts, issues any entry tickets, banks jackpot money to the league fund and tells the winners. It can usually be reopened, but not once a ticket has been used or jackpot money paid out.')) return $e;
             $post = ['action' => 'update_status', 'session_id' => $sid, 'status' => 'finished'];
             break;
         case 'reopen':
@@ -716,7 +723,8 @@ function gn_game_act(PDO $db, array $actor, int $event_id, string $act, array $a
                      'subtract_minute' => 'sub_time', 'reset_level' => 'reset_level', 'reset' => 'reset_timer', 'undo' => 'undo'];
             $c = (string)($a['command'] ?? '');
             if (!isset($cmds[$c])) return gn_err('bad_field', 'command must be one of: ' . implode(', ', array_keys($cmds)) . '.', 400);
-            if ($c === 'reset' && ($a['confirm'] ?? null) !== true) return gn_err('confirmation_required', 'Resetting the clock puts it back to level 1, paused, for every screen showing it. Send {"confirm": true} to reset.', 409);
+            if ($c === 'reset' && ($e = gn_confirm($db, $actor, 'clock_reset', 'event:' . $event_id, $a['confirm'] ?? null,
+                    'Resetting the clock puts it back to level 1, paused, for every screen showing it.'))) return $e;
             // The first command makes the clock, as opening the timer does.
             $timer = pk_ensure_timer_row($db, $sid, pk_user_beta_pref($db, (int)$actor['id']));
             $running = (int)compute_live_state($db, $timer)['is_running'] === 1;

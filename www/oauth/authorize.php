@@ -93,7 +93,7 @@ if (!oauth_redirect_uri_allowed($client, $req['redirect_uri'])) {
     oauth_page_error('Sign-in request not valid', 'The app asked to send you somewhere it has not registered, so the sign-in was stopped and nothing has been shared.');
 }
 
-// From here the return address is verified, so a problem goes back to the app.
+// The return address is the registered one. Only the person's answer goes there.
 $back = function (array $params) use ($req) {
     $params += ['iss' => oauth_issuer()];
     if ($req['state'] !== '') $params['state'] = $req['state'];
@@ -102,12 +102,17 @@ $back = function (array $params) use ($req) {
     header('Location: ' . $req['redirect_uri'] . $sep . http_build_query($params));
     exit;
 };
-if ($req['response_type'] !== 'code') $back(['error' => 'unsupported_response_type', 'error_description' => 'Only response_type=code is supported.']);
+// A request that is malformed before the person has seen anything is shown
+// here, never bounced to the app (v1.38.0). Anyone can register an app, so
+// "the app's registered address" can be any site: redirecting these errors
+// let a link starting with this site's address land somewhere else. Only the
+// person's own answer (Allow or Cancel) goes back to the app.
+if ($req['response_type'] !== 'code') oauth_page_error('Sign-in request not valid', 'The app asked for a kind of sign-in this site does not offer (only response_type=code is supported), so nothing has been shared.');
 if ($req['code_challenge_method'] !== 'S256' || !preg_match('/^[A-Za-z0-9_-]{43}$/', $req['code_challenge'])) {
-    $back(['error' => 'invalid_request', 'error_description' => 'PKCE with code_challenge_method=S256 is required.']);
+    oauth_page_error('Sign-in request not valid', 'The app did not send the security check this site requires (PKCE with S256), so nothing has been shared.');
 }
-if (strlen($req['state']) > 512) $back(['error' => 'invalid_request', 'error_description' => 'state is too long.']);
-if (!oauth_resource_ok($req['resource'])) $back(['error' => 'invalid_target', 'error_description' => 'Tokens are issued only for ' . oauth_resource() . '.']);
+if (strlen($req['state']) > 512) oauth_page_error('Sign-in request not valid', 'The app sent a malformed request, so nothing has been shared.');
+if (!oauth_resource_ok($req['resource'])) oauth_page_error('Sign-in request not valid', 'The app asked for access to something other than ' . oauth_resource() . ', so nothing has been shared.');
 
 // ── 2. Who is the person? ───────────────────────────────────────────────────
 if (!$current) {

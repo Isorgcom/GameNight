@@ -66,6 +66,7 @@ function oauth_redirect_uri_valid(string $uri): bool {
     if ($uri === '' || strlen($uri) > 512 || preg_match('/[\x00-\x20\\\\]/', $uri)) return false;
     $p = parse_url($uri);
     if (!$p || empty($p['host']) || isset($p['fragment']) || isset($p['user']) || isset($p['pass'])) return false;
+    if (!oauth_host_plain((string)$p['host'])) return false;
     if (($p['scheme'] ?? '') === 'https') return true;
     return oauth_is_loopback($uri);
 }
@@ -90,13 +91,27 @@ function oauth_redirect_uri_allowed(array $client, string $uri): bool {
     return false;
 }
 
+/**
+ * A host written in plain ASCII letters, digits, dots and hyphens (punycode
+ * "xn--" names included), or a bracketed IPv6 loopback (v1.38.0). A name in
+ * other scripts can look like a familiar site on the consent page ("gаmenight"
+ * with a Cyrillic a), so the address an app returns to, and the address of its
+ * client document, must be spelled the way the browser will really go.
+ */
+function oauth_host_plain(string $host): bool {
+    return $host === '[::1]' || (bool)preg_match('/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i', $host);
+}
+
 /** May a server-side fetch go to this host? Only public addresses: never this network, this machine, or a metadata service. */
 function oauth_public_ip(string $host): ?string {
     if (filter_var($host, FILTER_VALIDATE_IP)) return null;                    // a name, not an address literal
     $ips = @gethostbynamel($host);
     if (!$ips) return null;
     foreach ($ips as $ip) {
-        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) return null;
+        // FILTER_FLAG_GLOBAL_RANGE (v1.38.0) also refuses shared address space
+        // (100.64/10, which Tailscale uses), benchmarking (198.18/15), multicast
+        // and the other non-global blocks the private/reserved flags let through.
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE | FILTER_FLAG_GLOBAL_RANGE)) return null;
     }
     return $ips[0];
 }
@@ -110,7 +125,8 @@ function oauth_public_ip(string $host): ?string {
 function oauth_cimd_fetch(string $url): ?array {
     $p = parse_url($url);
     if (!$p || ($p['scheme'] ?? '') !== 'https' || empty($p['host']) || empty($p['path']) || $p['path'] === '/'
-        || isset($p['fragment']) || isset($p['user']) || isset($p['pass']) || strlen($url) > 512) return null;
+        || isset($p['fragment']) || isset($p['user']) || isset($p['pass']) || strlen($url) > 512
+        || !oauth_host_plain((string)$p['host'])) return null;
     $port = (int)($p['port'] ?? 443);
     $ip = oauth_public_ip((string)$p['host']);
     if ($ip === null || !function_exists('curl_init')) return null;
@@ -165,9 +181,21 @@ function oauth_client(PDO $db, string $client_id): ?array {
 
     $fresh = $row && $row['fetched_at'] && strtotime($row['fetched_at'] . ' UTC') > time() - 86400;
     if ($fresh) return $row;
+    // This runs before anyone has signed in, and each fetch can hold a web
+    // worker for five seconds (v1.38.0): an address that failed in the last
+    // 10 minutes is not fetched again, and one address may make 10 fetches
+    // in 10 minutes.
+    $key = 'oauth_cimd_fail: ' . hash('sha256', $client_id);
+    $nf = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE action = ? AND created_at > datetime('now', '-10 minutes')");
+    $nf->execute([$key]);
+    if ((int)$nf->fetchColumn() > 0) return $row;
+    $rl = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE action = 'oauth_cimd_fetch' AND ip = ? AND created_at > datetime('now', '-10 minutes')");
+    $rl->execute([get_client_ip()]);
+    if ((int)$rl->fetchColumn() >= 10) return $row;
+    db_log_anon_activity('oauth_cimd_fetch');
     $doc = oauth_cimd_fetch($client_id);
     $ok  = $doc && ($doc['client_id'] ?? null) === $client_id ? oauth_client_document($doc) : null;
-    if (!is_array($ok)) return $row;        // could not refresh: a copy we already trusted stays good, a new one is refused
+    if (!is_array($ok)) { db_log_anon_activity($key); return $row; }   // could not refresh: a copy we already trusted stays good, a new one is refused
     [$name, $uris] = $ok;
     if ($row) {
         $db->prepare('UPDATE oauth_clients SET client_name = ?, redirect_uris = ?, fetched_at = CURRENT_TIMESTAMP WHERE id = ?')
@@ -211,7 +239,9 @@ function oauth_issue_tokens(PDO $db, int $user_id, int $client_pk, array $scopes
     $exp  = gmdate('Y-m-d H:i:s', time() + OAUTH_ACCESS_TTL);
     $rexp = gmdate('Y-m-d H:i:s', time() + OAUTH_REFRESH_TTL);
     if ($token_row_id) {
-        $db->prepare('UPDATE api_tokens SET token_hash = ?, refresh_hash = ?, expires_at = ?, refresh_expires_at = ? WHERE id = ?')
+        // The refresh token being replaced is kept as prev_refresh_hash: if it is
+        // ever presented again, someone else has a copy (v1.38.0, oauth/token.php).
+        $db->prepare('UPDATE api_tokens SET prev_refresh_hash = refresh_hash, token_hash = ?, refresh_hash = ?, expires_at = ?, refresh_expires_at = ? WHERE id = ?')
            ->execute([hash('sha256', $access), hash('sha256', $refresh), $exp, $rexp, $token_row_id]);
     } else {
         $db->prepare('INSERT INTO api_tokens (user_id, token_hash, label, scopes, client_id, expires_at, refresh_hash, refresh_expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')

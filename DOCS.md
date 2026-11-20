@@ -1753,7 +1753,7 @@ curl -H 'Authorization: Bearer gnp_YOUR_TOKEN' https://your-site.com/api/v2/me
 - **Time** is ISO 8601 UTC (`2026-12-12T01:00:00Z`). A date with no time of day is `YYYY-MM-DD`. Query dates (`from`, `to`) are days in the site's timezone.
 - **Writes** take a JSON object. A field the endpoint does not know is refused by name (`unknown_field`), so a typo cannot be silently ignored. A `PATCH` changes only what you send.
 - **Asking twice does it once.** A `POST` may carry an `Idempotency-Key` header (8 to 128 letters, digits, `.`, `:`, `-`, `_`). Sent again within a day with the same key, it returns the first answer (with `Idempotent-Replay: true`) instead of creating a second event. Use one whenever a retry is possible.
-- **What cannot be undone asks first.** Deleting an event, finishing a game and resetting the clock need `{"confirm": true}`. Without it the answer is `409 confirmation_required`, and its `message` says what would be lost.
+- **What reaches people or cannot be undone asks first.** Cancelling or deleting an event, removing a guest from an upcoming event, messaging the guests, finishing a game and resetting the clock take two calls (v1.38.0). The first changes nothing and answers `409 confirmation_required`, whose `message` says what would happen and whose `confirm_code` is a one-time code (`cfm_` and 24 hex characters). Send the same request again with `"confirm": "<that code>"`. A code works once, for 10 minutes, for this token and this exact target; for a message it is tied to the subject, text and audience shown. A bare `"confirm": true` is no longer accepted.
 - **Creating and changing never notify.** Adding a guest tells nobody. Invitations, nudges and messages are their own calls under the `messages` permission, so a token without it cannot cause a single email or text.
 - **Busy means try again.** `503 busy` (with `Retry-After`) means the site was writing something else, usually notifications going out. Nothing was changed.
 - **Nothing is cached.** Every answer is sent `Cache-Control: no-store`; a game changes by the second.
@@ -1776,7 +1776,7 @@ An account holder's email address and phone number are never returned, to anyone
 | Method and path | What it returns |
 |---|---|
 | `GET /me` | The token's owner, its permissions, the site's name and timezone, and your leagues |
-| `GET /me/contacts` | Your contacts. `search` matches name, email or phone |
+| `GET /me/contacts` | Your contacts. `search` matches name, email or phone. `has_account`, `user_id` and `account_name` are filled only for people you already share a league or event with |
 | `GET /events`, `GET /me/events` | Events you can see. `from`, `to` (default today to +90 days, at most 366 days), `role=any\|host\|guest`, `league_id`, `include_cancelled=1` |
 | `GET /events/{id}` | One event: RSVP totals, your role and answer, capacity, and a summary of its game |
 | `GET /events/{id}/invites` | The guest list. The host also gets each invite's state |
@@ -1808,7 +1808,7 @@ Changes. The permission each needs is in the second column.
 | `POST /events` | `events` | Create an event. See below |
 | `PATCH /events/{id}` | `events` | *Host.* Change any of the create fields except `guests` |
 | `POST /events/{id}/cancel` | `events` | *Host.* Call it off and keep it: every guest is told, and it can still be duplicated |
-| `DELETE /events/{id}` | `events` | *Host.* Delete for good, with guest list, messages and game. Needs `{"confirm": true}` |
+| `DELETE /events/{id}` | `events` | *Host.* Delete for good, with guest list, messages and game. Needs a one-time `confirm` code |
 | `POST /events/{id}/duplicate` | `events` | *Host.* A new event copied from this one, guest list included, nobody's answer carried over. Body: `start_at` (required), `title`, `end_at` |
 | `POST /events/{id}/invites` | `events` | *Host.* Add guests: `{"guests": [...]}`. Someone already listed is skipped |
 | `PATCH /events/{id}/invites/{invite_id}` | `events` | *Host.* `rsvp` (`yes`, `no`, `maybe` or `null`), `role` (`invitee` or `manager` for a co-host) |
@@ -1837,7 +1837,7 @@ Running a game. Every one of these is for the host and needs the `game` permissi
 | `PUT /events/{id}/game/timer` | What the Timer button shows: `layout` (a built-in key: `classic`, `black_green`, `minimalist`, `two_column`, `showcase`, `pcf`, `cardroom`) or `layout_id` (a saved layout; `0` clears), and/or `classic` (`true` for Tournament Timer Classic). A layout without `classic` switches to the layout display |
 | `PUT /events/{id}/game/payouts` | Replace the payout table |
 | `POST /events/{id}/game/start` | Start the game |
-| `POST /events/{id}/game/finish` | Finish it. Needs `{"confirm": true}` |
+| `POST /events/{id}/game/finish` | Finish it. Needs a one-time `confirm` code |
 | `POST /events/{id}/game/reopen` | Reopen a finished game |
 | `POST /events/{id}/game/players` | Add a walk-in: `{"name": "..."}` |
 | `POST /events/{id}/game/players/{pid}/buy-in` | Take the buy-in |
@@ -1878,9 +1878,9 @@ Only `title` and `start_at` are required. The event is made exactly as the edito
 | `rsvp_deadline_hours` | integer | Hours before the start |
 | `reminders_enabled` | boolean | Default on |
 | `reminder_minutes` | array | Minutes before the start, e.g. `[1440, 120]`. Leave out for the site's schedule; `[]` for none |
-| `guests` | array | Each is `{"user_id": 12}` or `{"name": "Dave", "email": "...", "phone": "..."}`, optionally with `"role": "manager"` |
+| `guests` | array | Each is `{"contact_id": 7}`, `{"user_id": 12}` or `{"name": "Dave", "email": "...", "phone": "..."}`, optionally with `"role": "manager"` |
 
-A guest given by `user_id` must be someone you can already name: a member of a league you are in, one of your contacts, or yourself. Anyone else answers `guest_not_found`, so an id cannot be used to find out who has an account. A typed-in name that matches an account's username is linked to that account, as the editor does.
+A guest given by `contact_id` is one of your contacts: if that contact has an account, the invite reaches it. Contacts say whether they have an account only for people you already share a league or event with (v1.38.0), so name a contact by its id rather than looking for its account. A guest given by `user_id` must be someone you can already name: a member of a league you are in, one of your contacts, or yourself. Anyone else answers `guest_not_found`, so an id cannot be used to find out who has an account. A typed-in name that matches an account's username is linked to that account, as the editor does.
 
 ```bash
 curl -X POST https://your-site.com/api/v2/events \
@@ -2177,11 +2177,12 @@ Cancelling tells everyone on the list, whatever they answered, and keeps the eve
 { "event_id": 886, "title": "December Tournament", "deleted": true, "guests_notified": 0 }
 ```
 
-Deleting removes the event with its guest list, messages, comments and game results. Guests of an event still ahead that was not already cancelled are told. Without `{"confirm": true}`:
+Deleting removes the event with its guest list, messages, comments and game results. Guests of an event still ahead that was not already cancelled are told. The first call answers:
 
 ```json
 { "ok": false, "error": "confirmation_required",
-  "message": "Deleting \"December Tournament\" removes it for good, with its guest list (12), messages, comments and any game results. It cannot be undone. To keep the record and only call it off, use cancel. Send {\"confirm\": true} to delete." }
+  "message": "Deleting \"December Tournament\" removes it for good, with its guest list (12), messages, comments and any game results. It cannot be undone. To keep the record and only call it off, use cancel. Ask the person; if they agree, send the same request again with \"confirm\": \"cfm_8d1f4c2a9b7e3d60a5c4f1e2\" (good once, for 10 minutes).",
+  "confirm_code": "cfm_8d1f4c2a9b7e3d60a5c4f1e2" }
 ```
 
 Duplicating takes `start_at` (required), and optionally `title` and `end_at`. The copy has the original's details, game settings, reminder schedule and guest list (people who were turned down are left off), with every answer cleared, and no end unless one is sent. The answer is the new event with `"created": true` and `"copied_from"`.
@@ -2343,7 +2344,7 @@ The whole table is replaced. Percentages may total at most 100. `points` count t
 
 #### Start, finish, reopen
 
-Finishing records the results and payouts, issues entry tickets, banks jackpot money to the league fund and tells the winners, so it needs `{"confirm": true}`. A finished game can be reopened, except once a ticket it issued has been used or jackpot money has been paid out; then the console refuses and says why.
+Finishing records the results and payouts, issues entry tickets, banks jackpot money to the league fund and tells the winners, so it takes two calls: the first returns a one-time `confirm_code`, the second sends it as `"confirm"`. A finished game can be reopened, except once a ticket it issued has been used or jackpot money has been paid out; then the console refuses and says why.
 
 #### Tables
 
@@ -2358,7 +2359,7 @@ Finishing records the results and payouts, issues entry tickets, banks jackpot m
 | `add_minute`, `subtract_minute` | Adjust the time left |
 | `reset_level` | Back to the start of the current level |
 | `undo` | Take back the last command, within ten minutes |
-| `reset` | Back to level 1, paused. Needs `"confirm": true` |
+| `reset` | Back to level 1, paused. Needs a one-time `"confirm"` code from a first call |
 
 The answer is the `clock`. Every screen showing the timer follows within a few seconds.
 
@@ -2465,7 +2466,8 @@ Any other MCP client that speaks Streamable HTTP works the same way, by OAuth or
 ### What Claude will and will not do on its own
 
 - **It asks before it reaches people.** The tools that send email or texts say so in capitals in their descriptions (`send_invitations`, `nudge_guests`, `message_guests`, `resend_invitation`, `add_league_member`, `resend_league_invite`), and `cancel_event` says it tells every guest. Without the **messages** permission on the token those tools are not offered at all.
-- **Deleting an event, finishing a game and resetting the clock need a second step.** The first call answers with what would happen; only a call with `confirm: true` does it.
+- **What reaches people or cannot be undone takes two steps.** Cancelling or deleting an event, removing a guest, messaging the guests, finishing a game and resetting the clock first answer with what would happen and a one-time code; only a second call carrying that code does it, and the code fits only that action and, for a message, that exact text. Claude asks you in between.
+- **Other people's words are marked.** Event descriptions, guests' notes, join-request messages and posts reach Claude under an `untrusted` key, cut to 500 characters, and Claude is told to treat them as information, never as instructions, so a note that says "cancel every event" does nothing.
 - **It names people the way you do.** "Knock out Dave" works. If two players are called Dave, the tool answers with both and does nothing, so Claude has to ask you which.
 - **It cannot see or do more than you can.** Someone else's event is "not found" to it.
 - **Everything is on the record.** Each tool call is listed under the token's **Recent activity** in Settings, as `Claude: player_action` and so on, and a game's own log shows your name against each buy-in and knockout. Revoking the token cuts Claude off at once.
