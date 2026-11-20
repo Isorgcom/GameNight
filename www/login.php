@@ -15,9 +15,7 @@ $redirect   = safe_local_path(is_string($redirectIn) ? $redirectIn : '', '/');
 
 // Per-account second-factor brute-force cap (across IPs, 15 min).
 function _login_mfa_locked(int $uid): bool {
-    $s = get_db()->prepare("SELECT COUNT(*) FROM activity_log WHERE action = ? AND created_at > datetime('now', '-15 minutes')");
-    $s->execute(['failed_mfa: ' . $uid]);
-    return (int)$s->fetchColumn() >= 8;
+    return mfa_failures_locked($uid);   // 8 per 15 minutes, 30 a day (auth.php)
 }
 
 // Verify a submitted second factor for a user. Returns true on success; sets $error on failure.

@@ -160,6 +160,10 @@ Access admin features at **Admin** in the navigation bar (admin users only).
 
 Overview of your site: total users, total events, total posts, and recent activity.
 
+### Changing another user's account
+
+An admin setting someone's password, changing their username, email, phone, role or verified flag, resetting their two-factor, or deleting accounts is asked for their **own** password first, then not again for 10 minutes. On the Users list, a **Confirm it's you** button opens that window; an inline edit asks when it needs to.
+
 ### General Settings
 
 General is in six sections, switched with the same sliding control as Account Settings: **Site**, **Features**, **Notifications**, **Security**, **Public pages** and **Timer**. Each section has its own Save, which saves only that section, and the page comes back on the section you saved. A section can be linked to: `/admin_settings.php?tab=general#notifications`.
@@ -485,7 +489,7 @@ Go to **Settings** (gear icon or nav menu) to:
 
 - Update your username, email, or phone number. Changing any of these asks for your current password. A new email takes effect only after you use the confirmation link sent to it (the old address is told a change was requested), and a changed phone number must be verified again before SMS two-factor will text it.
 - Change your password. This signs out every other device and browser where you were logged in; a password reset does the same.
-- Turn two-factor authentication on or off and regenerate recovery codes (your password is asked for each), and delete your account (type DELETE and your password).
+- Turn two-factor authentication on or off and regenerate recovery codes (your password is asked for each), and delete your account (type DELETE and your password). Turning two-factor on signs out your other devices and disconnects connected apps; they sign in again with a code.
 - Set your **preferred contact method**: Email, SMS, WhatsApp, Both (email + SMS), or None. A new account starts on SMS whenever a phone number is on file, email otherwise.
 
 ### My Events

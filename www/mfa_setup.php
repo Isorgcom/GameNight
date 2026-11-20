@@ -89,7 +89,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $show_codes = mfa_generate_recovery_codes($current['id']);
                 $mfa_on = true;
                 db_log_activity($current['id'], 'enabled MFA (authenticator app)');
-                send_account_notice((int)$current['id'], 'Two-factor authentication was turned on', 'Two-factor authentication with an authenticator app was turned on for your account.');
+                // Every other way in was opened by the password alone: other
+                // devices, remember-me and connected apps sign in again, now with
+                // the code (v1.37.0). This browser stays signed in.
+                invalidate_other_sessions((int)$current['id'], true);
+                send_account_notice((int)$current['id'], 'Two-factor authentication was turned on', 'Two-factor authentication with an authenticator app was turned on for your account. Your other devices were signed out and connected apps disconnected; they sign in again with a code.');
             }
         }
 
@@ -108,7 +112,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $show_codes = mfa_generate_recovery_codes($current['id']);
                     $mfa_on = true;
                     db_log_activity($current['id'], 'enabled MFA (SMS)');
-                    send_account_notice((int)$current['id'], 'Two-factor authentication was turned on', 'Two-factor authentication by text message was turned on for your account.');
+                    invalidate_other_sessions((int)$current['id'], true);   // as above (v1.37.0)
+                    send_account_notice((int)$current['id'], 'Two-factor authentication was turned on', 'Two-factor authentication by text message was turned on for your account. Your other devices were signed out and connected apps disconnected; they sign in again with a code.');
                 } elseif ($res === 'expired') {
                     $error = 'That code expired. Send a new one below.';
                 } elseif ($res === 'exhausted') {

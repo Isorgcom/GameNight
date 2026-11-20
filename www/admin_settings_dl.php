@@ -236,6 +236,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $post_tab = 'users';
         }
 
+        // As in admin_settings.php (v1.37.0): deleting accounts needs the
+        // admin's own password once per 10 minutes.
+        if (in_array($action, ['delete', 'bulk_delete'], true) && ($reauthErr = admin_reauth_required((int)$current['id']))) {
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => $reauthErr];
+            $action = '';
+        }
+
         if ($action === 'delete') {
             $id  = (int)($_POST['id'] ?? 0);
             $err = null;

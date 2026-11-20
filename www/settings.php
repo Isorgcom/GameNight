@@ -91,8 +91,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 if ($pwCheck !== 'ok') {
                     $flash = ['type' => 'error', 'msg' => password_confirm_message($pwCheck)];
-                } elseif ($emailTaken) {
-                    $flash = ['type' => 'error', 'msg' => 'That email is already in use.'];
                 } elseif ($phoneTaken) {
                     $flash = ['type' => 'error', 'msg' => 'That phone number is already in use.'];
                 } else {
@@ -126,7 +124,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                         if ($emailChanged) {
                             $db->prepare('UPDATE users SET pending_email = ? WHERE id = ?')->execute([$email, $current['id']]);
-                            $mailed = send_verification_email((int)$current['id'], $email, $username, $email);
+                            // An address another account already has gets the same answer
+                            // as a free one, with no mail sent (v1.37.0): "already in use"
+                            // told anyone with an account who else has one. The change just
+                            // stays pending (it could never be confirmed anyway).
+                            if ($emailTaken) {
+                                db_log_activity($current['id'], 'email change to an address already in use (not sent)', 'warning');
+                                $mailed = true;
+                            } else {
+                                $mailed = send_verification_email((int)$current['id'], $email, $username, $email);
+                            }
                             if ($curEmail !== '') {
                                 send_account_notice((int)$current['id'], 'Email change requested', 'A request was made to change the email address on your account from ' . $curEmail . ' to ' . $email . '. It takes effect only when the link sent to the new address is used.', $curEmail);
                             }
