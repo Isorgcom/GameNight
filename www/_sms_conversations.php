@@ -322,9 +322,13 @@ function sms_guest_rsvp(PDO $db, string $digits, string $body): ?string {
     $rsvp = $map[strtolower(trim($body))] ?? null;
     if ($rsvp === null || $digits === '') return null;
 
-    $q = $db->prepare("SELECT ei.id, ei.event_id, ei.username, ei.phone, e.title, e.start_date
+    // The number is the one typed on the invite or, for an invite linked to an
+    // account, the account's own phone: since v1.35.0 an account's phone is no
+    // longer copied onto its invites, so the reply is matched through the link.
+    $q = $db->prepare("SELECT ei.id, ei.event_id, ei.username, COALESCE(NULLIF(ei.phone, ''), u.phone) AS phone, e.title, e.start_date
                        FROM event_invites ei JOIN events e ON e.id = ei.event_id
-                       WHERE ei.phone IS NOT NULL AND ei.phone != '' AND e.start_date >= ?
+                       LEFT JOIN users u ON u.id = ei.user_id
+                       WHERE COALESCE(NULLIF(ei.phone, ''), u.phone, '') != '' AND e.start_date >= ?
                          AND ei.approval_status = 'approved' AND ei.occurrence_date IS NULL
                        ORDER BY e.start_date ASC, e.id ASC");
     $q->execute([_sms_conv_today()]);

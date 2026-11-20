@@ -344,8 +344,10 @@ function handle_events_post(): void {
             $resolved_invitees[] = [
                 'user_id'  => $uid,
                 'username' => (string)$u['username'],
-                'email'    => $u['email'],
-                'phone'    => $u['phone'],
+                // Reached through the account: no copy of its email or phone
+                // on the invite row (v1.35.0).
+                'email'    => null,
+                'phone'    => null,
                 'role'     => !empty($inv['manager']) ? 'manager' : 'invitee',
             ];
         }
@@ -1009,8 +1011,8 @@ function handle_events_invites_post(): void {
                 $event_id,
                 $u['username'],
                 $uid,
-                $u['phone'] ?: null,
-                $u['email'] ?: null,
+                null,   // reached through the account (v1.35.0)
+                null,
                 $role,
                 $next_sort,
                 bin2hex(random_bytes(16)),

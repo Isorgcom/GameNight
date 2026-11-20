@@ -113,7 +113,9 @@ function public_join_existing_row(PDO $db, int $event_id, int $uid): ?array {
  *  guest's own link (event.php?token=) works from the first notice. */
 function public_join_insert(PDO $db, int $event_id, int $uid, string $username, ?string $email, ?string $phone, string $status, string $source): void {
     $db->prepare('INSERT INTO event_invites (event_id, username, user_id, email, phone, rsvp, rsvp_token, approval_status, join_source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-       ->execute([$event_id, $username, $uid, $email ?: null, $phone ?: null, 'yes', bin2hex(random_bytes(16)), $status, $source]);
+       // The row is linked to the account, which is how the guest is reached: no
+       // email or phone is kept on it (v1.35.0), so a host never sees an address.
+       ->execute([$event_id, $username, $uid, null, null, 'yes', bin2hex(random_bytes(16)), $status, $source]);
     if ($status === 'waitlisted' && function_exists('recompact_sort_order')) recompact_sort_order($db, $event_id);
 }
 

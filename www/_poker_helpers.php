@@ -916,9 +916,11 @@ function pk_ticket_ensure_invite($db, int $target_event_id, ?int $user_id, strin
 
         $phone = null; $email = null; $username = $display_name;
         if ($user_id) {
-            $u = $db->prepare('SELECT username, phone, email FROM users WHERE id = ?');
+            // The account is linked by id; its own email and phone stay on the
+            // account (delivery reads them there), never copied onto the invite.
+            $u = $db->prepare('SELECT username FROM users WHERE id = ?');
             $u->execute([$user_id]);
-            if ($ur = $u->fetch()) { $username = $ur['username']; $phone = $ur['phone'] ?: null; $email = $ur['email'] ?: null; }
+            if ($ur = $u->fetch()) { $username = $ur['username']; }
         } elseif ($source_event_id) {
             $s = $db->prepare('SELECT phone, email FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?) LIMIT 1');
             $s->execute([$source_event_id, $display_name]);

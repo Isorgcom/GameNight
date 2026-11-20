@@ -5,7 +5,6 @@ require_once __DIR__ . '/_notifications.php';
 $db      = get_db();
 $current = current_user();
 $isAdmin = $current && $current['role'] === 'admin';
-$allUsers = $db->query('SELECT username, email, phone FROM users ORDER BY username')->fetchAll();
 
 if (get_setting('show_calendar', '1') !== '1') {
     http_response_code(403);
@@ -255,8 +254,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$existing_signup) {
                 // Self-signup: approval gate fires if the event has requires_approval=1.
                 $approval = invite_approval_status($eid, 'self');
-                $db->prepare('INSERT INTO event_invites (event_id, username, user_id, phone, email, rsvp, approval_status) VALUES (?, ?, ?, ?, ?, NULL, ?)')
-                   ->execute([$eid, $current['username'], (int)$current['id'], $udata['phone'] ?? null, $udata['email'] ?? null, $approval]);
+                // join_source 'self': see calendar.php. No address kept (v1.35.0).
+                $db->prepare("INSERT INTO event_invites (event_id, username, user_id, phone, email, rsvp, approval_status, join_source) VALUES (?, ?, ?, NULL, NULL, NULL, ?, 'self')")
+                   ->execute([$eid, $current['username'], (int)$current['id'], $approval]);
                 db_log_activity($current['id'], "signed up for event id: $eid" . ($approval === 'pending' ? ' (pending approval)' : ''));
                 if ($approval === 'pending') {
                     $signup_pending = true;

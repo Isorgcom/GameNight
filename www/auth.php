@@ -243,20 +243,12 @@ function session_start_safe(): void {
         // Over HTTPS the session cookie is __Host- prefixed: the browser then
         // only accepts it Secure, for path / and with no Domain, so a sibling
         // subdomain or a plain-HTTP response can never plant or overwrite it.
-        // A browser still holding the old PHPSESSID carries its session over
-        // once (strict mode only accepts an id this server already has), so the
-        // rename signs nobody out. Plain HTTP (dev) keeps PHPSESSID: the prefix
-        // requires Secure.
+        // Plain HTTP (dev) keeps PHPSESSID: the prefix requires Secure. The old
+        // PHPSESSID is no longer carried over (v1.35.0): adopting it let a
+        // planted unprefixed cookie stand in for the __Host- one, which is the
+        // guarantee the prefix exists to give.
         if (_is_https()) {
             session_name(SESSION_COOKIE_HTTPS);
-            // Carried over only if this server already holds that session's file:
-            // an id set through session_id() is not one strict mode vets, so the
-            // check is made here and a planted value can never mint a session.
-            $old = $_COOKIE['PHPSESSID'] ?? '';
-            if (!isset($_COOKIE[SESSION_COOKIE_HTTPS]) && preg_match('/^[A-Za-z0-9,-]{22,256}$/', $old)
-                && is_file(rtrim(session_save_path() ?: sys_get_temp_dir(), '/') . '/sess_' . $old)) {
-                session_id($old);
-            }
         }
         // PHP's default cache limiter sends no-store on every page, which keeps
         // even the public pages (home, help, league directory) out of the
@@ -267,9 +259,11 @@ function session_start_safe(): void {
         // its own Cache-Control afterwards (connect.php does).
         session_cache_limiter('');
         session_start();
+        // Over HTTPS, expire the pre-1.33.1 cookies if the browser still has them.
         if (isset($_COOKIE['PHPSESSID']) && _is_https() && !headers_sent()) {
             setcookie('PHPSESSID', '', ['expires' => time() - 3600, 'path' => '/', 'secure' => true, 'httponly' => true, 'samesite' => 'Lax']);
         }
+        _clear_legacy_remember_cookie();
         if (!headers_sent()) {
             $guest = empty($_SESSION['user_id']) && empty($_SESSION['mfa_user_id'])
                   && remember_cookie_value() === '';
@@ -295,12 +289,12 @@ function remember_cookie_name(): string {
 }
 
 /**
- * The remember-me cookie's value, under its current name or, once, under the
- * old unprefixed one: a token issued before the rename still signs its owner
- * in, and consuming it reissues it under the new name (and clears the old).
+ * The remember-me cookie's value, under its current name only. The old
+ * unprefixed name stopped signing anyone in at v1.35.0 (a planted cookie under
+ * it could stand in for the __Host- one); session_start_safe() expires it.
  */
 function remember_cookie_value(): string {
-    return (string)($_COOKIE[remember_cookie_name()] ?? $_COOKIE[REMEMBER_COOKIE] ?? '');
+    return (string)($_COOKIE[remember_cookie_name()] ?? '');
 }
 
 // Returned by register_user() when the email/phone is already registered. The

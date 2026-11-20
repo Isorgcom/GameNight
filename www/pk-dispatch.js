@@ -121,7 +121,9 @@
         if (!f || !f.dataset || !f.dataset.confirm) return;
         e.preventDefault();
         if (typeof window.pkConfirmForm === 'function') {
-            window.pkConfirmForm(f, f.dataset.confirm, {
+            // Plain text, escaped like the button path below (v1.35.0): an event
+            // title in an admin's delete prompt rendered as markup.
+            window.pkConfirmForm(f, textToHtml(f.dataset.confirm), {
                 okLabel: f.dataset.confirmOk || 'OK',
                 danger:  f.dataset.confirmDanger === '1'
             });

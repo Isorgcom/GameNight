@@ -509,9 +509,14 @@ function lpCopyCal() {
     }
     btn.addEventListener('click', doJoin);
     <?php if ($autoJoin): ?>
-    // Arrived back from login/register with join intent: fire it once, then clean the URL.
+    // Arrived back from login/register with join intent: bring the button to
+    // them, but joining takes their own click (v1.35.0). Firing it on load let
+    // any link with ?join=1 put a signed-in visitor into a league, whose owner
+    // then saw their email and phone.
     history.replaceState(null, '', <?= js_json($pubPath) ?>);
-    doJoin();
+    btn.scrollIntoView({ block: 'center' });
+    btn.focus();
+    if (note) note.textContent = 'You are signed in. Press Join to send your request.';
     <?php endif; ?>
 })();
 </script>

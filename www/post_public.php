@@ -157,12 +157,15 @@ $redir = '/post_public.php?token=' . urlencode($token);
                 <?= count($comments) ?> Comment<?= count($comments) !== 1 ? 's' : '' ?>
             </div>
 
-            <?php foreach ($comments as $c): ?>
+            <?php foreach ($comments as $c):
+                // Signed-out visitors see the comment but not who wrote it (v1.35.0):
+                // a public link should not list members' usernames to anyone.
+                $cName = $user ? (string)$c['username'] : 'A member'; ?>
             <div class="comment" id="cmt-<?= (int)$c['id'] ?>">
-                <div class="comment-avatar"><?= htmlspecialchars(mb_substr($c['username'], 0, 1)) ?></div>
+                <div class="comment-avatar"><?= htmlspecialchars(mb_substr($cName, 0, 1)) ?></div>
                 <div class="comment-content">
                     <div class="comment-meta">
-                        <strong><?= htmlspecialchars($c['username']) ?></strong>
+                        <strong><?= htmlspecialchars($cName) ?></strong>
                         <span><?= htmlspecialchars((new DateTime($c['created_at'], new DateTimeZone('UTC')))->setTimezone($local_tz)->format('M j, Y g:i A')) ?></span>
                     </div>
                     <div class="comment-body"><?= htmlspecialchars($c['body']) ?></div>

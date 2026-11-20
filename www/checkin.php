@@ -428,7 +428,7 @@ var IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
 // Needed to tell "my preset" from "someone else's" without a round-trip; the
 // preset menu greys out what the server would refuse, and says why.
 var CURRENT_USER_ID = <?= (int)$current['id'] ?>;
-var SESSION = <?= $session ? json_encode($session, JSON_HEX_TAG) : 'null' ?>;
+var SESSION = <?= js_json($session ?: null) ?>;
 var CHECKIN_EVENT_TITLE = <?= js_json((string)$event['title'], JSON_HEX_TAG) ?>;
 var CHECKIN_EVENT_ROW_ID = <?= (int)$event['id'] ?>;
 </script>
