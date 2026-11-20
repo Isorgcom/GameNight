@@ -31,6 +31,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db_log_anon_activity('password_reset_request: ' . $identifier);
 
         $user = find_user_by_identifier($identifier);
+        // A reset link carries a working token, and without a Site URL it would
+        // be built from the request's Host header, which the requester chooses
+        // (v1.39.0): nothing is sent until an admin sets the Site URL.
+        if ($user && trim(get_setting('site_url', '')) === '') {
+            db_log_anon_activity('password reset not sent: Site URL is not set (Admin > General > Site)', 'warning');
+            $user = null;
+        }
 
         if ($user) {
             // Invalidate any existing unused tokens for this user

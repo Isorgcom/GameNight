@@ -23,6 +23,29 @@ function is_owner_or_manager($db, $event_id, $current, $isAdmin): bool {
     return can_manage_event($db, (int)$event_id, (int)$current['id'], (bool)$isAdmin);
 }
 
+// The league jackpot fund is read and written in one IMMEDIATE transaction
+// (v1.39.0): two payouts or corrections at the same moment both read the old
+// balance and each passed the "cannot go negative" check. jp_fail() answers
+// an error and undoes whatever the transaction did.
+function jp_begin($db): void { $db->exec('BEGIN IMMEDIATE'); }
+function jp_fail($db, string $msg): void {
+    try { $db->exec('ROLLBACK'); } catch (Throwable $e) {}
+    echo json_encode(['ok' => false, 'error' => $msg]);
+    exit;
+}
+
+// A cancelled event takes no console changes (v1.39.0). verify_event_access()
+// already stopped on one, but most of the actions here check with
+// is_owner_or_manager(), which did not, so a cancelled game could still be
+// configured, started, finished and paid out.
+function refuse_if_cancelled($db, int $event_id): void {
+    if ($event_id > 0 && event_is_cancelled($db, $event_id)) {
+        http_response_code(409);
+        echo json_encode(['ok' => false, 'error' => EVENT_CANCELLED_MSG]);
+        exit;
+    }
+}
+
 // ─── ACTIONS ───────────────────────────────────────────────
 
 if ($action === 'get_session') {
@@ -200,6 +223,7 @@ if ($action === 'edit_ledger_entry') {
     $entry_id   = (int)($_POST['entry_id'] ?? 0);
     $new_amount = (int)round(floatval($_POST['new_amount'] ?? 0) * 100); // dollars -> cents
     if ($new_amount <= 0) { echo json_encode(['ok' => false, 'error' => 'Enter an amount greater than zero']); exit; }
+    if ($new_amount > 10000000) { echo json_encode(['ok' => false, 'error' => 'An amount can be at most $100,000.']); exit; }
 
     $erow = $db->prepare('SELECT * FROM poker_session_log WHERE id = ?');
     $erow->execute([$entry_id]);
@@ -472,6 +496,7 @@ if ($action === 'update_config') {
     if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
     }
+    refuse_if_cancelled($db, (int)$s['event_id']);   // v1.39.0: a cancelled event takes no console changes
 
     $game_type = in_array($_POST['game_type'] ?? '', ['tournament', 'cash']) ? $_POST['game_type'] : $s['game_type'];
     $new_num_tables = (int)($_POST['num_tables'] ?? $s['num_tables']);
@@ -487,6 +512,12 @@ if ($action === 'update_config') {
     $jp_amount  = max(0, (int)($_POST['jackpot_amount'] ?? $s['jackpot_amount'] ?? 0));
     $bounty_opt = (int)($_POST['bounty_optional'] ?? $s['bounty_optional'] ?? 0) ? 1 : 0;
     $jp_opt     = (int)($_POST['jackpot_optional'] ?? $s['jackpot_optional'] ?? 1) ? 1 : 0;
+    // Money fields are cents, from 0 to $100,000 (v1.39.0): a negative buy-in or
+    // an absurd one turned the pool, payouts and the league fund into nonsense.
+    foreach (['buy-in' => $new_buyin, 'rebuy' => (int)($_POST['rebuy_amount'] ?? $s['rebuy_amount']),
+              'add-on' => (int)($_POST['addon_amount'] ?? $s['addon_amount']), 'bounty' => $bounty_amt, 'jackpot' => $jp_amount] as $__lbl => $__v) {
+        if ($__v < 0 || $__v > 10000000) { echo json_encode(['ok' => false, 'error' => "The $__lbl must be between \$0 and \$100,000."]); exit; }
+    }
     $baked = (!$bounty_opt ? $bounty_amt : 0) + (!$jp_opt ? $jp_amount : 0);
     if ($game_type === 'tournament' && $baked >= $new_buyin && $baked > 0) {
         echo json_encode(['ok' => false, 'error' => 'Baked-in bounty + jackpot must total less than the buy-in (they come out of it).']); exit;
@@ -544,6 +575,14 @@ if ($action === 'update_config') {
     if ($jp_amount > 0 && !$event_league) {
         echo json_encode(['ok' => false, 'error' => 'Jackpots are league funds — this event must belong to a league first.']); exit;
     }
+    // The jackpot amount decides what goes into the league's fund, so changing it
+    // needs a league role, as the API already required (v1.39.0). A co-host who
+    // only runs this game could set it before.
+    if ($jp_amount !== (int)($s['jackpot_amount'] ?? 0) && $event_league
+        && !pk_can_manage_league_money($db, (int)$event_league, (int)$current['id'], $isAdmin)) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Only a league owner or manager can change the jackpot amount.']); exit;
+    }
 
     // Satellite target: another upcoming poker event the caller can manage.
     $target = array_key_exists('ticket_target_event_id', $_POST)
@@ -552,7 +591,7 @@ if ($action === 'update_config') {
     if ($target > 0) {
         $tev = $db->prepare('SELECT id FROM events WHERE id = ? AND is_poker = 1 AND id != ?');
         $tev->execute([$target, (int)$s['event_id']]);
-        if (!$tev->fetch() || !is_owner_or_manager($db, $target, $current, $isAdmin)) {
+        if (!$tev->fetch() || !is_owner_or_manager($db, $target, $current, $isAdmin) || event_is_cancelled($db, $target)) {
             echo json_encode(['ok' => false, 'error' => 'Ticket target must be another upcoming poker event you manage.']); exit;
         }
     } else {
@@ -684,6 +723,7 @@ if ($action === 'update_status') {
     if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
     }
+    refuse_if_cancelled($db, (int)$s['event_id']);   // v1.39.0: a cancelled event takes no console changes
 
     // Reopening a finished game: voids issued entry tickets, and is blocked
     // outright once a ticket has been redeemed at its target event.
@@ -1302,6 +1342,7 @@ if ($action === 'add_walkin') {
     if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
     }
+    refuse_if_cancelled($db, (int)$s['event_id']);   // v1.39.0: a cancelled event takes no console changes
 
     // Check if a user with this username exists
     $userChk = $db->prepare('SELECT id, username FROM users WHERE LOWER(username) = LOWER(?)');
@@ -1466,12 +1507,23 @@ if ($action === 'update_payouts') {
     if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
     }
+    refuse_if_cancelled($db, (int)$s['event_id']);   // v1.39.0: a cancelled event takes no console changes
+
+    // A finished game's payouts were paid: points recorded, tickets issued,
+    // jackpot money banked. Changing them now would rewrite those silently, so
+    // the game is reopened first (v1.39.0).
+    if (($s['status'] ?? '') === 'finished') {
+        echo json_encode(['ok' => false, 'error' => 'This game is finished. Reopen it to change its payouts.']); exit;
+    }
 
     $places      = $_POST['places'] ?? [];
     $percentages = $_POST['percentages'] ?? [];
     $pointsArr   = $_POST['points'] ?? [];
     $ticketsArr  = $_POST['tickets'] ?? [];   // dollars from the form
     $labelsArr   = $_POST['labels'] ?? [];
+    // The same bounds as the API (v1.39.0): points up to 100,000, a ticket up to $100,000.
+    foreach ($pointsArr as $__p) if ((int)$__p > 100000) { echo json_encode(['ok' => false, 'error' => 'Points for a place can be at most 100,000.']); exit; }
+    foreach ($ticketsArr as $__t) if ((float)$__t > 100000 || (float)$__t < 0) { echo json_encode(['ok' => false, 'error' => 'A ticket prize must be between $0 and $100,000.']); exit; }
 
     // Reject negatives BEFORE summing: only rows with a positive percentage are
     // stored below, so a negative row would be silently dropped after having
@@ -1497,6 +1549,10 @@ if ($action === 'update_payouts') {
         exit;
     }
 
+    // One transaction (v1.39.0): a second save at the same moment could
+    // interleave its rows with these, or leave the game with none.
+    $db->exec('BEGIN IMMEDIATE');
+    try {
     $db->prepare('DELETE FROM poker_payouts WHERE session_id = ?')->execute([$session_id]);
     $ins = $db->prepare('INSERT INTO poker_payouts (session_id, place, percentage, points, ticket_cents, prize_label) VALUES (?, ?, ?, ?, ?, ?)');
     for ($i = 0; $i < count($places); $i++) {
@@ -1510,6 +1566,8 @@ if ($action === 'update_payouts') {
             $ins->execute([$session_id, $place, $pct, $pts, $ticket, $label !== '' ? mb_substr($label, 0, 60) : null]);
         }
     }
+    $db->exec('COMMIT');
+    } catch (Throwable $e) { try { $db->exec('ROLLBACK'); } catch (Throwable $e2) {} throw $e; }
 
     db_log_activity((int)$current['id'], "updated payout structure for poker session id=$session_id");
 
@@ -1531,6 +1589,7 @@ if ($action === 'set_player_payout') {
     $session = get_session_from_player($db, $player_id);
     if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
+    if ($payout < 0 || $payout > 10000000) { echo json_encode(['ok' => false, 'error' => 'A payout must be between $0 and $100,000.']); exit; }
 
     $db->prepare('UPDATE poker_players SET payout = ? WHERE id = ?')->execute([$payout, $player_id]);
 
@@ -1593,6 +1652,7 @@ if ($action === 'add_cashin') {
     $player_id = (int)($_POST['player_id'] ?? 0);
     $amount = (int)($_POST['amount'] ?? 0);
     if ($amount <= 0) { echo json_encode(['ok' => false, 'error' => 'Amount must be positive']); exit; }
+    if ($amount > 10000000) { echo json_encode(['ok' => false, 'error' => 'An amount can be at most $100,000.']); exit; }
     $session = get_session_from_player($db, $player_id);
     if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
@@ -1622,6 +1682,7 @@ if ($action === 'set_cashin') {
     if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
 
+    if ($amount > 10000000) { echo json_encode(['ok' => false, 'error' => 'An amount can be at most $100,000.']); exit; }
     $amt = max(0, $amount);
     // Capture old total so the ledger entry stores a signed delta (reversible on void).
     $oldCi = $db->prepare('SELECT COALESCE(cash_in,0) FROM poker_players WHERE id = ?');
@@ -1756,6 +1817,7 @@ if ($action === 'break_up_table') {
     if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
     }
+    refuse_if_cancelled($db, (int)$s['event_id']);   // v1.39.0: a cancelled event takes no console changes
 
     $num_tables = (int)$s['num_tables'];
     if ($table_number < 1 || $table_number > $num_tables || $num_tables <= 1) {
@@ -1815,6 +1877,7 @@ if ($action === 'rebalance_tables') {
     if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
     }
+    refuse_if_cancelled($db, (int)$s['event_id']);   // v1.39.0: a cancelled event takes no console changes
 
     $protected = json_decode($_POST['protected_ids'] ?? '[]', true);
     if (!is_array($protected)) $protected = [];
@@ -1909,7 +1972,12 @@ if ($action === 'save_payout_structure') {
         $sq = $db->prepare('SELECT event_id FROM poker_sessions WHERE id = ?');
         $sq->execute([$snap_sid]);
         $snap_eid = (int)($sq->fetchColumn() ?: 0);
-        if ($snap_eid && is_owner_or_manager($db, $snap_eid, $current, $isAdmin)) {
+        // A game the caller does not run is not read or marked at all (v1.39.0):
+        // its chip set was copied and its preset link rewritten without a check.
+        if (!$snap_eid || !is_owner_or_manager($db, $snap_eid, $current, $isAdmin)) $snap_sid = 0;
+    }
+    if ($snap_sid) {
+        {
             $tq = $db->prepare('SELECT preset_id, use_beta, layout_id, layout_builtin FROM timer_state WHERE session_id = ?');
             $tq->execute([$snap_sid]);
             $trow = $tq->fetch();
@@ -2021,6 +2089,7 @@ if ($action === 'load_payout_structure') {
     if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
     }
+    refuse_if_cancelled($db, (int)$s['event_id']);   // v1.39.0: a cancelled event takes no console changes
 
     // Only a structure the caller may see (the default, a site one, their own,
     // or a league's they belong to): the list's filter, applied at load time.
@@ -2077,7 +2146,12 @@ if ($action === 'load_payout_structure') {
         }
         $evL = $db->prepare('SELECT league_id FROM events WHERE id = ?');
         $evL->execute([(int)$s['event_id']]);
-        if (!(int)$evL->fetchColumn()) $nj = 0;  // jackpots are league funds
+        $evLid = (int)$evL->fetchColumn();
+        if (!$evLid) $nj = 0;  // jackpots are league funds
+        // Without a league role the jackpot stays as it was (v1.39.0): the rest
+        // of the preset still loads, but only the league's owner or managers
+        // decide what goes into its fund.
+        elseif ($nj !== (int)($s['jackpot_amount'] ?? 0) && !pk_can_manage_league_money($db, $evLid, (int)$current['id'], $isAdmin)) $nj = (int)($s['jackpot_amount'] ?? 0);
         $db->prepare('UPDATE poker_sessions SET bounty_amount = ?, bounty_points = ?, jackpot_amount = ? WHERE id = ?')
            ->execute([$nb, $nbp, $nj, $session_id]);
     }
@@ -2204,7 +2278,7 @@ if ($action === 'resolve_ticket') {
         $tev = $db->prepare('SELECT id, title FROM events WHERE id = ? AND is_poker = 1 AND id != ?');
         $tev->execute([$new_target, (int)$t['source_event_id']]);
         $tevRow = $tev->fetch();
-        if (!$tevRow || !is_owner_or_manager($db, $new_target, $current, $isAdmin)) {
+        if (!$tevRow || !is_owner_or_manager($db, $new_target, $current, $isAdmin) || event_is_cancelled($db, $new_target)) {
             echo json_encode(['ok' => false, 'error' => 'New target must be another poker event you manage.']); exit;
         }
         $db->prepare('UPDATE poker_entry_tickets SET target_event_id = ? WHERE id = ?')->execute([$new_target, $ticket_id]);
@@ -2264,19 +2338,19 @@ if ($action === 'void_jackpot_entry') {
     if (!pk_can_manage_league_money($db, (int)$s['league_id'], (int)$current['id'], $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Only a league owner or manager can change the jackpot fund.']); exit;
     }
+    jp_begin($db);
     $fund = pk_jackpot_fund($db, (int)$s['league_id']);
     $eq = $db->prepare('SELECT * FROM league_jackpot_log WHERE id = ? AND jackpot_id = ?');
     $eq->execute([$entry_id, (int)$fund['id']]);
     $entry = $eq->fetch();
-    if (!$entry) { echo json_encode(['ok' => false, 'error' => 'Entry not found']); exit; }
-    if ((int)$entry['voided']) { echo json_encode(['ok' => false, 'error' => 'Already voided']); exit; }
+    if (!$entry) jp_fail($db, 'Entry not found');
+    if ((int)$entry['voided']) jp_fail($db, 'Already voided');
     $newBal = (int)$fund['balance'] - (int)$entry['amount'];
-    if ($newBal < 0) {
-        echo json_encode(['ok' => false, 'error' => 'Voiding this entry would make the fund negative (' . pk_money($newBal) . ') — that money was already paid out.']); exit;
-    }
+    if ($newBal < 0) jp_fail($db, 'Voiding this entry would make the fund negative (' . pk_money($newBal) . ') — that money was already paid out.');
     $db->prepare('UPDATE league_jackpot_log SET voided = 1, voided_by = ?, voided_at = CURRENT_TIMESTAMP WHERE id = ?')
        ->execute([(int)$current['id'], $entry_id]);
     $db->prepare('UPDATE league_jackpots SET balance = ? WHERE id = ?')->execute([$newBal, (int)$fund['id']]);
+    $db->exec('COMMIT');
     db_log_activity((int)$current['id'], 'voided jackpot ledger entry id=' . $entry_id . ' (' . pk_money((int)$entry['amount']) . ')');
     echo json_encode(['ok' => true, 'balance' => $newBal]);
     exit;
@@ -2289,6 +2363,7 @@ if ($action === 'adjust_jackpot') {
     $amount     = (int)round(((float)($_POST['amount'] ?? 0)) * 100);
     $note       = trim((string)($_POST['note'] ?? ''));
     if ($amount === 0) { echo json_encode(['ok' => false, 'error' => 'Enter a non-zero amount (negative to remove money).']); exit; }
+    if (abs($amount) > 10000000) { echo json_encode(['ok' => false, 'error' => 'A correction can be at most $100,000 either way.']); exit; }
     $sess = $db->prepare('SELECT ps.*, e.league_id FROM poker_sessions ps JOIN events e ON e.id = ps.event_id WHERE ps.id = ?');
     $sess->execute([$session_id]);
     $s = $sess->fetch();
@@ -2297,14 +2372,16 @@ if ($action === 'adjust_jackpot') {
     if (!pk_can_manage_league_money($db, (int)$s['league_id'], (int)$current['id'], $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Only a league owner or manager can change the jackpot fund.']); exit;
     }
+    jp_begin($db);
     $fund = pk_jackpot_fund($db, (int)$s['league_id']);
     $newBal = (int)$fund['balance'] + $amount;
-    if ($newBal < 0) { echo json_encode(['ok' => false, 'error' => 'Fund cannot go negative (would be ' . pk_money($newBal) . ').']); exit; }
+    if ($newBal < 0) jp_fail($db, 'Fund cannot go negative (would be ' . pk_money($newBal) . ').');
     $db->prepare('INSERT INTO league_jackpot_log (jackpot_id, session_id, event_type, amount, detail, created_by)
                   VALUES (?, ?, ?, ?, ?, ?)')
        ->execute([(int)$fund['id'], $session_id, 'adjust', $amount,
                   $note !== '' ? mb_substr($note, 0, 120) : 'Manual adjustment', (int)$current['id']]);
     $db->prepare('UPDATE league_jackpots SET balance = ? WHERE id = ?')->execute([$newBal, (int)$fund['id']]);
+    $db->exec('COMMIT');
     db_log_activity((int)$current['id'], 'jackpot manual adjustment ' . pk_money($amount));
     echo json_encode(['ok' => true, 'balance' => $newBal]);
     exit;
@@ -2390,6 +2467,7 @@ if ($action === 'record_jackpot_hit') {
         $n = trim((string)$names[$i]);
         $a = (int)round(((float)($amounts[$i] ?? 0)) * 100);
         if ($n === '' || $a <= 0) continue;
+        if ($a > 10000000) { echo json_encode(['ok' => false, 'error' => 'A single payout can be at most $100,000.']); exit; }
         $recips[] = ['name' => $n, 'amount' => $a];
         $total += $a;
     }
@@ -2400,12 +2478,11 @@ if ($action === 'record_jackpot_hit') {
     // which refused every mid-game payout. Bank what this session has collected
     // first; the sync works on the delta, so finishing later tops up the rest
     // rather than contributing twice.
+    jp_begin($db);
     pk_jackpot_sync_contribution($db, $session_id, (int)$current['id']);
 
     $fund = pk_jackpot_fund($db, (int)$s['league_id']);
-    if ($total > (int)$fund['balance']) {
-        echo json_encode(['ok' => false, 'error' => 'Payout ' . pk_money($total) . ' exceeds the fund (' . pk_money((int)$fund['balance']) . ').']); exit;
-    }
+    if ($total > (int)$fund['balance']) jp_fail($db, 'Payout ' . pk_money($total) . ' exceeds the fund (' . pk_money((int)$fund['balance']) . ').');
 
     $label = PK_JACKPOT_HIT_TYPES[$jtype];
     foreach ($recips as $rc) {
@@ -2417,6 +2494,7 @@ if ($action === 'record_jackpot_hit') {
                "$label jackpot hit — " . pk_money($rc['amount']) . ' to ' . $rc['name']);
     }
     $db->prepare('UPDATE league_jackpots SET balance = balance - ? WHERE id = ?')->execute([$total, (int)$fund['id']]);
+    $db->exec('COMMIT');
     db_log_activity((int)$current['id'], "$label jackpot hit: " . pk_money($total) . " paid (session id=$session_id)");
 
     echo json_encode(['ok' => true, 'jackpots' => ['league_id' => (int)$s['league_id'],

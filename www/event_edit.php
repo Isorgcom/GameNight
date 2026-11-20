@@ -798,7 +798,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                 <a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-outline" style="text-decoration:none" data-act="leaveEditor" data-a1="@event">Cancel</a>
             </div>
         </form>
-        <?php if ($isAdmin && $event && !$isCopy): ?>
+        <?php if ($event && !$isCopy): ?>
         <div style="padding:.4rem 1rem .6rem;flex-shrink:0">
             <button type="button" id="eRegenWalkinBtn"
                     style="width:100%;padding:.38rem;border:1.5px solid var(--bd-cbd5e1, #cbd5e1);border-radius:7px;background:var(--bg-ffffff, #ffffff);color:var(--fg-64748b, #64748b);font-size:.78rem;cursor:pointer;font-weight:600"

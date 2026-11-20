@@ -265,11 +265,26 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
 
             $remote_key = bin2hex(random_bytes(8));
             $user_id = $current ? (int)$current['id'] : 0;
-            $db->prepare("INSERT INTO timer_state (session_id, preset_id, current_level, time_remaining_seconds, is_running, remote_key, user_id, updated_at) VALUES (?, ?, 1, ?, 0, ?, ?, datetime('now'))")
-                ->execute([$standalone_sid, $preset_id, $duration, $remote_key, $user_id]);
-
-            $ts->execute([$standalone_sid]);
-            $timer = $ts->fetch();
+            // Every visit without a cookie is a new guest, and each one used to
+            // save a timer row for good (v1.39.0). Ten new guest timers an hour
+            // per address are saved; past that the page shows a timer that is not
+            // saved, and cron removes guest timers idle for a week.
+            $guest_capped = false;
+            if (!$current) {
+                $gc = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE action = 'guest_timer_created' AND ip = ? AND created_at > datetime('now', '-1 hour')");
+                $gc->execute([get_client_ip()]);
+                $guest_capped = (int)$gc->fetchColumn() >= 10;
+                if (!$guest_capped) db_log_anon_activity('guest_timer_created');
+            }
+            if ($guest_capped) {
+                $timer = ['session_id' => $standalone_sid, 'preset_id' => $preset_id, 'current_level' => 1, 'time_remaining_seconds' => $duration,
+                          'is_running' => 0, 'remote_key' => '', 'user_id' => 0, 'updated_at' => gmdate('Y-m-d H:i:s')];
+            } else {
+                $db->prepare("INSERT INTO timer_state (session_id, preset_id, current_level, time_remaining_seconds, is_running, remote_key, user_id, updated_at) VALUES (?, ?, 1, ?, 0, ?, ?, datetime('now'))")
+                    ->execute([$standalone_sid, $preset_id, $duration, $remote_key, $user_id]);
+                $ts->execute([$standalone_sid]);
+                $timer = $ts->fetch();
+            }
         }
 
         $session = null;

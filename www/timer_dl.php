@@ -11,6 +11,22 @@ $action = $_POST['action'] ?? $_GET['action'] ?? '';
 // compute_live_state() (countdown + auto-advance) lives in _poker_helpers.php:
 // the Manage Game console reads the clock's level too, for the rebuy cutoff.
 
+// ─── Upload caps (v1.39.0) ─────────────────────────────────
+// Counted in activity_log: per account, or per address for a guest.
+function upload_daily_capped($db, string $kind, $current, int $cap): bool {
+    if ($current) {
+        $q = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE user_id = ? AND action = ? AND created_at > datetime('now', '-1 day')");
+        $q->execute([(int)$current['id'], $kind]);
+    } else {
+        $q = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE ip = ? AND action = ? AND created_at > datetime('now', '-1 day')");
+        $q->execute([get_client_ip(), $kind]);
+    }
+    return (int)$q->fetchColumn() >= $cap;
+}
+function upload_daily_record(string $kind, $current): void {
+    if ($current) db_log_activity((int)$current['id'], $kind); else db_log_anon_activity($kind);
+}
+
 // ─── Helper: resolve timer from key or session_id ─────────
 function resolve_timer($db, $key = null, $session_id = null) {
     if ($key) {
@@ -52,7 +68,15 @@ function resolve_timer_from_post($db, $current, $isAdmin) {
         // Standalone timer (session_id <= 0)
         $timer_uid = (int)($timer['user_id'] ?? 0);
         if ($timer_uid === 0) {
-            // Guest timer — allow access (verified by session-based session_id)
+            // Guest timer: only the browser session that made it may control it
+            // (v1.39.0). Before, any guest timer answered to whoever sent its
+            // number, and the numbers are easy to try.
+            session_start_safe();
+            if ((int)$timer['session_id'] !== -1 * abs(crc32(session_id()))) {
+                http_response_code(403);
+                echo json_encode(['ok' => false, 'error' => 'Access denied']);
+                exit;
+            }
         } elseif (!$current || (!$isAdmin && $timer_uid !== (int)$current['id'])) {
             http_response_code(403);
             echo json_encode(['ok' => false, 'error' => 'Access denied']);
@@ -501,6 +525,7 @@ if ($action === 'load_preset') {
 if ($action === 'save_preset') {
     $name = trim($_POST['name'] ?? '');
     $levels = json_decode($_POST['levels'] ?? '[]', true);
+    if (!is_array($levels) || count($levels) > 100) { echo json_encode(['ok' => false, 'error' => 'A blind schedule can have at most 100 levels.']); exit; }   // v1.39.0
     $is_global = !empty($_POST['is_global']) ? 1 : 0;
     $req_league_id = (int)($_POST['league_id'] ?? 0) ?: null;
 
@@ -587,6 +612,8 @@ if ($action === 'update_levels') {
     $timer = resolve_timer_from_post($db, $current, $isAdmin);
     if (!$timer) { echo json_encode(['ok' => false, 'error' => 'Timer not found']); exit; }
     $levels = json_decode($_POST['levels'] ?? '[]', true);
+    // A blind schedule has a few dozen levels at most (v1.39.0: it was unbounded).
+    if (!is_array($levels) || count($levels) > 100) { echo json_encode(['ok' => false, 'error' => 'A blind schedule can have at most 100 levels.']); exit; }
 
     if (!$timer['preset_id']) {
         echo json_encode(['ok' => false, 'error' => 'No preset loaded']);
@@ -661,6 +688,11 @@ if ($action === 'upload_sound') {
     $timer = resolve_timer_from_post($db, $current, $isAdmin);
     if (!$timer) { echo json_encode(['ok' => false, 'error' => 'Timer not found']); exit; }
 
+    // A daily cap on uploads (v1.39.0): 20 a day for an account, 5 for a guest
+    // (counted by address). Each can be 5 MB and nothing ever removed them.
+    if (upload_daily_capped($db, 'upload_sound', $current, $current ? 20 : 5)) {
+        echo json_encode(['ok' => false, 'error' => 'That is the most sounds that can be uploaded today. Try again tomorrow.']); exit;
+    }
     $file = $_FILES['sound'] ?? null;
     if (!$file || $file['error'] !== UPLOAD_ERR_OK) {
         echo json_encode(['ok' => false, 'error' => 'No file uploaded']);
@@ -696,6 +728,7 @@ if ($action === 'upload_sound') {
         exit;
     }
 
+    upload_daily_record('upload_sound', $current);
     echo json_encode(['ok' => true, 'url' => '/uploads/' . $name]);
     exit;
 }
@@ -933,7 +966,10 @@ if ($action === 'delete_theme') {
     $props = json_decode($themeRow['properties'] ?? '{}', true) ?: [];
     $img = $props['background']['image_url'] ?? '';
     if ($img && strpos($img, '/uploads/timer_bg/') === 0) {
-        $needle = '%' . str_replace(['%','_'], ['\\%','\\_'], $img) . '%';
+        // By the file's own name (v1.39.0): themes store the path JSON-encoded,
+        // with escaped slashes, so searching for the path never matched and the
+        // file was deleted while other themes still used it.
+        $needle = '%' . str_replace(['%','_'], ['\\%','\\_'], basename($img)) . '%';
         $st = $db->prepare("SELECT COUNT(*) FROM timer_themes WHERE id != ? AND properties LIKE ? ESCAPE '\\'");
         $st->execute([$theme_id, $needle]);
         if ((int)$st->fetchColumn() === 0) {
@@ -965,6 +1001,9 @@ if ($action === 'set_default_theme') {
 // ─── POST: upload_theme_bg (background image upload) ──────
 if ($action === 'upload_theme_bg') {
     if (!$current) { echo json_encode(['ok' => false, 'error' => 'Login required']); exit; }
+    if (upload_daily_capped($db, 'upload_theme_bg', $current, 30)) {   // v1.39.0: 8 MB each, no limit before
+        echo json_encode(['ok' => false, 'error' => 'That is the most background images that can be uploaded today. Try again tomorrow.']); exit;
+    }
 
     $file = $_FILES['image'] ?? null;
     if (!$file || $file['error'] !== UPLOAD_ERR_OK) {
@@ -993,6 +1032,7 @@ if ($action === 'upload_theme_bg') {
         echo json_encode(['ok' => false, 'error' => 'Failed to save file']); exit;
     }
 
+    upload_daily_record('upload_theme_bg', $current);
     echo json_encode(['ok' => true, 'url' => '/uploads/timer_bg/' . $name]);
     exit;
 }

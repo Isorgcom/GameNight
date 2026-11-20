@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Per-event management actions that target an existing event via event_id (not id).
     // Each is allowed for anyone who can manage that specific event; the handlers below
     // re-check with can_manage_event(), so this gate just needs to let managers through.
-    $eventMgmtActions = ['send_invites', 'nudge_nonresponders', 'resend_invite', 'approve_invite', 'deny_invite', 'send_event_message', 'delete_event_message'];
+    $eventMgmtActions = ['send_invites', 'nudge_nonresponders', 'resend_invite', 'approve_invite', 'deny_invite', 'send_event_message', 'delete_event_message', 'regenerate_walkin_token'];
     if (!$isAdmin && !in_array($action, ['update_rsvp', 'self_signup', 'self_remove', 'self_reminder', 'self_reminder_remove'], true)) {
         $chkIdForMgr  = (int)($_POST['id'] ?? 0);
         $chkEidForMgr = (int)($_POST['event_id'] ?? 0);
@@ -619,9 +619,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: /calendar.php'); exit;
     }
 
-    if ($action === 'regenerate_walkin_token' && $isAdmin) {
+    // Anyone who runs the event can make a new walk-up link (v1.39.0; it was
+    // admins only, so a host whose QR leaked had no way to retire it).
+    if ($action === 'regenerate_walkin_token') {
         $eid = (int)($_POST['event_id'] ?? 0);
-        if ($eid > 0) {
+        if ($eid > 0 && can_manage_event($db, $eid, (int)$current['id'], $isAdmin)) {
             $new_token = bin2hex(random_bytes(32));
             $db->prepare('UPDATE events SET walkin_token = ? WHERE id = ?')->execute([$new_token, $eid]);
             db_log_activity($current['id'], "regenerated walkin_token for event id: $eid");

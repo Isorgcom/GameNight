@@ -44,7 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($chkId <= 0 || !can_manage_event($db, $chkId, (int)$current['id'], $isAdmin)) {
                 http_response_code(403); exit('Access denied.');
             }
-        } elseif (!in_array($action, ['update_rsvp', 'self_signup', 'remove_self'], true)) {
+        } elseif (!in_array($action, ['update_rsvp', 'self_signup', 'remove_self', 'regenerate_walkin_token'], true)) {
+            // regenerate_walkin_token checks can_manage_event() itself (v1.39.0).
             http_response_code(403); exit('Access denied.');
         }
     }
@@ -294,9 +295,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['flash'] = ['type' => 'success', 'msg' => 'You have been removed from the event.'];
     }
 
-    if ($action === 'regenerate_walkin_token' && $isAdmin) {
+    // Anyone who runs the event can make a new walk-up link (v1.39.0; it was
+    // admins only, so a host whose QR leaked had no way to retire it).
+    if ($action === 'regenerate_walkin_token') {
         $eid = (int)($_POST['event_id'] ?? 0);
-        if ($eid > 0) {
+        if ($eid > 0 && can_manage_event($db, $eid, (int)$current['id'], $isAdmin)) {
             $new_token = bin2hex(random_bytes(32));
             $db->prepare('UPDATE events SET walkin_token = ? WHERE id = ?')->execute([$new_token, $eid]);
             db_log_activity($current['id'], "regenerated walkin_token for event id: $eid");

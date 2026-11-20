@@ -13,6 +13,11 @@ Options -Indexes
     # uploads) only get it from here. Without it a browser may guess a type for
     # an upload instead of trusting its Content-Type.
     Header always set X-Content-Type-Options "nosniff"
+    # Pages that never load auth.php (favicon.php, csp_report.php, the sitemap,
+    # the manifest, short links) still said which PHP version runs here
+    # (v1.39.0). The ini switch needs a rebuild; this needs none.
+    Header always unset X-Powered-By
+    Header unset X-Powered-By
     <FilesMatch "\.(css|js|png|jpe?g|webp|gif|svg|ico|woff2?)$">
         Header set Cache-Control "public, max-age=31536000, immutable"
     </FilesMatch>
@@ -73,8 +78,11 @@ RewriteRule ^api/v1/([a-z]+)/?$ /api/v1/$1.php [L,QSA]
 php_flag display_errors Off
 php_flag log_errors On
 
-# Block direct web access to internal/partial PHP files
-<FilesMatch "^(auth|db|_nav|_footer|config|mail|_sso|_finaltable|_mcp_tools|_oauth)\.php$">
+# Block direct web access to internal/partial PHP files: every file whose name
+# starts with an underscore (they are only ever included) and the helpers with
+# plain names (v1.39.0: about twenty partials answered when asked directly,
+# one with a 500 that gave away its path).
+<FilesMatch "^(auth|db|config|mail|sms|sms_admin|totp|version|webpush|_[A-Za-z0-9_]+)\.php$">
     Require all denied
 </FilesMatch>
 

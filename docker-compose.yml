@@ -15,6 +15,8 @@ services:
       # inbound is coming from waha, not a forged external request via NPM.
       # Token lives in the gitignored .env file beside this compose file.
       - WAHA_WEBHOOK_TOKEN=${WAHA_WEBHOOK_TOKEN}
+      # The key the app sends to the waha container (sms.php waha_api_key()).
+      - WAHA_API_KEY=${WAHA_API_KEY:?set WAHA_API_KEY in .env}
     # Guard rail: steady-state Apache+PHP is ~65 MB. Sized with the Dockerfile's
     # twelve prefork workers (15 to 40 MB each, up to PHP's 128 MB memory_limit
     # during one large upload), so a busy minute queues requests instead of
@@ -43,13 +45,16 @@ services:
       - WHATSAPP_HOOK_URL=http://gamenight/wa_webhook.php?token=${WAHA_WEBHOOK_TOKEN}
       - WHATSAPP_HOOK_EVENTS=message
       - WAHA_PRINT_QR=false
-      - WAHA_API_KEY=gamenight-waha-internal
-      # Pin the dashboard creds so they survive container restart (otherwise WAHA mints
-      # new credentials on every start and prints them to the log).
+      # The API key and dashboard password live in the gitignored .env beside
+      # this file (v1.39.0; they were written here, in a public repo). Compose
+      # refuses to start without them rather than start the gateway open. The
+      # app gets the same WAHA_API_KEY above. Pinned so they survive a restart
+      # (otherwise WAHA mints new credentials on every start and prints them).
+      - WAHA_API_KEY=${WAHA_API_KEY:?set WAHA_API_KEY in .env}
       - WAHA_DASHBOARD_USERNAME=admin
-      - WAHA_DASHBOARD_PASSWORD=gamenight-waha-internal
+      - WAHA_DASHBOARD_PASSWORD=${WAHA_DASHBOARD_PASSWORD:?set WAHA_DASHBOARD_PASSWORD in .env}
       - WHATSAPP_SWAGGER_USERNAME=admin
-      - WHATSAPP_SWAGGER_PASSWORD=gamenight-waha-internal
+      - WHATSAPP_SWAGGER_PASSWORD=${WAHA_DASHBOARD_PASSWORD:?set WAHA_DASHBOARD_PASSWORD in .env}
     # Hard cap to prevent a chromium leak (e.g. accidental WEBJS engine fallback) from
     # OOM-killing the host. NOWEB engine with a loaded session sits around 210 MB at
     # idle; this gives breathing room for short spikes while still containing any real

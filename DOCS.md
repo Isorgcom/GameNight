@@ -111,6 +111,18 @@ docker compose down
 docker compose down && docker compose up -d --build
 ```
 
+#### The `.env` file
+
+Secrets the containers need sit in a `.env` file beside `docker-compose.yml`, which git ignores. Since v1.39.0 `docker compose` refuses to start without the last two:
+
+```bash
+WAHA_WEBHOOK_TOKEN=<long random string>       # lets /wa_webhook.php trust messages from the WhatsApp gateway
+WAHA_API_KEY=<long random string>             # the gateway's API key; both containers read it
+WAHA_DASHBOARD_PASSWORD=<long random string>  # the gateway's own dashboard (user admin)
+```
+
+Make each with `openssl rand -hex 24`. After changing one, recreate the containers with `docker compose up -d` (no rebuild needed). The WhatsApp link to your phone is kept.
+
 ### Important Directories
 
 | Path | Purpose |

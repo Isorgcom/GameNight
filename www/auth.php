@@ -3,7 +3,8 @@ require_once __DIR__ . '/db.php';
 
 // ── Security headers (sent on every request) ──────────────────────────────────
 header_remove('X-Powered-By');
-header('X-Content-Type-Options: nosniff');
+// X-Content-Type-Options comes from .htaccess for every response (v1.39.0:
+// sending it here as well put two copies on each page).
 header('X-Frame-Options: DENY');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 // Powerful features no page here uses are switched off for this origin and for
@@ -1348,6 +1349,11 @@ function send_verification_email(int $user_id, string $email, string $username, 
     $db = get_db();
     if (email_suppressed($new_email ?? $email)) {
         db_log_activity($user_id, 'verification email withheld: the address opted out of sign-up mail', 'warning');
+        return false;
+    }
+    // The link carries a token: never built from a request's Host header (v1.39.0).
+    if (trim(get_setting('site_url', '')) === '') {
+        db_log_activity($user_id, 'verification email not sent: Site URL is not set (Admin > General > Site)', 'warning');
         return false;
     }
     $sent = $db->prepare("SELECT COALESCE(SUM(created_at >= datetime('now', '-1 hour')), 0), COUNT(*) FROM activity_log WHERE user_id = ? AND action = 'verification email sent' AND created_at >= datetime('now', '-1 day')");

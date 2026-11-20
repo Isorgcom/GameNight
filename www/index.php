@@ -939,7 +939,7 @@ function editComment(id, btn) {
         <input type="hidden" name="comment_id" value="${id}">
         <input type="hidden" name="redirect" value="${location.pathname}${location.search}#post-${location.hash.replace('#','').split('post-')[1]||''}">
         <textarea name="body" required maxlength="2000"
-            style="width:100%;min-height:60px;resize:vertical;font-size:.875rem;padding:.4rem .65rem;border:1px solid #2563eb;border-radius:6px;font-family:inherit;line-height:1.6">${origTxt.replace(/</g,'&lt;')}</textarea>
+            style="width:100%;min-height:60px;resize:vertical;font-size:.875rem;padding:.4rem .65rem;border:1px solid #2563eb;border-radius:6px;font-family:inherit;line-height:1.6">${origTxt.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>
         <div style="display:flex;gap:.5rem;margin-top:.35rem">
             <button type="submit" class="btn btn-primary" style="font-size:.78rem;padding:.3rem .8rem">Save</button>
             <button type="button" class="btn btn-outline" style="font-size:.78rem;padding:.3rem .8rem"

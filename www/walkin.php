@@ -19,7 +19,7 @@ $site_name  = get_setting('site_name', 'Game Night');
 // ── Validate event + token ────────────────────────────────────────────────────
 $event = null;
 if ($event_id > 0 && $token !== '') {
-    $stmt = $db->prepare('SELECT id, title, start_date, start_time, end_time, walkin_token, visibility, created_by, cancelled_at FROM events WHERE id = ?');
+    $stmt = $db->prepare('SELECT id, title, start_date, end_date, start_time, end_time, walkin_token, visibility, created_by, cancelled_at FROM events WHERE id = ?');
     $stmt->execute([$event_id]);
     $row = $stmt->fetch();
     if ($row && hash_equals((string)$row['walkin_token'], $token)) {
@@ -30,6 +30,16 @@ if ($event_id > 0 && $token !== '') {
 // A cancelled event takes no walk-ins: the QR at the door says so.
 $walkinCancelled = $event !== null && !empty($event['cancelled_at']);
 if ($walkinCancelled) $event = null;
+// The QR stops working once the event is over (v1.39.0): it used to work for
+// ever, creating accounts and texting codes for anyone who had a photo of it.
+// It still works through the day after the event's last day, for games that
+// run past midnight.
+$walkinExpired = false;
+if ($event !== null) {
+    $__last = (string)(($event['end_date'] ?? '') ?: $event['start_date']);
+    $__yday = (new DateTime('yesterday', new DateTimeZone(get_setting('timezone', 'UTC'))))->format('Y-m-d');
+    if ($__last < $__yday) { $walkinExpired = true; $event = null; }
+}
 $invalid = ($event === null);
 
 // ── Rate limiting: max 5 submissions per IP per hour ──────────────────────────
@@ -244,6 +254,9 @@ $csrf_token = csrf_token();
             <?php if (!empty($walkinCancelled)): ?>
             <h2>Event cancelled</h2>
             <p>This game was cancelled by the host, so there is nothing to sign up for.</p>
+            <?php elseif (!empty($walkinExpired)): ?>
+            <h2>This game is over</h2>
+            <p>This walk-up link was for a game that has finished, so it no longer signs anyone up.</p>
             <?php else: ?>
             <h2>Invalid Link</h2>
             <p>This registration link is invalid or has expired.</p>
