@@ -8,36 +8,36 @@
  * while ultrawides got a single line with the controls flung to the far right
  * — same page, two different toolbars. Stacked, every width reads the same. */
 .tbe-header { display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; margin-bottom: .8rem; }
-.tbe-header h1 { font-size: 1.25rem; font-weight: 800; color: #0f172a; margin: 0; display: flex; align-items: center; gap: .5rem; }
+.tbe-header h1 { font-size: 1.25rem; font-weight: 800; color: var(--fg-0f172a, #0f172a); margin: 0; display: flex; align-items: center; gap: .5rem; }
 .tb-badge { background: #f59e0b; color: #451a03; font-size: .62rem; font-weight: 800; letter-spacing: .08em; border-radius: 5px; padding: 3px 7px; }
 /* What the amber BETA chip became at v1.1.0: this IS the Tournament Timer
    now, so the second word is a quiet subtitle rather than a warning. */
-.tb-sub { color: #64748b; font-size: .8rem; font-weight: 600; letter-spacing: .02em; }
+.tb-sub { color: var(--fg-64748b, #64748b); font-size: .8rem; font-weight: 600; letter-spacing: .02em; }
 .tbe-header-controls { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
-.tbe-header-controls input[type=text] { padding: .45rem .6rem; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: .875rem; min-width: 200px; }
+.tbe-header-controls input[type=text] { padding: .45rem .6rem; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 8px; font-size: .875rem; min-width: 200px; }
 /* Fixed width: a select sizes itself to its LONGEST option, and option text
    changes as layouts are saved/bound ("• this event" moves around) — a
    variable-width select made the whole header re-wrap mid-use. */
-.tbe-header-controls select { padding: .45rem .5rem; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: .875rem; background: #fff; width: 190px; }
+.tbe-header-controls select { padding: .45rem .5rem; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 8px; font-size: .875rem; background: var(--bg-ffffff, #ffffff); width: 190px; }
 /* Event-binding bar (event context only): a full-width information strip in
  * the header — blue means information, per the house rule. It asks one
  * question about the layout on screen, and answers it with a yes/no switch. */
 .tbe-eventbar { display: flex; align-items: center; justify-content: space-between; gap: .8rem; flex-wrap: wrap;
                 width: 100%; box-sizing: border-box; padding: .45rem .8rem;
-                background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 8px;
-                font-size: .85rem; color: #1e3a8a; }
+                background: var(--bg-eff6ff, #eff6ff); border: 1.5px solid var(--bd-bfdbfe, #bfdbfe); border-radius: 8px;
+                font-size: .85rem; color: var(--fg-1e3a8a, #1e3a8a); }
 .tbe-eventbar-q { display: inline-flex; align-items: center; gap: .6rem; cursor: pointer; }
-.tbe-eventbar-status strong { color: #1e3a8a; }
-.tbe-eventbar-note { color: #475569; font-size: .78rem; }
+.tbe-eventbar-status strong { color: var(--fg-1e3a8a, #1e3a8a); }
+.tbe-eventbar-note { color: var(--fg-475569, #475569); font-size: .78rem; }
 
 /* Checkbox as a switch. The native input stays in the DOM (keyboard focus,
    form semantics, the label's `for`) and is drawn by the track beside it. */
 .tbe-switch { display: inline-flex; align-items: center; gap: .4rem; }
 .tbe-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
 .tbe-switch-track { position: relative; width: 38px; height: 22px; border-radius: 999px;
-                    background: #cbd5e1; transition: background .18s cubic-bezier(.4,0,.2,1); flex: 0 0 auto; }
+                    background: var(--bg-cbd5e1, #cbd5e1); transition: background .18s cubic-bezier(.4,0,.2,1); flex: 0 0 auto; }
 .tbe-switch-track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px;
-                           border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(15,23,42,.35);
+                           border-radius: 50%; background: var(--bg-ffffff, #ffffff); box-shadow: 0 1px 3px rgba(15,23,42,.35);
                            transition: transform .18s cubic-bezier(.4,0,.2,1); }
 .tbe-switch input:checked + .tbe-switch-track { background: #2563eb; }
 .tbe-switch input:checked + .tbe-switch-track::after { transform: translateX(16px); }
@@ -50,13 +50,13 @@
     .tbe-switch-track::after { width: 20px; height: 20px; }
     .tbe-switch input:checked + .tbe-switch-track::after { transform: translateX(20px); } }
 
-.tbe-btn { padding: .5rem .9rem; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #fff; color: #334155; font-size: .85rem; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
-.tbe-btn:hover { background: #f8fafc; }
+.tbe-btn { padding: .5rem .9rem; border-radius: 8px; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); background: var(--bg-ffffff, #ffffff); color: var(--fg-334155, #334155); font-size: .85rem; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
+.tbe-btn:hover { background: var(--bg-f8fafc, #f8fafc); }
 .tbe-btn-primary { background: #2563eb; border-color: #2563eb; color: #fff; }
 .tbe-btn-primary:hover { background: #1d4ed8; }
-.tbe-btn-danger { color: #b91c1c; border-color: #fecaca; }
-.tbe-btn-danger:hover { background: #fef2f2; }
-.tbe-btn-ghost { color: #475569; }
+.tbe-btn-danger { color: var(--fg-b91c1c, #b91c1c); border-color: var(--bd-fecaca, #fecaca); }
+.tbe-btn-danger:hover { background: var(--bg-fef2f2, #fef2f2); }
+.tbe-btn-ghost { color: var(--fg-475569, #475569); }
 
 .tbe-main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 1rem; align-items: start; }
 /* minmax(0, 1fr), as the two-column rule above: a bare 1fr cannot shrink below
@@ -83,7 +83,7 @@
        here would slide the toolbar up UNDER the nav on any page scroll. The
        live nav height is already measured into --tbe-nav-h. */
     body.tbe-body .tbe-header { flex: 0 0 auto; position: sticky; top: var(--tbe-nav-h, 0px); z-index: 40;
-                                background: #f8fafc; box-shadow: 0 6px 12px -8px rgba(15,23,42,.25); }
+                                background: var(--bg-f8fafc, #f8fafc); box-shadow: 0 6px 12px -8px rgba(15,23,42,.25); }
     /* One row pinned to the container height — with auto rows the row would
        size to content, and the size-contained stage contributes none. */
     body.tbe-body .tbe-main { flex: 1 1 auto; min-height: 0; align-items: stretch; grid-template-rows: minmax(0, 1fr); }
@@ -149,13 +149,13 @@
 
 /* The preview keeps a 16:9 stage; the iframe treats it as its viewport, so
  * vh-based cell sizes preview true to a TV. */
-.tbe-preview-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 10px; overflow: hidden; border: 1.5px solid #e2e8f0; }
+.tbe-preview-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 10px; overflow: hidden; border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); }
 .tbe-preview-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 /* The preview runs on made-up data (sample players, a six-place payout), and
    without saying so a host comparing it with their own game reads the
    difference as a bug. It leads the state bar rather than sitting on the
    preview, where it would hide part of the layout being edited. */
-.tbe-sample-tag { padding: .15rem .55rem; border-radius: 999px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; font-size: .74rem; font-weight: 600; line-height: 1.4; white-space: nowrap; cursor: help; }
+.tbe-sample-tag { padding: .15rem .55rem; border-radius: 999px; background: var(--bg-eff6ff, #eff6ff); border: 1px solid var(--bd-bfdbfe, #bfdbfe); color: var(--fg-1e40af, #1e40af); font-size: .74rem; font-weight: 600; line-height: 1.4; white-space: nowrap; cursor: help; }
 
 /* Device preview shapes (the Desktop/Tablet/Phone toggle): the frame becomes
  * the target device's viewport, so vh/vw sizing and device conditions preview
@@ -176,48 +176,48 @@
 }
 .tbe-devseg { margin-left: .4rem; }
 
-.tbe-statebar { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; margin-top: .55rem; font-size: .82rem; color: #475569; }
+.tbe-statebar { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; margin-top: .55rem; font-size: .82rem; color: var(--fg-475569, #475569); }
 .tbe-triggers-pane { margin-top: .6rem; }
-.tbe-triggers-toggle { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-weight: 600; color: #475569; }
-.tbe-trigger-row { display: block; width: 100%; text-align: left; background: none; border: 0; padding: .1rem 0; cursor: pointer; font: inherit; font-size: .82rem; font-weight: 600; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tbe-triggers-toggle { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-weight: 600; color: var(--fg-475569, #475569); }
+.tbe-trigger-row { display: block; width: 100%; text-align: left; background: none; border: 0; padding: .1rem 0; cursor: pointer; font: inherit; font-size: .82rem; font-weight: 600; color: var(--fg-334155, #334155); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tbe-trigger-row-open { width: auto; flex: 1 1 auto; min-width: 0; margin-right: .5rem; }
 .tbe-trigger-menu { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: .45rem; margin-top: .5rem; }
 .tbe-trigger-menu-item { display: flex; flex-direction: column; gap: .15rem; text-align: left; cursor: pointer;
-    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .5rem; padding: .5rem .65rem; font: inherit; }
-.tbe-trigger-menu-item:hover { border-color: #93c5fd; background: #eff6ff; }
-.tbe-trigger-menu-item strong { font-size: .82rem; color: #0f172a; }
-.tbe-trigger-menu-item span { font-size: .74rem; color: #64748b; }
+    background: var(--bg-f8fafc, #f8fafc); border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: .5rem; padding: .5rem .65rem; font: inherit; }
+.tbe-trigger-menu-item:hover { border-color: var(--bd-93c5fd, #93c5fd); background: var(--bg-eff6ff, #eff6ff); }
+.tbe-trigger-menu-item strong { font-size: .82rem; color: var(--fg-0f172a, #0f172a); }
+.tbe-trigger-menu-item span { font-size: .74rem; color: var(--fg-64748b, #64748b); }
 .tbe-cond-hint-btn { display: block; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; text-align: left; }
 .tbe-cond-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); gap: .1rem .9rem; margin-top: .35rem;
-    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .5rem; padding: .5rem .65rem; }
-.tbe-cond-list > div { display: flex; align-items: baseline; gap: .5rem; font-size: .74rem; color: #64748b; cursor: pointer; padding: .1rem .2rem; border-radius: .25rem; }
-.tbe-cond-list > div:hover { background: #eff6ff; }
-.tbe-cond-list code { color: #0f172a; font-weight: 600; white-space: nowrap; }
-.tbe-triggers-pane .tbe-variants { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: .7rem .8rem; }
-.tbe-chip { padding: .3rem .7rem; border-radius: 999px; border: 1.5px solid #cbd5e1; background: #fff; font-size: .78rem; cursor: pointer; color: #334155; }
+    background: var(--bg-f8fafc, #f8fafc); border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: .5rem; padding: .5rem .65rem; }
+.tbe-cond-list > div { display: flex; align-items: baseline; gap: .5rem; font-size: .74rem; color: var(--fg-64748b, #64748b); cursor: pointer; padding: .1rem .2rem; border-radius: .25rem; }
+.tbe-cond-list > div:hover { background: var(--bg-eff6ff, #eff6ff); }
+.tbe-cond-list code { color: var(--fg-0f172a, #0f172a); font-weight: 600; white-space: nowrap; }
+.tbe-triggers-pane .tbe-variants { background: var(--bg-ffffff, #ffffff); border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 8px; padding: .7rem .8rem; }
+.tbe-chip { padding: .3rem .7rem; border-radius: 999px; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); background: var(--bg-ffffff, #ffffff); font-size: .78rem; cursor: pointer; color: var(--fg-334155, #334155); }
 .tbe-chip.active { background: #2563eb; border-color: #2563eb; color: #fff; }
-.tbe-hint { margin-left: auto; color: #64748b; }
+.tbe-hint { margin-left: auto; color: var(--fg-64748b, #64748b); }
 /* Explanatory copy inside an inspector field (what a QR cell does, and why the
    preview shows a placeholder rather than a scannable code). */
-.tbe-note { color: #64748b; font-size: .74rem; line-height: 1.45; margin-top: .2rem; }
+.tbe-note { color: var(--fg-64748b, #64748b); font-size: .74rem; line-height: 1.45; margin-top: .2rem; }
 /* A small labelled control that sits inline in a trigger action row, so the
    warm-up reads as part of the sound rather than as a separate setting. */
 .tbe-inline { display: inline-flex; align-items: center; gap: .3rem; }
-.tbe-inline > span { color: #64748b; font-size: .74rem; white-space: nowrap; }
+.tbe-inline > span { color: var(--fg-64748b, #64748b); font-size: .74rem; white-space: nowrap; }
 
 /* Alarm ducking, shown inline at the top of the Triggers panel. Visible on the
    panel rather than hidden behind a right-click, because these are tuned by ear
    and a control nobody can find is a control nobody adjusts. */
 .tbe-duck { border: 1px solid #1e293b; border-radius: 8px; padding: .5rem .6rem; margin: .5rem 0 .7rem; background: #0f172a; }
-.tbe-duck-head { color: #94a3b8; font-size: .76rem; margin-bottom: .35rem; }
+.tbe-duck-head { color: var(--fg-94a3b8, #94a3b8); font-size: .76rem; margin-bottom: .35rem; }
 .tbe-duck-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin: .22rem 0; }
 .tbe-duck-row > span { color: #cbd5e1; font-size: .78rem; }
 .tbe-duck-row select { flex: 0 0 auto; min-width: 7.5rem; }
 
 /* Right-click menu for a layout node. Body-level so it escapes both the tree's
    scroll box and the preview iframe. */
-.tbe-menu { display: none; position: fixed; z-index: 4000; background: #fff;
-            border: 1.5px solid #e2e8f0; border-radius: 9px;
+.tbe-menu { display: none; position: fixed; z-index: 4000; background: var(--bg-ffffff, #ffffff);
+            border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 9px;
             box-shadow: 0 10px 28px rgba(15,23,42,.18); padding: .3rem; min-width: 180px;
             /* A dozen rows now that the look is folded into submenus, but a long
                font list can still outgrow a small window. Scroll the panel
@@ -225,67 +225,67 @@
                body-level element, so nothing clips it. */
             max-height:calc(100vh - 12px);max-height:calc(100dvh - 12px); overflow-y: auto; }
 .tbe-menu-item { display: block; width: 100%; text-align: left; padding: .42rem .6rem;
-                 border: 0; background: none; font-size: .82rem; color: #334155;
+                 border: 0; background: none; font-size: .82rem; color: var(--fg-334155, #334155);
                  border-radius: 6px; cursor: pointer; }
-.tbe-menu-item:hover { background: #f1f5f9; }
+.tbe-menu-item:hover { background: var(--bg-f1f5f9, #f1f5f9); }
 .tbe-menu-item:disabled { opacity: .4; cursor: default; }
 .tbe-menu-item:disabled:hover { background: none; }
-.tbe-menu-danger { color: #b91c1c; }
-.tbe-menu-danger:hover { background: #fef2f2; }
-.tbe-menu-sep { border-top: 1px solid #e2e8f0; margin: .25rem .3rem; }
+.tbe-menu-danger { color: var(--fg-b91c1c, #b91c1c); }
+.tbe-menu-danger:hover { background: var(--bg-fef2f2, #fef2f2); }
+.tbe-menu-sep { border-top: 1px solid var(--bd-e2e8f0, #e2e8f0); margin: .25rem .3rem; }
 /* A checkable row: the tick is the current value, so the menu reads as a
    summary of the node as well as a way to change it. */
 .tbe-menu-check { padding-left: 1.5rem; position: relative; }
-.tbe-menu-check.on::before { content: '✓'; position: absolute; left: .5rem; color: #2563eb; font-weight: 700; }
+.tbe-menu-check.on::before { content: '✓'; position: absolute; left: .5rem; color: var(--fg-2563eb, #2563eb); font-weight: 700; }
 /* A row that opens a submenu says so. */
-.tbe-menu-sub::after { content: '▸'; float: right; color: #64748b; }
+.tbe-menu-sub::after { content: '▸'; float: right; color: var(--fg-64748b, #64748b); }
 .tbe-submenu { min-width: 150px; }
 .tbe-swatches { display: grid; grid-template-columns: repeat(5, 1fr); gap: .25rem; padding: .3rem; }
-.tbe-swatch { width: 22px; height: 22px; border-radius: 5px; border: 1.5px solid #cbd5e1; cursor: pointer; padding: 0; }
+.tbe-swatch { width: 22px; height: 22px; border-radius: 5px; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); cursor: pointer; padding: 0; }
 .tbe-swatch:hover { transform: scale(1.12); }
 .tbe-swatch.on { outline: 2px solid #2563eb; outline-offset: 1px; }
 
 .tbe-side { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
-.tbe-panel { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
-.tbe-panel-head { display: flex; align-items: center; justify-content: space-between; padding: .55rem .8rem; font-weight: 700; font-size: .85rem; color: #0f172a; background: #f8fafc; border-bottom: 1.5px solid #e2e8f0; }
+.tbe-panel { background: var(--bg-ffffff, #ffffff); border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; overflow: hidden; }
+.tbe-panel-head { display: flex; align-items: center; justify-content: space-between; padding: .55rem .8rem; font-weight: 700; font-size: .85rem; color: var(--fg-0f172a, #0f172a); background: var(--bg-f8fafc, #f8fafc); border-bottom: 1.5px solid var(--bd-e2e8f0, #e2e8f0); }
 
 /* Capped only in the stacked column (below 1281px the whole side column
    scrolls); the three-pane layout lets it grow. */
 .tbe-tree { max-height: 40vh; overflow-y: auto; padding: .3rem 0; font-size: .82rem; }
-.tbe-node { padding: .3rem .6rem; cursor: pointer; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tbe-node-tog { display: inline-block; width: 1.15em; color: #64748b; font-size: .72rem; user-select: none; }
-.tbe-node:hover { background: #f1f5f9; }
-.tbe-node.selected { background: #dbeafe; color: #1e3a8a; font-weight: 600; }
-.tbe-node-container { color: #0f172a; font-weight: 600; }
+.tbe-node { padding: .3rem .6rem; cursor: pointer; color: var(--fg-334155, #334155); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tbe-node-tog { display: inline-block; width: 1.15em; color: var(--fg-64748b, #64748b); font-size: .72rem; user-select: none; }
+.tbe-node:hover { background: var(--bg-f1f5f9, #f1f5f9); }
+.tbe-node.selected { background: var(--bg-dbeafe, #dbeafe); color: var(--fg-1e3a8a, #1e3a8a); font-weight: 600; }
+.tbe-node-container { color: var(--fg-0f172a, #0f172a); font-weight: 600; }
 /* Keyboard focus, drawn inside the row so the panel's overflow cannot clip
    it; the browser's own ring stays on every other control. */
 .tbe-node:focus-visible, .tbe-menu-item:focus-visible, .tbe-swatch:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
 .tbe-mini:disabled { opacity: .45; cursor: default; }
 
-.tbe-addbar { display: flex; gap: .3rem; flex-wrap: wrap; padding: .5rem .6rem; border-top: 1.5px solid #e2e8f0; background: #f8fafc; }
-.tbe-mini { padding: .3rem .55rem; border-radius: 6px; border: 1.5px solid #cbd5e1; background: #fff; font-size: .76rem; cursor: pointer; color: #334155; min-height: 32px; }
-.tbe-mini:hover { background: #f1f5f9; }
-.tbe-mini-danger { color: #b91c1c; border-color: #fecaca; }
+.tbe-addbar { display: flex; gap: .3rem; flex-wrap: wrap; padding: .5rem .6rem; border-top: 1.5px solid var(--bd-e2e8f0, #e2e8f0); background: var(--bg-f8fafc, #f8fafc); }
+.tbe-mini { padding: .3rem .55rem; border-radius: 6px; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); background: var(--bg-ffffff, #ffffff); font-size: .76rem; cursor: pointer; color: var(--fg-334155, #334155); min-height: 32px; }
+.tbe-mini:hover { background: var(--bg-f1f5f9, #f1f5f9); }
+.tbe-mini-danger { color: var(--fg-b91c1c, #b91c1c); border-color: var(--bd-fecaca, #fecaca); }
 .tbe-panel-actions .tbe-mini { min-height: 26px; padding: .15rem .5rem; }
 
 .tbe-inspector { padding: .7rem .8rem; display: flex; flex-direction: column; gap: .55rem; font-size: .82rem; }
-.tbe-insp-sec { font-weight: 700; font-size: .78rem; color: #475569; margin-top: .35rem; padding-top: .55rem; border-top: 1.5px solid #e2e8f0; }
+.tbe-insp-sec { font-weight: 700; font-size: .78rem; color: var(--fg-475569, #475569); margin-top: .35rem; padding-top: .55rem; border-top: 1.5px solid var(--bd-e2e8f0, #e2e8f0); }
 .tbe-insp-sec:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
-.tbe-empty { color: #64748b; margin: 0; }
+.tbe-empty { color: var(--fg-64748b, #64748b); margin: 0; }
 .tbe-field { display: flex; flex-direction: column; gap: .25rem; }
-.tbe-field > span { font-weight: 600; color: #475569; font-size: .76rem; }
+.tbe-field > span { font-weight: 600; color: var(--fg-475569, #475569); font-size: .76rem; }
 .tbe-field input[type=text], .tbe-field input[type=number], .tbe-field select, .tbe-field textarea {
-    padding: .4rem .55rem; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: .82rem; width: 100%; box-sizing: border-box; font-family: inherit;
+    padding: .4rem .55rem; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 7px; font-size: .82rem; width: 100%; box-sizing: border-box; font-family: inherit;
 }
 .tbe-field input[type=checkbox] { width: 18px; height: 18px; }
 .tbe-color { display: flex; gap: .35rem; align-items: center; }
-.tbe-color input[type=color] { width: 38px; height: 32px; padding: 2px; border: 1.5px solid #cbd5e1; border-radius: 7px; background: #fff; }
+.tbe-color input[type=color] { width: 38px; height: 32px; padding: 2px; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 7px; background: var(--bg-ffffff, #ffffff); }
 .tbe-color input[type=text] { flex: 1; }
 .tbe-ring { display: flex; flex-direction: column; gap: .35rem; }
 .tbe-ring-sub { margin-left: .6rem; }
 .tbe-glow { display: flex; flex-direction: column; gap: .35rem; }
-.tbe-glow > select { width: 100%; padding: .35rem .5rem; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: .8rem; background: #fff; }
-.tbe-elrow select { width: 100%; padding: .35rem .5rem; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: .8rem; background: #fff; }
+.tbe-glow > select { width: 100%; padding: .35rem .5rem; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 7px; font-size: .8rem; background: var(--bg-ffffff, #ffffff); }
+.tbe-elrow select { width: 100%; padding: .35rem .5rem; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 7px; font-size: .8rem; background: var(--bg-ffffff, #ffffff); }
 
 @media (pointer: coarse) {
     .tbe-mini, .tbe-chip { min-height: 44px; }
@@ -294,70 +294,70 @@
 
 /* ── Conditions + variants ── */
 .tbe-cond { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem; }
-.tbe-cond select, .tbe-cond input { padding: .35rem .45rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: .78rem; width: 100%; box-sizing: border-box; }
+.tbe-cond select, .tbe-cond input { padding: .35rem .45rem; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 6px; font-size: .78rem; width: 100%; box-sizing: border-box; }
 /* Expression row spans the grid: it is the primary path, the widgets below are
    the legacy clauses. Validation reads under the input, names under that. */
 .tbe-cond-expr { grid-column: 1 / -1; }
 .tbe-cond-expr input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .tbe-cond-msg { font-size: .72rem; min-height: .9rem; margin-top: .15rem; }
-.tbe-cond-msg.ok { color: #16a34a; }
-.tbe-cond-msg.bad { color: #dc2626; }
-.tbe-cond-hint { font-size: .68rem; color: #64748b; line-height: 1.5; margin-top: .15rem; }
-.tbe-variants { border-top: 1.5px solid #e2e8f0; margin-top: .3rem; padding-top: .6rem; display: flex; flex-direction: column; gap: .5rem; }
-.tbe-variants-head { font-weight: 700; font-size: .78rem; color: #475569; }
-.tbe-variant { border: 1.5px solid #e2e8f0; border-radius: 8px; padding: .5rem; background: #f8fafc; display: flex; flex-direction: column; gap: .4rem; }
-.tbe-variant-top { display: flex; align-items: center; justify-content: space-between; font-size: .76rem; font-weight: 600; color: #475569; }
+.tbe-cond-msg.ok { color: var(--fg-16a34a, #16a34a); }
+.tbe-cond-msg.bad { color: var(--fg-dc2626, #dc2626); }
+.tbe-cond-hint { font-size: .68rem; color: var(--fg-64748b, #64748b); line-height: 1.5; margin-top: .15rem; }
+.tbe-variants { border-top: 1.5px solid var(--bd-e2e8f0, #e2e8f0); margin-top: .3rem; padding-top: .6rem; display: flex; flex-direction: column; gap: .5rem; }
+.tbe-variants-head { font-weight: 700; font-size: .78rem; color: var(--fg-475569, #475569); }
+.tbe-variant { border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 8px; padding: .5rem; background: var(--bg-f8fafc, #f8fafc); display: flex; flex-direction: column; gap: .4rem; }
+.tbe-variant-top { display: flex; align-items: center; justify-content: space-between; font-size: .76rem; font-weight: 600; color: var(--fg-475569, #475569); }
 
 /* ── Screens bar: the tabs and + Screen. The screen's own settings live in
    the inspector (select a tab or the Screen row), so the tree keeps the room. ── */
-.tbe-screens { padding: .5rem .6rem; border-bottom: 1.5px solid #e2e8f0; background: #f1f5f9; display: flex; flex-direction: column; gap: .45rem; }
+.tbe-screens { padding: .5rem .6rem; border-bottom: 1.5px solid var(--bd-e2e8f0, #e2e8f0); background: var(--bg-f1f5f9, #f1f5f9); display: flex; flex-direction: column; gap: .45rem; }
 .tbe-screen-tabs { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
-.tbe-screen-tab { padding: .3rem .7rem; border-radius: 999px; border: 1.5px solid #cbd5e1; background: #fff; font-size: .78rem; cursor: pointer; color: #334155; }
+.tbe-screen-tab { padding: .3rem .7rem; border-radius: 999px; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); background: var(--bg-ffffff, #ffffff); font-size: .78rem; cursor: pointer; color: var(--fg-334155, #334155); }
 .tbe-screen-tab.active { background: #0f172a; border-color: #0f172a; color: #fff; font-weight: 600; }
-.tbe-screen-add { padding: .3rem .6rem; border-radius: 6px; border: 1.5px dashed #94a3b8; background: transparent; font-size: .76rem; cursor: pointer; color: #475569; }
-.tbe-screen-note { font-size: .7rem; color: #64748b; line-height: 1.35; }
+.tbe-screen-add { padding: .3rem .6rem; border-radius: 6px; border: 1.5px dashed var(--bd-94a3b8, #94a3b8); background: transparent; font-size: .76rem; cursor: pointer; color: var(--fg-475569, #475569); }
+.tbe-screen-note { font-size: .7rem; color: var(--fg-64748b, #64748b); line-height: 1.35; }
 @media (pointer: coarse) { .tbe-screen-tab, .tbe-screen-add { min-height: 40px; } }
 
 /* ── Custom elements ── */
 .tbe-ce-row { display: flex; align-items: center; gap: .35rem; }
-.tbe-ce-name { flex: 0 0 auto; font-size: .74rem; color: #1e3a8a; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 5px; padding: .15rem .35rem; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tbe-ce-row input { flex: 1; padding: .35rem .45rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: .8rem; min-width: 0; }
+.tbe-ce-name { flex: 0 0 auto; font-size: .74rem; color: var(--fg-1e3a8a, #1e3a8a); background: var(--bg-eff6ff, #eff6ff); border: 1px solid var(--bd-bfdbfe, #bfdbfe); border-radius: 5px; padding: .15rem .35rem; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tbe-ce-row input { flex: 1; padding: .35rem .45rem; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 6px; font-size: .8rem; min-width: 0; }
 .tbe-ce-add { display: flex; gap: .35rem; }
-.tbe-ce-add input { flex: 1; padding: .35rem .45rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: .8rem; min-width: 0; }
+.tbe-ce-add input { flex: 1; padding: .35rem .45rem; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 6px; font-size: .8rem; min-width: 0; }
 
 /* ── Image controls ── */
-.tbe-img-thumb { max-width: 100%; max-height: 120px; border: 1.5px solid #cbd5e1; border-radius: 8px; background: repeating-conic-gradient(#e2e8f0 0% 25%, #fff 0% 50%) 50% / 16px 16px; object-fit: contain; display: block; }
+.tbe-img-thumb { max-width: 100%; max-height: 120px; border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 8px; background: repeating-conic-gradient(var(--bg-e2e8f0, #e2e8f0) 0% 25%, var(--bg-ffffff, #ffffff) 0% 50%) 50% / 16px 16px; object-fit: contain; display: block; }
 
 /* ── The "?" reference popover ── */
 .tbe-helppop { position: fixed; z-index: 300; width: min(30rem, 92vw);
-               background: #fff; border: 1.5px solid #cbd5e1; border-radius: 10px;
+               background: var(--bg-ffffff, #ffffff); border: 1.5px solid var(--bd-cbd5e1, #cbd5e1); border-radius: 10px;
                box-shadow: 0 18px 50px rgba(15,23,42,.3); }
 .tbe-helppop-head { display: flex; justify-content: space-between; align-items: center;
                     padding: .55rem .8rem; font-weight: 700; font-size: .85rem;
-                    background: #f8fafc; border-bottom: 1.5px solid #e2e8f0;
+                    background: var(--bg-f8fafc, #f8fafc); border-bottom: 1.5px solid var(--bd-e2e8f0, #e2e8f0);
                     border-radius: 10px 10px 0 0; }
 .tbe-helppop-body { max-height: min(34rem, 70vh); overflow-y: auto; padding: .4rem .8rem .8rem; }
 .tbe-helppop-sec { font-size: .72rem; font-weight: 700; text-transform: uppercase;
-                   letter-spacing: .05em; color: #64748b; margin: .8rem 0 .3rem; }
+                   letter-spacing: .05em; color: var(--fg-64748b, #64748b); margin: .8rem 0 .3rem; }
 .tbe-helppop-row { display: grid; grid-template-columns: 9.5rem 1fr; gap: .6rem;
-                   padding: .22rem 0; font-size: .8rem; border-bottom: 1px solid #f1f5f9; }
-.tbe-helppop-term { font-weight: 600; color: #0f172a; }
+                   padding: .22rem 0; font-size: .8rem; border-bottom: 1px solid var(--bd-f1f5f9, #f1f5f9); }
+.tbe-helppop-term { font-weight: 600; color: var(--fg-0f172a, #0f172a); }
 .tbe-helppop-term.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 500; }
-.tbe-helppop-desc { color: #475569; line-height: 1.4; }
+.tbe-helppop-desc { color: var(--fg-475569, #475569); line-height: 1.4; }
 
 /* ── Image picker: the library first, upload as the explicit last resort ── */
 .tbe-imgpick { position: fixed; inset: 0; z-index: 320; background: rgba(15,23,42,.55);
                display: flex; align-items: center; justify-content: center; }
 .tbe-imgpick-panel { width: min(46rem, 94vw); max-height: 82vh; display: flex; flex-direction: column;
-                     background: #fff; border-radius: 12px; box-shadow: 0 24px 70px rgba(0,0,0,.45); }
+                     background: var(--bg-ffffff, #ffffff); border-radius: 12px; box-shadow: 0 24px 70px rgba(0,0,0,.45); }
 .tbe-imgpick-head { display: flex; align-items: center; gap: .6rem; padding: .7rem 1rem;
-                    font-weight: 700; border-bottom: 1.5px solid #e2e8f0; }
+                    font-weight: 700; border-bottom: 1.5px solid var(--bd-e2e8f0, #e2e8f0); }
 .tbe-imgpick-head span { margin-right: auto; }
 .tbe-imgpick-grid { overflow-y: auto; padding: .8rem 1rem 1rem;
                     display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: .7rem; }
 .tbe-imgpick-sec { grid-column: 1 / -1; font-size: .72rem; font-weight: 700; text-transform: uppercase;
-                   letter-spacing: .05em; color: #64748b; margin-top: .3rem; }
-.tbe-imgpick-item { border: 2px solid #e2e8f0; border-radius: 8px; padding: 0; background: repeating-conic-gradient(#f1f5f9 0 25%, #fff 0 50%) 0 0/16px 16px;
+                   letter-spacing: .05em; color: var(--fg-64748b, #64748b); margin-top: .3rem; }
+.tbe-imgpick-item { border: 2px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 8px; padding: 0; background: repeating-conic-gradient(var(--bg-f1f5f9, #f1f5f9) 0 25%, var(--bg-ffffff, #ffffff) 0 50%) 0 0/16px 16px;
                     cursor: pointer; overflow: hidden; aspect-ratio: 16/10; }
 .tbe-imgpick-item:hover { border-color: var(--accent, #2563eb); }
 .tbe-imgpick-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -367,23 +367,23 @@
 .tbe-trigact select, .tbe-trigact input { font-size: .78rem; }
 .tbe-sndlist { overflow-y: auto; padding: .5rem .75rem .75rem; display: flex; flex-direction: column; gap: .35rem; }
 .tbe-sndrow { display: flex; align-items: center; gap: .5rem; font-size: .8rem;
-    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .4rem; padding: .35rem .5rem; }
+    background: var(--bg-f8fafc, #f8fafc); border: 1px solid var(--bd-e2e8f0, #e2e8f0); border-radius: .4rem; padding: .35rem .5rem; }
 
 
 /* ── Layout Library: ready-made layouts as picture cards (image-picker family) ── */
 .tbe-lib-wrap { position: fixed; inset: 0; z-index: 330; background: rgba(15,23,42,.55);
                 display: flex; align-items: center; justify-content: center; padding: 16px; }
 .tbe-lib { width: min(68rem, 100%); max-height: 88vh; display: flex; flex-direction: column;
-           background: #fff; border-radius: 12px; box-shadow: 0 24px 70px rgba(0,0,0,.45); }
-.tbe-lib-head { display: flex; align-items: baseline; gap: .6rem; padding: .75rem 1rem; border-bottom: 1.5px solid #e2e8f0; flex-wrap: wrap; }
-.tbe-lib-head h2 { margin: 0; font-size: 1.05rem; color: #0f172a; }
-.tbe-lib-sub { flex: 1 1 12rem; font-size: .82rem; color: #64748b; }
+           background: var(--bg-ffffff, #ffffff); border-radius: 12px; box-shadow: 0 24px 70px rgba(0,0,0,.45); }
+.tbe-lib-head { display: flex; align-items: baseline; gap: .6rem; padding: .75rem 1rem; border-bottom: 1.5px solid var(--bd-e2e8f0, #e2e8f0); flex-wrap: wrap; }
+.tbe-lib-head h2 { margin: 0; font-size: 1.05rem; color: var(--fg-0f172a, #0f172a); }
+.tbe-lib-sub { flex: 1 1 12rem; font-size: .82rem; color: var(--fg-64748b, #64748b); }
 .tbe-lib-body { overflow-y: auto; padding: .4rem 1rem 1rem; }
-.tbe-lib-sec { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #64748b; margin: .8rem 0 .5rem; }
+.tbe-lib-sec { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--fg-64748b, #64748b); margin: .8rem 0 .5rem; }
 .tbe-lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .9rem; }
-.tbe-lib-card { display: flex; flex-direction: column; border: 1.5px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: #fff; }
-.tbe-lib-card:hover { border-color: #93c5fd; }
-.tbe-lib-pic { aspect-ratio: 16 / 9; background: #0f172a; color: #94a3b8; font-size: .8rem; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+.tbe-lib-card { display: flex; flex-direction: column; border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; overflow: hidden; background: var(--bg-ffffff, #ffffff); }
+.tbe-lib-card:hover { border-color: var(--bd-93c5fd, #93c5fd); }
+.tbe-lib-pic { aspect-ratio: 16 / 9; background: #0f172a; color: var(--fg-94a3b8, #94a3b8); font-size: .8rem; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
 .tbe-lib-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
 /* The live card: the display page at its own size, scaled to the card by the
    editor (transform set in JS), fading in over the picture once it has drawn. */
@@ -391,9 +391,9 @@
 .tbe-lib-frame-on { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .tbe-lib-frame { transition: none; } }
 .tbe-lib-text { display: flex; flex-direction: column; gap: .35rem; padding: .6rem .75rem .75rem; flex: 1; }
-.tbe-lib-text h3 { margin: 0; font-size: .95rem; color: #0f172a; display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
-.tbe-lib-text p { margin: 0; font-size: .8rem; line-height: 1.45; color: #475569; flex: 1; }
-.tbe-lib-on { font-size: .68rem; font-weight: 600; color: #15803d; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 999px; padding: .05rem .5rem; }
+.tbe-lib-text h3 { margin: 0; font-size: .95rem; color: var(--fg-0f172a, #0f172a); display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+.tbe-lib-text p { margin: 0; font-size: .8rem; line-height: 1.45; color: var(--fg-475569, #475569); flex: 1; }
+.tbe-lib-on { font-size: .68rem; font-weight: 600; color: var(--fg-15803d, #15803d); background: var(--bg-f0fdf4, #f0fdf4); border: 1px solid var(--bd-bbf7d0, #bbf7d0); border-radius: 999px; padding: .05rem .5rem; }
 .tbe-lib-acts { display: flex; gap: .45rem; flex-wrap: wrap; margin-top: .25rem; }
 .tbe-lib-acts .tbe-btn { font-size: .8rem; }
 @media (max-width: 600px) { .tbe-lib-grid { grid-template-columns: 1fr; } .tbe-lib { max-height: 92vh; } }

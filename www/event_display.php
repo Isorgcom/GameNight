@@ -50,7 +50,7 @@ if ($is_tournament) {
 $csrf = csrf_token();
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="light"><?php /* own look; stays light in dark mode (style.css) */ ?>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

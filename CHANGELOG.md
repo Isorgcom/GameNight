@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.39.1] - 2026-11-20
+
+### Fixed
+
+- **The timer layout pages follow dark mode.** An event's Timer Display setup and the Tournament Timer layout editor stayed light when the rest of the site was dark: their stylesheet had not been converted to the dark-mode colours, so 1.34.0 held both pages in light mode instead. The editor's toolbar, panels, menus and fields now switch with the rest of the site; the timer preview still shows the layout in its own colours. (`www/timer_layouts.css`, `www/style.css`, `www/event_display.php`, `www/timer_layouts.php`)
+
 ## [v1.39.0] - 2026-11-20
 
 ### Security
