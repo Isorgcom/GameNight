@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.34.2] - 2026-11-20
+
+### Changed
+
+- **The landing page no longer has the light/dark switch.** The sun/moon button added to the public landing page's top bar in 1.34.1 is gone, leaving the site name, the menu and Sign up. The page still follows a visitor's device setting. The switch in the toolbar, for anyone signed in, is unchanged. (`www/_landing.php`)
+
 ## [v1.34.1] - 2026-11-20
 
 ### Fixed

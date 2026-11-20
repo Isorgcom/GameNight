@@ -129,20 +129,19 @@
             <li><a href="/login.php">Log in</a></li>
         </ul>
     </nav>
+    <?php /* No light/dark switch here. The page still follows the device, or a
+             gn_theme cookie left by a switch (this page had one in 1.34.1; the
+             guest toolbar has one when landing mode is off). The wrapper is
+             skipped with its only child so an empty flex item does not leave a
+             stray gap in the row. */ ?>
+    <?php if (get_setting('allow_registration', '1') === '1'): ?>
     <div class="lp-actions">
-        <?php if (get_setting('allow_registration', '1') === '1'): ?>
         <a class="lp-cta" href="/register.php">Sign up</a>
-        <?php endif; ?>
-        <?php /* The same light/dark switch as the site toolbar (_nav.php), which
-                 this page does not use. A visitor's choice goes in a cookie;
-                 nav.js (loaded below) handles the click and the menu layout. */ ?>
-        <button type="button" class="nav-theme-btn" data-nav="theme" aria-label="Switch to dark mode" title="Switch to dark mode">
-            <svg class="nav-theme-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-            <svg class="nav-theme-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v2.5M12 20v2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M1.5 12h2.5M20 12h2.5M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg>
-        </button>
     </div>
+    <?php endif; ?>
   </div>
 </header>
+<?php /* nav.js measures the row and switches the menu between inline and popover. */ ?>
 <script src="/nav.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/nav.js') ?: 0)) ?>" defer></script>
 <div class="hero">
     <?php $_lp_banner = get_setting('header_banner_path', ''); if ($_lp_banner):
