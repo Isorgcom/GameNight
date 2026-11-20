@@ -234,6 +234,8 @@ $pruned += $db->exec("DELETE FROM event_notifications_sent WHERE event_id NOT IN
 
 // Logs: older than 90 days
 $pruned += $db->exec("DELETE FROM sms_log WHERE created_at < datetime('now', '-90 days')");
+// 35 days: enough to count a calendar month of a host's sends.
+try { $pruned += $db->exec("DELETE FROM host_sends WHERE created_at < datetime('now', '-35 days')"); } catch (Exception $e) {}
 // Sticky SMS conversation bindings: stale after 30 days or when the event is gone.
 try { $pruned += $db->exec("DELETE FROM sms_conversation_bind WHERE updated_at < datetime('now', '-30 days') OR event_id NOT IN (SELECT id FROM events)"); } catch (Exception $e) {}
 // Unanswered "which event?" questions (30-min TTL is enforced at read; this is the sweep).

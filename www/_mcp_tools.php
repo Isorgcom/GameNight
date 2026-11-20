@@ -238,10 +238,10 @@ function gn_mcp_tools(): array {
             'args' => $eid + $event_fields,
             'run' => fn($db, $a, $x) => gn_event_update($db, $a, (int)$x['event_id'], mcp_body($x, ['event_id']))],
         'cancel_event' => ['title' => 'Cancel an event', 'scope' => 'events', 'hints' => ['readOnlyHint' => false, 'destructiveHint' => true, 'idempotentHint' => true], 'args' => $eid, 'required' => ['event_id'],
-            'description' => 'Host only. Call an event off. EVERY guest is told it is cancelled, by email or text. The event is kept, so it can still be duplicated for a new date. Confirm with the user before calling this.',
+            'description' => 'Host only. Call an event off. EVERY guest is told it is cancelled, by email or text, so it needs the Messages permission. The event is kept, so it can still be duplicated for a new date. Confirm with the user before calling this.',
             'run' => fn($db, $a, $x) => gn_event_cancel($db, $a, (int)$x['event_id'])],
         'delete_event' => ['title' => 'Delete an event', 'scope' => 'events', 'hints' => ['readOnlyHint' => false, 'destructiveHint' => true], 'required' => ['event_id'],
-            'description' => 'Host only. Delete an event for good, with its guest list, messages and game results. Cannot be undone. Guests of an upcoming event are told it is cancelled, unless notify is false (a silent delete: nobody hears anything, and unsent invitations and reminders are dropped). Call it first without confirm to learn what would be lost and who would be told, show the user, and only then call it with confirm true. To call an event off but keep the record, use cancel_event.',
+            'description' => 'Host only. Delete an event for good, with its guest list, messages and game results. Cannot be undone. Guests of an upcoming event are told it is cancelled, unless notify is false (a silent delete: nobody hears anything, and unsent invitations and reminders are dropped). Telling the guests needs the Messages permission. Call it first without confirm to learn what would be lost and who would be told, show the user, and only then call it with confirm true. To call an event off but keep the record, use cancel_event.',
             'args' => $eid + ['confirm' => mcp_b('True only after the user has agreed to the deletion.'),
                               'notify' => mcp_b('False deletes silently: no guest is told. Default true.')],
             'run' => fn($db, $a, $x) => gn_event_delete($db, $a, (int)$x['event_id'], ['confirm' => ($x['confirm'] ?? false) === true ? true : null]
@@ -262,14 +262,14 @@ function gn_mcp_tools(): array {
                 return isset($g['ok']) ? $g : gn_invite_update($db, $a, (int)$x['event_id'], $g['id'], mcp_body($x, ['event_id', 'guest']));
             }],
         'remove_guest' => ['title' => 'Remove a guest', 'scope' => 'events', 'hints' => ['readOnlyHint' => false, 'destructiveHint' => true], 'required' => ['event_id', 'guest'],
-            'description' => 'Host only. Take a guest off the list. On an event still ahead, they are told they were removed.',
+            'description' => 'Host only. Take a guest off the list. On an event still ahead, they are told they were removed, which needs the Messages permission.',
             'args' => $eid + ['guest' => mcp_ref('The guest\'s name, or their invite id.')],
             'run' => function ($db, $a, $x) {
                 $g = mcp_guest($db, $a, (int)$x['event_id'], $x['guest'] ?? '');
                 return isset($g['ok']) ? $g : gn_invite_remove($db, $a, (int)$x['event_id'], $g['id']);
             }],
         'decide_guest' => ['title' => 'Approve or turn down a guest', 'scope' => 'events', 'hints' => $wr + ['idempotentHint' => true], 'required' => ['event_id', 'guest', 'decision'],
-            'description' => 'Host only. Answer a guest who asked to come (status pending) or is on the waitlist. Approving tells them and, for a poker game, seats them.',
+            'description' => 'Host only. Answer a guest who asked to come (status pending) or is on the waitlist. Approving tells them (so it needs the Messages permission) and, for a poker game, seats them.',
             'args' => $eid + ['guest' => mcp_ref('The guest\'s name, or their invite id.'), 'decision' => mcp_e(['approve', 'deny'], 'approve or deny.')],
             'run' => function ($db, $a, $x) {
                 if (!in_array($x['decision'] ?? '', ['approve', 'deny'], true)) return gn_err('bad_field', 'decision must be approve or deny.', 400);
@@ -296,7 +296,7 @@ function gn_mcp_tools(): array {
                 return isset($c['ok']) ? $c : gn_contact_delete($db, $a, $c['id']);
             }],
         'remove_league_member' => ['title' => 'Remove someone from a league', 'scope' => 'events', 'hints' => ['readOnlyHint' => false, 'destructiveHint' => true], 'required' => ['league_id', 'member'],
-            'description' => 'League owner or manager. Remove someone from a league\'s roster: a member, or a person who was added by contact and has not joined yet (shown as pending in get_league). A member with an account is told they were removed; a pending contact is not told. The owner cannot be removed. This does not touch the user\'s own contacts (that is delete_contact). Confirm with the user who and which league before calling this.',
+            'description' => 'League owner or manager. Remove someone from a league\'s roster: a member, or a person who was added by contact and has not joined yet (shown as pending in get_league). A member with an account is told they were removed (that needs the Messages permission); a pending contact is not told. The owner cannot be removed. This does not touch the user\'s own contacts (that is delete_contact). Confirm with the user who and which league before calling this.',
             'args' => ['league_id' => mcp_i('The league\'s id.'), 'member' => mcp_ref('Their name or email, or their member_id from get_league.')],
             'run' => function ($db, $a, $x) {
                 $m = mcp_league_member($db, $a, (int)$x['league_id'], $x['member'] ?? '');
@@ -327,7 +327,7 @@ function gn_mcp_tools(): array {
                 return gn_league_post_create($db, $a, (int)$x['league_id'], ['title' => $x['title'] ?? '', 'body' => $b]);
             }],
         'decide_join_request' => ['title' => 'Answer a request to join', 'scope' => 'events', 'hints' => $wr, 'required' => ['league_id', 'request_id', 'decision'],
-            'description' => 'League owner or manager. Let someone into the league or decline. They are told either way.',
+            'description' => 'League owner or manager. Let someone into the league or decline. They are told either way, so it needs the Messages permission.',
             'args' => ['league_id' => mcp_i('The league\'s id.'), 'request_id' => mcp_i('From list_join_requests.'), 'decision' => mcp_e(['approve', 'deny'], 'approve or deny.')],
             'run' => fn($db, $a, $x) => in_array($x['decision'] ?? '', ['approve', 'deny'], true)
                 ? gn_join_request_decide($db, $a, (int)$x['request_id'], $x['decision'] === 'approve', (int)$x['league_id'])

@@ -9,6 +9,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/_polls.php';
+require_once __DIR__ . '/svc/messages.php';   // the daily caps on sends to guests
 
 $current = require_login();
 $db      = get_db();
@@ -51,8 +52,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if (count($opts) >= 2) $clean[] = ['q' => $qText, 'opts' => $opts];
         }
+        $__lim = gn_host_message_limit($db, $eventId, (int)$current['id']);
         if ($title === '' || empty($clean)) {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'A poll needs a title and at least one question with two or more options.'];
+        } elseif (event_is_cancelled($db, $eventId)) {
+            // Nothing new goes out for a cancelled event (v1.36.0).
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'This event is cancelled, so a poll cannot be sent.'];
+        } elseif ($__lim) {
+            // A poll goes to every Yes/Maybe guest at once: it counts against the
+            // same daily caps as a host message (v1.36.0).
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => (string)$__lim['message']];
         } else {
             $db->prepare('INSERT INTO event_polls (event_id, title, created_by) VALUES (?, ?, ?)')
                ->execute([$eventId, $title, (int)$current['id']]);
@@ -67,7 +76,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             $poll = poll_load($db, $pollId);
-            $sent = poll_send_to_audience($db, $poll);
+            $hs = gn_host_message_record($db, $eventId, (int)$current['id'], 'poll');
+            $sent = poll_send_to_audience($db, $poll, $hs);
+            gn_host_message_set_recipients($db, $hs, (int)$sent);
             db_log_activity((int)$current['id'], "created poll id=$pollId for event id=$eventId, queued to $sent recipient(s)");
             $_SESSION['flash'] = $sent > 0
                 ? ['type' => 'success', 'msg' => "Poll sent to $sent Yes/Maybe guest(s)."]
@@ -115,8 +126,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'resend') {
         $pid = (int)($_POST['poll_id'] ?? 0);
         $poll = poll_load($db, $pid);
-        if ($poll && (int)$poll['event_id'] === $eventId && $poll['status'] === 'open') {
-            $sent = poll_send_to_audience($db, $poll);
+        if ($poll && (int)$poll['event_id'] === $eventId && event_is_cancelled($db, $eventId)) {
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'This event is cancelled, so the poll is not sent.'];
+        } elseif ($poll && (int)$poll['event_id'] === $eventId && $poll['status'] === 'open'
+                  && ($__lim = gn_host_delivery_limit($db, (int)$current['id']))) {
+            // Only the delivery limit applies to a resend: it reaches new people.
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => (string)$__lim['message']];
+        } elseif ($poll && (int)$poll['event_id'] === $eventId && $poll['status'] === 'open') {
+            $hs = gn_host_message_record($db, $eventId, (int)$current['id'], 'poll_resend');
+            $sent = poll_send_to_audience($db, $poll, $hs);
+            if ($sent > 0) gn_host_message_set_recipients($db, $hs, (int)$sent);
+            else $db->prepare('DELETE FROM host_sends WHERE id = ?')->execute([$hs]);   // reached nobody new
             db_log_activity((int)$current['id'], "poll id=$pid resent to $sent new recipient(s)");
             $_SESSION['flash'] = $sent > 0
                 ? ['type' => 'success', 'msg' => "Sent to $sent new Yes/Maybe respondent(s)."]

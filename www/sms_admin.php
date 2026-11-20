@@ -146,7 +146,7 @@ function sms_admin_help_text(array $events): string {
  * Broadcast a plain-text message to an event's invitees by reusing the in-app
  * event_messages path (see calendar.php send_event_message). Returns recipients.
  */
-function sms_admin_broadcast(PDO $db, int $eid, string $subject, string $bodyText, string $audience, int $actorId): int {
+function sms_admin_broadcast(PDO $db, int $eid, string $subject, string $bodyText, string $audience, int $actorId, int $hostSendId = 0): int {
     $rsvpFilter = $audience === 'yes' ? "AND rsvp = 'yes'"
                 : ($audience === 'yes_maybe' ? "AND rsvp IN ('yes','maybe')" : '');
     $rows = $db->prepare("SELECT username FROM event_invites
@@ -167,7 +167,7 @@ function sms_admin_broadcast(PDO $db, int $eid, string $subject, string $bodyTex
 
     $sent = 0;
     foreach ($targets as $uname) {
-        queue_event_notification($db, $eid, $uname, 'event_message', null, ['message_id' => $msgId]);
+        queue_event_notification($db, $eid, $uname, 'event_message', null, ['message_id' => $msgId] + ($hostSendId > 0 ? ['host_send_id' => $hostSendId] : []));
         $sent++;
     }
     return $sent;
@@ -442,7 +442,12 @@ function sms_admin_handle_confirm(PDO $db, array $user, string $provider): void 
             sms_admin_reply($provider, "Message was empty; nothing sent.");
             return;
         }
-        $sent = sms_admin_broadcast($db, $eid, "Update: $title", $text, 'yes', $actorId);
+        // The same daily caps as a host message from the site (v1.36.0).
+        require_once __DIR__ . '/svc/messages.php';
+        if ($lim = gn_host_message_limit($db, $eid, $actorId)) { sms_admin_reply($provider, (string)$lim['message']); return; }
+        $hs = gn_host_message_record($db, $eid, $actorId, 'sms_msg');
+        $sent = sms_admin_broadcast($db, $eid, "Update: $title", $text, 'yes', $actorId, $hs);
+        gn_host_message_set_recipients($db, $hs, (int)$sent);
         db_log_activity($actorId, "sent event message to $sent guest(s) on event id: $eid via SMS");
         sms_admin_reply($provider, "Message sent to $sent guest(s) of \"$title\".");
         return;
@@ -451,7 +456,11 @@ function sms_admin_handle_confirm(PDO $db, array $user, string $provider): void 
     if ($command === 'remind') {
         $date = sms_admin_date($evRow['start_date']);
         $bodyText = "Reminder: \"$title\" is on $date. Reply YES, NO, or MAYBE to update your RSVP.";
-        $sent = sms_admin_broadcast($db, $eid, "Reminder: $title", $bodyText, 'all', $actorId);
+        require_once __DIR__ . '/svc/messages.php';
+        if ($lim = gn_host_message_limit($db, $eid, $actorId)) { sms_admin_reply($provider, (string)$lim['message']); return; }
+        $hs = gn_host_message_record($db, $eid, $actorId, 'sms_remind');
+        $sent = sms_admin_broadcast($db, $eid, "Reminder: $title", $bodyText, 'all', $actorId, $hs);
+        gn_host_message_set_recipients($db, $hs, (int)$sent);
         db_log_activity($actorId, "sent reminder to $sent guest(s) on event id: $eid via SMS");
         sms_admin_reply($provider, "Reminder sent to $sent guest(s) of \"$title\".");
         return;

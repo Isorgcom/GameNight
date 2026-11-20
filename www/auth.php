@@ -1036,6 +1036,22 @@ function verify_code(int $user_id, string $code): string {
  * tighter gate, mfa_sms_resend_rate_limited(), sits on top); 'ok' otherwise.
  */
 const MFA_SMS_SENDS_PER_15MIN = 5;
+const PHONE_VERIFY_SENDS_PER_DAY = 20;
+
+/**
+ * True when this account has asked for too many phone verification texts:
+ * 5 in 15 minutes or 20 in a day (v1.36.0). Each is a paid text, and Settings
+ * sent one on every press.
+ */
+function phone_verify_send_limited(PDO $db, int $user_id): bool {
+    $q = $db->prepare("SELECT
+            SUM(CASE WHEN created_at > datetime('now', '-15 minutes') THEN 1 ELSE 0 END),
+            COUNT(*)
+        FROM activity_log WHERE user_id = ? AND action = 'phone_verify_send' AND created_at > datetime('now', '-1 day')");
+    $q->execute([$user_id]);
+    [$recent, $day] = array_map('intval', $q->fetch(PDO::FETCH_NUM) ?: [0, 0]);
+    return $recent >= MFA_SMS_SENDS_PER_15MIN || $day >= PHONE_VERIFY_SENDS_PER_DAY;
+}
 function send_mfa_sms_code(int $user_id, string $phone): string {
     $db   = get_db();
     $pv = $db->prepare('SELECT phone, phone_verified FROM users WHERE id = ?');

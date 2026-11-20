@@ -84,8 +84,20 @@ if (!empty($_SESSION['flash'])) {
     unset($_SESSION['flash']);
 }
 
+// The General tab's sections, in order (v1.36.0): key => button label.
+const GS_PANES = ['site' => 'Site', 'features' => 'Features', 'notifications' => 'Notifications',
+                  'security' => 'Security', 'public' => 'Public pages', 'timer' => 'Timer'];
+
 $tab = in_array($_GET['tab'] ?? '', ['dashboard', 'reports', 'activity', 'general', 'appearance', 'logs', 'users', 'events', 'leagues', 'email', 'sms', 'whatsapp', 'cron', 'backup']) ? $_GET['tab'] : 'dashboard';
 $isCommTab = in_array($tab, ['email', 'sms', 'whatsapp']);
+// The General section to open: the one a form was just saved from, else Site.
+// A link can name one (/admin_settings.php?tab=general#security); script
+// handles the hash. hidden="until-found" keeps a closed section searchable
+// with find-in-page.
+$gs_pane = (string)($_SESSION['gs_pane'] ?? 'site');
+unset($_SESSION['gs_pane']);
+if (!isset(GS_PANES[$gs_pane])) $gs_pane = 'site';
+$gs_panel = fn(string $p) => 'class="gs-pane" id="gs-' . $p . '" data-pane="' . $p . '" role="tabpanel" aria-labelledby="gs-tab-' . $p . '"' . ($p === $gs_pane ? '' : ' hidden="until-found"');
 
 // ── POST ─────────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -156,34 +168,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($action === 'general') {
-            $site_name = trim($_POST['site_name'] ?? '');
-            $timezone  = trim($_POST['timezone'] ?? '');
-            if ($site_name === '') {
-                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Site name cannot be empty.'];
-            } elseif ($timezone !== '' && !in_array($timezone, array_values($tz_offsets))) {
-                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid timezone selected.'];
-            } else {
-                set_setting('site_name', $site_name);
-                $site_url = trim($_POST['site_url'] ?? '');
-                set_setting('site_url', $site_url);
-                if ($timezone !== '') {
-                    // Re-anchor existing event times so changing the site tz preserves their
-                    // real instants (never silently shifts displayed times). Must run before
-                    // the new tz is persisted.
-                    $old_tz = get_setting('timezone', 'UTC');
-                    if ($timezone !== $old_tz) {
-                        $rebased = rebase_event_times_for_tz_change($db, $old_tz, $timezone);
-                        db_log_activity($current['id'], "changed timezone {$old_tz} -> {$timezone} (re-anchored {$rebased} event(s))");
+            // General is in sections (v1.36.0), each with its own form, and a save
+            // writes only the fields of the section it came from: an unticked
+            // switch in another section must not read as "turned off". A form
+            // with no section (a page cached before the split) saves them all.
+            $gsp = (string)($_POST['gs_pane'] ?? '');
+            if (!isset(GS_PANES[$gsp])) $gsp = 'all';
+            $in = fn(string $p) => $gsp === 'all' || $gsp === $p;
+            $err = null;
+            if ($in('site')) {
+                $site_name = trim($_POST['site_name'] ?? '');
+                $timezone  = trim($_POST['timezone'] ?? '');
+                if ($site_name === '') {
+                    $err = 'Site name cannot be empty.';
+                } elseif ($timezone !== '' && !in_array($timezone, array_values($tz_offsets))) {
+                    $err = 'Invalid timezone selected.';
+                } else {
+                    set_setting('site_name', $site_name);
+                    $site_url = trim($_POST['site_url'] ?? '');
+                    set_setting('site_url', $site_url);
+                    if ($timezone !== '') {
+                        // Re-anchor existing event times so changing the site tz preserves their
+                        // real instants (never silently shifts displayed times). Must run before
+                        // the new tz is persisted.
+                        $old_tz = get_setting('timezone', 'UTC');
+                        if ($timezone !== $old_tz) {
+                            $rebased = rebase_event_times_for_tz_change($db, $old_tz, $timezone);
+                            db_log_activity($current['id'], "changed timezone {$old_tz} -> {$timezone} (re-anchored {$rebased} event(s))");
+                        }
+                        set_setting('timezone', $timezone);
                     }
-                    set_setting('timezone', $timezone);
                 }
+            }
+            if ($err === null && $in('features')) {
                 set_setting('allow_registration', isset($_POST['allow_registration']) ? '1' : '0');
                 set_setting('allow_user_events', isset($_POST['allow_user_events']) ? '1' : '0');
-                set_setting('show_landing_page', isset($_POST['show_landing_page']) ? '1' : '0');
-                set_setting('show_upcoming_events', isset($_POST['show_upcoming_events']) ? '1' : '0');
                 set_setting('show_calendar', isset($_POST['show_calendar']) ? '1' : '0');
                 set_setting('allow_maybe_rsvp', isset($_POST['allow_maybe_rsvp']) ? '1' : '0');
+            }
+            if ($err === null && $in('notifications')) {
                 set_setting('notifications_enabled', isset($_POST['notifications_enabled']) ? '1' : '0');
+                // Site default reminders: the same rows as the event editor, posted
+                // in minutes; an empty list means new events start with none.
+                set_setting('default_reminder_offsets', json_encode(reminder_offsets_clean($_POST['reminder_default_offsets'] ?? [])));
+                // Daily caps on messages from hosts to guests (svc/messages.php); 0 = no limit.
+                require_once __DIR__ . '/svc/messages.php';
+                set_setting('host_message_daily_cap', (string)max(0, min(1000, (int)($_POST['host_message_daily_cap'] ?? GN_HOST_MESSAGE_EVENT_CAP_DEFAULT))));
+                set_setting('host_message_sender_daily_cap', (string)max(0, min(1000, (int)($_POST['host_message_sender_daily_cap'] ?? GN_HOST_MESSAGE_SENDER_CAP_DEFAULT))));
+                set_setting('host_delivery_cap_enabled', isset($_POST['host_delivery_cap_enabled']) ? '1' : '0');
+                set_setting('host_delivery_daily_cap', (string)max(1, min(100000, (int)($_POST['host_delivery_daily_cap'] ?? GN_HOST_DELIVERY_CAP_DEFAULT))));
+                // Extra browser-push service hosts (comma list; a leading dot matches
+                // subdomains). Hostnames only: the server POSTs to these.
+                $__ph = [];
+                foreach (explode(',', (string)($_POST['push_extra_hosts'] ?? '')) as $__h) {
+                    $__h = strtolower(trim($__h));
+                    if ($__h !== '' && preg_match('/^\.?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/', $__h)) $__ph[] = $__h;
+                }
+                set_setting('push_extra_hosts', implode(',', array_unique($__ph)));
+            }
+            if ($err === null && $in('security')) {
                 // Security alerts (security_alert() in auth.php): the switch and the
                 // phone that is texted; the number is stored the way accounts store
                 // theirs (normalize_phone), send_sms() makes it E.164 when it sends.
@@ -193,17 +236,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // The sign-up burst alarm (signup_burst_alarm() in auth.php): posts per
                 // hour across every address before the admins are told; 0 turns it off.
                 set_setting('signup_burst_per_hour', (string)max(0, min(1000, (int)($_POST['signup_burst_per_hour'] ?? SIGNUP_BURST_PER_HOUR_DEFAULT))));
-                // Extra browser-push service hosts (comma list; a leading dot matches
-                // subdomains). Hostnames only: the server POSTs to these.
-                $__ph = [];
-                foreach (explode(',', (string)($_POST['push_extra_hosts'] ?? '')) as $__h) {
-                    $__h = strtolower(trim($__h));
-                    if ($__h !== '' && preg_match('/^\.?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/', $__h)) $__ph[] = $__h;
-                }
-                set_setting('push_extra_hosts', implode(',', array_unique($__ph)));
-                // Site default reminders: the same rows as the event editor, posted
-                // in minutes; an empty list means new events start with none.
-                set_setting('default_reminder_offsets', json_encode(reminder_offsets_clean($_POST['reminder_default_offsets'] ?? [])));
+            }
+            if ($err === null && $in('public')) {
+                set_setting('show_landing_page', isset($_POST['show_landing_page']) ? '1' : '0');
+                set_setting('show_upcoming_events', isset($_POST['show_upcoming_events']) ? '1' : '0');
                 set_setting('donation_url', trim($_POST['donation_url'] ?? ''));
                 set_setting('donation_message', trim($_POST['donation_message'] ?? ''));
                 // Search & Sharing: what search engines and link previews show for
@@ -214,6 +250,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_setting('seo_description', mb_substr(trim(strip_tags($_POST['seo_description'] ?? '')), 0, 160));
                 set_setting('google_site_verification', seo_verification_token($_POST['google_site_verification'] ?? ''));
                 set_setting('bing_site_verification', seo_verification_token($_POST['bing_site_verification'] ?? ''));
+            }
+            if ($err === null && $in('timer')) {
                 // Extra hosts the timer streaming panel may embed. Store raw; it is
                 // strictly re-validated on read by stream_allowed_hosts() before use.
                 set_setting('stream_allowed_hosts', trim($_POST['stream_allowed_hosts'] ?? ''));
@@ -221,9 +259,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // console. Anything else is stored as blank, which hides the button.
                 $__castId = strtoupper(trim($_POST['cast_app_id'] ?? ''));
                 set_setting('cast_app_id', preg_match('/^[0-9A-F]{8}$/', $__castId) ? $__castId : '');
-                db_log_activity($current['id'], 'updated site settings');
-                $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Settings saved.'];
             }
+            if ($err !== null) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => $err];
+            } else {
+                db_log_activity($current['id'], 'updated site settings' . ($gsp !== 'all' ? " ($gsp)" : ''));
+                $_SESSION['flash'] = ['type' => 'success', 'msg' => ($gsp !== 'all' ? GS_PANES[$gsp] . ' settings saved.' : 'Settings saved.')];
+            }
+            if ($gsp !== 'all') $_SESSION['gs_pane'] = $gsp;
         }
 
         if ($action === 'clear_logs') {
@@ -735,6 +778,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $_SESSION['flash'] = ['type' => 'error', 'msg' => 'No file received.'];
             }
+            $_SESSION['gs_pane'] = 'public';
             $post_tab = 'general';
         }
 
@@ -743,6 +787,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             set_setting('seo_og_image_path', '');
             db_log_activity($current['id'], 'removed share image');
             $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Share image removed.'];
+            $_SESSION['gs_pane'] = 'public';
             $post_tab = 'general';
         }
 
@@ -1080,6 +1125,39 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             #ugBulkBar button { min-height:40px; }
             .modal select { font-size:1rem;min-height:44px; }
         }
+        /* General: six sections behind the house segmented control (v1.36.0),
+           the same pattern as Account Settings. */
+        .gs-wrap { max-width: 680px; }
+        /* The strip scrolls sideways on a phone; each end fades while there is
+           more beyond it (the same mask as Account Settings' switcher). */
+        @property --gs-fade-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+        @property --gs-fade-end   { syntax: "<length>"; inherits: false; initial-value: 0px; }
+        .gs-nav { overflow-x: auto; margin-bottom: 1.1rem; scrollbar-width: none; -webkit-overflow-scrolling: touch; scroll-padding-inline: 2rem;
+            --gs-fade: 2rem;
+            mask:
+                linear-gradient(black, black) no-clip subtract,
+                linear-gradient(to right, black, transparent) 0 0 / var(--gs-fade-start) 100% no-repeat no-clip,
+                linear-gradient(to right, transparent, black) 100% 0 / var(--gs-fade-end) 100% no-repeat no-clip;
+            transition: --gs-fade-start .2s, --gs-fade-end .2s; }
+        .gs-nav::-webkit-scrollbar { display: none; }
+        @supports (animation-timeline: scroll()) {
+            .gs-nav { animation: gs-fade-in linear both, gs-fade-out linear both; animation-timeline: scroll(self inline);
+                animation-range: 0 var(--gs-fade), calc(100% - var(--gs-fade)) 100%; }
+        }
+        @keyframes gs-fade-in  { to   { --gs-fade-start: var(--gs-fade); } }
+        @keyframes gs-fade-out { from { --gs-fade-end:   var(--gs-fade); } }
+        .gs-nav.more-start { --gs-fade-start: var(--gs-fade); }
+        .gs-nav.more-end   { --gs-fade-end:   var(--gs-fade); }
+        @media (prefers-reduced-motion: reduce) { .gs-nav { transition: none; } }
+        .gs-nav .pk-seg { display: flex; width: max-content; min-width: 100%; }
+        .gs-nav .pk-seg button { flex: 1 0 auto; min-block-size: 40px; padding: .5rem .85rem; font-size: .86rem; }
+        .gs-pane { display: flex; flex-direction: column; gap: 1.25rem; }
+        .gs-pane[hidden]:not([hidden="until-found"]) { display: none; }
+        .gs-wrap .card { max-width: 100%; margin: 0; }
+        .gs-h3 { font-size: .95rem; margin: 0 0 .5rem; }
+        .gs-hr { border: none; border-top: 1px solid var(--bd-e2e8f0, #e2e8f0); margin: 1.1rem 0; }
+        .gs-save { width: 100%; margin-top: .5rem; }
+        @media (max-width: 600px) { .gs-nav .pk-seg button { padding: .5rem .55rem; font-size: .78rem; } }
     </style>
 </head>
 <body>
@@ -1379,15 +1457,28 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
         <?php endif; ?>
     </div>
 
-    <!-- ── General tab ── -->
+    <!-- ── General tab: six sections, switched like Account Settings (v1.36.0) ── -->
     <div class="tab-panel <?= $tab === 'general' ? 'active' : '' ?>">
-        <div class="card" style="max-width:480px">
-            <h2>General</h2>
-            <p class="subtitle">Basic site-wide configuration.</p>
+    <div class="gs-wrap" id="gsWrap">
+    <div class="gs-nav">
+        <div class="pk-seg" id="gsSeg" data-seg-role="tablist" aria-label="General settings sections">
+            <span class="pk-seg-thumb"></span>
+            <?php foreach (GS_PANES as $_p => $_label): ?>
+            <button type="button" id="gs-tab-<?= $_p ?>" data-pane="<?= $_p ?>" data-act="gsTab" role="tab" aria-selected="<?= $_p === $gs_pane ? 'true' : 'false' ?>"<?= $_p === $gs_pane ? ' class="active"' : '' ?>><?= $_label ?></button>
+            <?php endforeach; ?>
+        </div>
+    </div>
+
+    <!-- ═══ Site ═══ -->
+    <section <?= $gs_panel('site') ?>>
+        <div class="card">
+            <h2>Site</h2>
+            <p class="subtitle">The site&rsquo;s name, its address and the timezone events are anchored to.</p>
             <form method="post" action="/admin_settings.php">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="general">
                 <input type="hidden" name="tab" value="general">
+                <input type="hidden" name="gs_pane" value="site">
                 <div class="form-group">
                     <label for="site_name">Site Name</label>
                     <input type="text" id="site_name" name="site_name"
@@ -1415,6 +1506,21 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     </select>
                     <p class="hint">The home timezone all events are anchored to. Changing it re-anchors every existing event so their actual times are preserved (no event shifts). Current server time: <strong><?= date('Y-m-d H:i:s') ?></strong></p>
                 </div>
+                <button type="submit" class="btn btn-primary gs-save">Save</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- ═══ Features ═══ -->
+    <section <?= $gs_panel('features') ?>>
+        <div class="card">
+            <h2>Features</h2>
+            <p class="subtitle">What members can do, and which parts of the site are on.</p>
+            <form method="post" action="/admin_settings.php">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="general">
+                <input type="hidden" name="tab" value="general">
+                <input type="hidden" name="gs_pane" value="features">
                 <div class="form-group" style="margin-top:.5rem">
                     <label class="setting-toggle">
                         <input type="checkbox" name="allow_registration" value="1" class="pk-toggle-input"
@@ -1435,21 +1541,12 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 </div>
                 <div class="form-group" style="margin-top:.5rem">
                     <label class="setting-toggle">
-                        <input type="checkbox" name="show_landing_page" value="1" class="pk-toggle-input"
-                               <?= get_setting('show_landing_page', '0') === '1' ? 'checked' : '' ?>>
+                        <input type="checkbox" name="allow_maybe_rsvp" value="1" class="pk-toggle-input"
+                               <?= get_setting('allow_maybe_rsvp', '1') === '1' ? 'checked' : '' ?>>
                         <span class="pk-toggle-slider"></span>
-                        Show Landing Page
+                        Allow &ldquo;Maybe&rdquo; RSVP response
                     </label>
-                    <p class="hint">When on, visitors who are not logged in see a marketing-style landing page instead of the posts feed. Logged-in users always see the normal home page.</p>
-                </div>
-                <div class="form-group" style="margin-top:.5rem">
-                    <label class="setting-toggle">
-                        <input type="checkbox" name="show_upcoming_events" value="1" class="pk-toggle-input"
-                               <?= get_setting('show_upcoming_events', '1') === '1' ? 'checked' : '' ?>>
-                        <span class="pk-toggle-slider"></span>
-                        Show &ldquo;Upcoming Events&rdquo; on the landing page
-                    </label>
-                    <p class="hint">When off, the upcoming-events section is hidden for all visitors.</p>
+                    <p class="hint">When off, the Maybe option is removed from RSVP buttons and invite emails.</p>
                 </div>
                 <div class="form-group" style="margin-top:.5rem">
                     <label class="setting-toggle">
@@ -1460,15 +1557,21 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     </label>
                     <p class="hint">When off, the Calendar page is disabled and the nav link is hidden.</p>
                 </div>
-                <div class="form-group" style="margin-top:.5rem">
-                    <label class="setting-toggle">
-                        <input type="checkbox" name="allow_maybe_rsvp" value="1" class="pk-toggle-input"
-                               <?= get_setting('allow_maybe_rsvp', '1') === '1' ? 'checked' : '' ?>>
-                        <span class="pk-toggle-slider"></span>
-                        Allow &ldquo;Maybe&rdquo; RSVP response
-                    </label>
-                    <p class="hint">When off, the Maybe option is removed from RSVP buttons and invite emails.</p>
-                </div>
+                <button type="submit" class="btn btn-primary gs-save">Save</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- ═══ Notifications ═══ -->
+    <section <?= $gs_panel('notifications') ?>>
+        <div class="card">
+            <h2>Notifications</h2>
+            <p class="subtitle">Email, text and WhatsApp to members and guests: the master switch, the reminders new events start with, and the daily limits on hosts&rsquo; messages.</p>
+            <form method="post" action="/admin_settings.php">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="general">
+                <input type="hidden" name="tab" value="general">
+                <input type="hidden" name="gs_pane" value="notifications">
                 <div class="form-group" style="margin-top:.5rem">
                     <label class="setting-toggle">
                         <input type="checkbox" name="notifications_enabled" value="1" class="pk-toggle-input"
@@ -1478,6 +1581,73 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     </label>
                     <p class="hint">When off, no email, SMS, or WhatsApp notifications will be sent (invites, reminders, updates). Test messages from the Email/SMS tabs still work.</p>
                 </div>
+                <hr class="gs-hr">
+                <h3 class="gs-h3">Event reminders</h3>
+                <p class="hint" style="margin-bottom:.75rem">Every new event starts with these reminders; the host changes them on the event itself. Each is a number and a unit before the start, up to <?= REMINDER_OFFSETS_MAX ?>.</p>
+                <?php
+                $__defs = json_decode(get_setting('default_reminder_offsets', '[2880,720]'), true);
+                if (!is_array($__defs)) $__defs = [2880, 720];
+                ?>
+                <div class="form-group">
+                    <label id="remDefaultsLabel">Site default reminders</label>
+                    <div class="pk-rem-list" id="remDefaults" role="group" aria-labelledby="remDefaultsLabel" style="max-width:360px;margin-top:.3rem"
+                         data-name="reminder_default_offsets[]" data-max="<?= REMINDER_OFFSETS_MAX ?>"
+                         data-empty="New events start with no reminders."
+                         data-offsets="<?= implode(',', array_map('intval', $__defs)) ?>"></div>
+                </div>
+                <hr class="gs-hr">
+                <h3 class="gs-h3">Sending limits</h3>
+                <p class="hint" style="margin-bottom:.75rem">Hosts&rsquo; messages and polls go to every guest at once, so they have their own daily limits, on the site, through a connected app and by text command.</p>
+                <?php require_once __DIR__ . '/svc/messages.php'; ?>
+                <div class="form-group" style="margin-top:.5rem">
+                    <label for="host_message_daily_cap">Messages per event per day</label>
+                    <input type="number" id="host_message_daily_cap" name="host_message_daily_cap" min="0" max="1000" step="1" inputmode="numeric" style="max-width:8rem"
+                           value="<?= (int)get_setting('host_message_daily_cap', (string)GN_HOST_MESSAGE_EVENT_CAP_DEFAULT) ?>">
+                    <p class="hint">How many messages and polls a host can send to one event's guests in 24 hours, from the site, a connected app or a text command. Each one goes to every guest at once. 0 means no limit.</p>
+                </div>
+                <div class="form-group" style="margin-top:.5rem">
+                    <label for="host_message_sender_daily_cap">Messages per host per day</label>
+                    <input type="number" id="host_message_sender_daily_cap" name="host_message_sender_daily_cap" min="0" max="1000" step="1" inputmode="numeric" style="max-width:8rem"
+                           value="<?= (int)get_setting('host_message_sender_daily_cap', (string)GN_HOST_MESSAGE_SENDER_CAP_DEFAULT) ?>">
+                    <p class="hint">The same count for one person across all their events, so making more events does not get around the limit above. 0 means no limit.</p>
+                </div>
+                <div class="form-group" style="margin-top:.5rem">
+                    <label class="setting-toggle">
+                        <input type="checkbox" name="host_delivery_cap_enabled" value="1" class="pk-toggle-input"
+                               <?= get_setting('host_delivery_cap_enabled', '1') === '1' ? 'checked' : '' ?>>
+                        <span class="pk-toggle-slider"></span>
+                        Limit guests reached per host per day
+                    </label>
+                </div>
+                <div class="form-group" style="margin-top:.5rem">
+                    <label for="host_delivery_daily_cap">Guests reached per host per day</label>
+                    <input type="number" id="host_delivery_daily_cap" name="host_delivery_daily_cap" min="1" max="100000" step="1" inputmode="numeric" style="max-width:8rem"
+                           value="<?= (int)get_setting('host_delivery_daily_cap', (string)GN_HOST_DELIVERY_CAP_DEFAULT) ?>">
+                    <p class="hint">Counts people, not sends: a message to 80 guests uses 80. Every email and text costs per person, so this is what keeps one account from sending in bulk. A host with 80 guests can still send them 12 messages a day at 1,000. Used only while the switch above is on.</p>
+                </div>
+                <hr class="gs-hr">
+                <h3 class="gs-h3">Browser notifications</h3>
+                <div class="form-group" style="margin-top:.5rem">
+                    <label for="push_extra_hosts">Extra browser-push services</label>
+                    <input type="text" id="push_extra_hosts" name="push_extra_hosts" placeholder="push.example.com, .example.net"
+                           value="<?= htmlspecialchars(get_setting('push_extra_hosts', ''), ENT_QUOTES | ENT_SUBSTITUTE) ?>">
+                    <p class="hint">Browser notifications are delivered only through the known push services (Google, Mozilla, Microsoft, Apple). A browser that uses another service needs its host listed here, comma-separated; a leading dot covers subdomains.</p>
+                </div>
+                <button type="submit" class="btn btn-primary gs-save">Save</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- ═══ Security ═══ -->
+    <section <?= $gs_panel('security') ?>>
+        <div class="card">
+            <h2>Security</h2>
+            <p class="subtitle">Who is told about suspicious sign-ups and sign-ins, and how.</p>
+            <form method="post" action="/admin_settings.php">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="general">
+                <input type="hidden" name="tab" value="general">
+                <input type="hidden" name="gs_pane" value="security">
                 <div class="form-group" style="margin-top:.5rem">
                     <label class="setting-toggle">
                         <input type="checkbox" name="security_alerts" value="1" class="pk-toggle-input"
@@ -1499,49 +1669,43 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                            value="<?= (int)get_setting('signup_burst_per_hour', (string)SIGNUP_BURST_PER_HOUR_DEFAULT) ?>">
                     <p class="hint">Alert when this many sign-up posts arrive within one hour, counted across every address, refused posts included. The message says how many posts came from how many addresses. A normal day sees one or two posts; a bot that paces each of its addresses under the per-address limit still adds up here. 0 turns it off.</p>
                 </div>
+                <button type="submit" class="btn btn-primary gs-save">Save</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- ═══ Public pages ═══ -->
+    <section <?= $gs_panel('public') ?>>
+        <div class="card">
+            <h2>Public pages</h2>
+            <p class="subtitle">What visitors who are not signed in see, how the site shows in search results and shared links, and the donation banner.</p>
+            <form method="post" action="/admin_settings.php">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="general">
+                <input type="hidden" name="tab" value="general">
+                <input type="hidden" name="gs_pane" value="public">
+                <h3 class="gs-h3">Landing page</h3>
                 <div class="form-group" style="margin-top:.5rem">
-                    <label for="push_extra_hosts">Extra browser-push services</label>
-                    <input type="text" id="push_extra_hosts" name="push_extra_hosts" placeholder="push.example.com, .example.net"
-                           value="<?= htmlspecialchars(get_setting('push_extra_hosts', ''), ENT_QUOTES | ENT_SUBSTITUTE) ?>">
-                    <p class="hint">Browser notifications are delivered only through the known push services (Google, Mozilla, Microsoft, Apple). A browser that uses another service needs its host listed here, comma-separated; a leading dot covers subdomains.</p>
+                    <label class="setting-toggle">
+                        <input type="checkbox" name="show_landing_page" value="1" class="pk-toggle-input"
+                               <?= get_setting('show_landing_page', '0') === '1' ? 'checked' : '' ?>>
+                        <span class="pk-toggle-slider"></span>
+                        Show Landing Page
+                    </label>
+                    <p class="hint">When on, visitors who are not logged in see a marketing-style landing page instead of the posts feed. Logged-in users always see the normal home page.</p>
                 </div>
-
-                <hr style="border:none;border-top:1px solid var(--bd-e2e8f0, #e2e8f0);margin:1rem 0">
-                <h3 style="font-size:.95rem;margin:0 0 .5rem">Event Reminders</h3>
-                <p class="hint" style="margin-bottom:.75rem">Every new event starts with these reminders; the host changes them on the event itself. Each is a number and a unit before the start, up to <?= REMINDER_OFFSETS_MAX ?>.</p>
-                <?php
-                $__defs = json_decode(get_setting('default_reminder_offsets', '[2880,720]'), true);
-                if (!is_array($__defs)) $__defs = [2880, 720];
-                ?>
-                <div class="form-group">
-                    <label id="remDefaultsLabel">Site default reminders</label>
-                    <div class="pk-rem-list" id="remDefaults" role="group" aria-labelledby="remDefaultsLabel" style="max-width:360px;margin-top:.3rem"
-                         data-name="reminder_default_offsets[]" data-max="<?= REMINDER_OFFSETS_MAX ?>"
-                         data-empty="New events start with no reminders."
-                         data-offsets="<?= implode(',', array_map('intval', $__defs)) ?>"></div>
+                <div class="form-group" style="margin-top:.5rem">
+                    <label class="setting-toggle">
+                        <input type="checkbox" name="show_upcoming_events" value="1" class="pk-toggle-input"
+                               <?= get_setting('show_upcoming_events', '1') === '1' ? 'checked' : '' ?>>
+                        <span class="pk-toggle-slider"></span>
+                        Show &ldquo;Upcoming Events&rdquo; on the landing page
+                    </label>
+                    <p class="hint">When off, the upcoming-events section is hidden for all visitors.</p>
                 </div>
-
-                <hr style="border:none;border-top:1px solid var(--bd-e2e8f0, #e2e8f0);margin:1rem 0">
-                <h3 style="font-size:.95rem;margin:0 0 .5rem">Donation Banner</h3>
-                <p class="hint" style="margin-bottom:.75rem">When a donation URL is set, a banner appears on the home page above the posts and a small link appears in the footer.</p>
-                <div class="form-group">
-                    <label for="donation_url">Donation URL</label>
-                    <input type="url" name="donation_url" id="donation_url"
-                           value="<?= htmlspecialchars(get_setting('donation_url', '')) ?>"
-                           placeholder="https://paypal.me/yourname or https://venmo.com/yourname">
-                    <p class="hint">PayPal.me, Venmo, Cash App, Buy Me a Coffee, etc. Leave blank to disable.</p>
-                </div>
-                <div class="form-group">
-                    <label for="donation_message">Donation Message</label>
-                    <input type="text" name="donation_message" id="donation_message"
-                           value="<?= htmlspecialchars(get_setting('donation_message', '')) ?>"
-                           placeholder="Enjoying Game Night? Help keep the lights on.">
-                    <p class="hint">Custom text shown on the banner. If blank, a default message is used.</p>
-                </div>
-
-                <hr style="border:none;border-top:1px solid var(--bd-e2e8f0, #e2e8f0);margin:1rem 0">
-                <h3 style="font-size:.95rem;margin:0 0 .5rem">Search &amp; Sharing</h3>
-                <p class="hint" style="margin-bottom:.75rem">What search engines and link previews show for the landing page, and the ownership proofs for Google Search Console and Bing Webmaster Tools. The share image is uploaded below, outside this form.</p>
+                <hr class="gs-hr">
+                <h3 class="gs-h3">Search &amp; sharing</h3>
+                <p class="hint" style="margin-bottom:.75rem">What search engines and link previews show for the landing page, and the ownership proofs for Google Search Console and Bing Webmaster Tools.</p>
                 <div class="form-group">
                     <label for="seo_title">Search title</label>
                     <input type="text" name="seo_title" id="seo_title" maxlength="70"
@@ -1568,9 +1732,70 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                            value="<?= htmlspecialchars(get_setting('bing_site_verification', ''), ENT_QUOTES | ENT_SUBSTITUTE) ?>"
                            placeholder="msvalidate.01 token (or import from Search Console and leave this blank)">
                 </div>
+                <hr class="gs-hr">
+                <h3 class="gs-h3">Donation banner</h3>
+                <p class="hint" style="margin-bottom:.75rem">When a donation URL is set, a banner appears on the home page above the posts and a small link appears in the footer.</p>
+                <div class="form-group">
+                    <label for="donation_url">Donation URL</label>
+                    <input type="url" name="donation_url" id="donation_url"
+                           value="<?= htmlspecialchars(get_setting('donation_url', '')) ?>"
+                           placeholder="https://paypal.me/yourname or https://venmo.com/yourname">
+                    <p class="hint">PayPal.me, Venmo, Cash App, Buy Me a Coffee, etc. Leave blank to disable.</p>
+                </div>
+                <div class="form-group">
+                    <label for="donation_message">Donation Message</label>
+                    <input type="text" name="donation_message" id="donation_message"
+                           value="<?= htmlspecialchars(get_setting('donation_message', '')) ?>"
+                           placeholder="Enjoying Game Night? Help keep the lights on.">
+                    <p class="hint">Custom text shown on the banner. If blank, a default message is used.</p>
+                </div>
+                <button type="submit" class="btn btn-primary gs-save">Save</button>
+            </form>
+        </div>
+        <div class="card">
+            <h2>Share image</h2>
+            <p class="subtitle">The picture shown when the site is shared on social media or in chat apps, and the image search engines pair with the landing page. Card-shaped: <strong>1200 &times; 630</strong> pixels (1.91:1). Without one, the header banner is used and gets cropped.</p>
+            <?php /* Share image (og:image). Its own forms: a file upload cannot
+                     ride inside the general settings form. */ ?>
+            <?php $seo_og_image_path = get_setting('seo_og_image_path', ''); if ($seo_og_image_path): ?>
+            <div style="background:var(--bg-f1f5f9, #f1f5f9);padding:.65rem;border-radius:8px;margin-bottom:.85rem;text-align:center">
+                <img src="<?= htmlspecialchars($seo_og_image_path, ENT_QUOTES | ENT_SUBSTITUTE) ?>?v=<?= time() ?>"
+                     alt="Current share image" style="max-width:100%;max-height:200px;border-radius:6px">
+            </div>
+            <form method="post" action="/admin_settings.php" style="margin-bottom:1rem">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="seo_share_image_remove">
+                <input type="hidden" name="tab" value="general">
+                <button type="submit" class="btn btn-outline"
+                        style="color:var(--fg-ef4444, #ef4444);border-color:var(--bd-fca5a5, #fca5a5);font-size:.82rem"
+                        data-confirm="Remove the share image? Shared links fall back to the header banner." data-confirm-ok="Remove" data-confirm-danger="1">&#x2715; Remove Share Image</button>
+            </form>
+            <?php endif; ?>
+            <form method="post" action="/admin_settings.php" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="seo_share_image_upload">
+                <input type="hidden" name="tab" value="general">
+                <div class="form-group">
+                    <label><?= $seo_og_image_path ? 'Replace Share Image' : 'Upload Share Image' ?></label>
+                    <input type="file" name="seo_share_image" required
+                           accept="image/jpeg,image/png,image/webp"
+                           style="display:block;width:100%;padding:.45rem 0;font-size:.875rem">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%">Upload</button>
+            </form>
+        </div>
+    </section>
 
-                <hr style="border:none;border-top:1px solid var(--bd-e2e8f0, #e2e8f0);margin:1rem 0">
-                <h3 style="font-size:.95rem;margin:0 0 .5rem">Tournament Timer</h3>
+    <!-- ═══ Timer ═══ -->
+    <section <?= $gs_panel('timer') ?>>
+        <div class="card">
+            <h2>Tournament timer</h2>
+            <p class="subtitle">What the timer may show from other sites, and casting it to a TV.</p>
+            <form method="post" action="/admin_settings.php">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="general">
+                <input type="hidden" name="tab" value="general">
+                <input type="hidden" name="gs_pane" value="timer">
                 <div class="form-group">
                     <label for="stream_allowed_hosts">Allowed video stream hosts</label>
                     <textarea name="stream_allowed_hosts" id="stream_allowed_hosts" rows="2"
@@ -1599,45 +1824,11 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                        and paste the eight-character app ID it gives you. Until the app is published there,
                        only Chromecasts registered as test devices in that console can receive. Blank hides the button.</p>
                 </div>
-
-
-                <button type="submit" class="btn btn-primary" style="width:100%;margin-top:.25rem">
-                    Save
-                </button>
-            </form>
-
-            <?php /* Share image (og:image). Its own forms: a file upload cannot
-                     ride inside the general settings form. */ ?>
-            <hr style="border:none;border-top:1px solid var(--bd-e2e8f0, #e2e8f0);margin:1.25rem 0 1rem">
-            <h3 style="font-size:.95rem;margin:0 0 .5rem">Share Image</h3>
-            <p class="hint" style="margin-bottom:.75rem">The picture shown when the site is shared on social media or in chat apps, and the image search engines pair with the landing page. Card-shaped: <strong>1200 &times; 630</strong> pixels (1.91:1). Without one, the header banner is used and gets cropped.</p>
-            <?php $seo_og_image_path = get_setting('seo_og_image_path', ''); if ($seo_og_image_path): ?>
-            <div style="background:var(--bg-f1f5f9, #f1f5f9);padding:.65rem;border-radius:8px;margin-bottom:.85rem;text-align:center">
-                <img src="<?= htmlspecialchars($seo_og_image_path, ENT_QUOTES | ENT_SUBSTITUTE) ?>?v=<?= time() ?>"
-                     alt="Current share image" style="max-width:100%;max-height:200px;border-radius:6px">
-            </div>
-            <form method="post" action="/admin_settings.php" style="margin-bottom:1rem">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                <input type="hidden" name="action" value="seo_share_image_remove">
-                <input type="hidden" name="tab" value="general">
-                <button type="submit" class="btn btn-outline"
-                        style="color:var(--fg-ef4444, #ef4444);border-color:var(--bd-fca5a5, #fca5a5);font-size:.82rem"
-                        data-confirm="Remove the share image? Shared links fall back to the header banner." data-confirm-ok="Remove" data-confirm-danger="1">&#x2715; Remove Share Image</button>
-            </form>
-            <?php endif; ?>
-            <form method="post" action="/admin_settings.php" enctype="multipart/form-data">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                <input type="hidden" name="action" value="seo_share_image_upload">
-                <input type="hidden" name="tab" value="general">
-                <div class="form-group">
-                    <label><?= $seo_og_image_path ? 'Replace Share Image' : 'Upload Share Image' ?></label>
-                    <input type="file" name="seo_share_image" required
-                           accept="image/jpeg,image/png,image/webp"
-                           style="display:block;width:100%;padding:.45rem 0;font-size:.875rem">
-                </div>
-                <button type="submit" class="btn btn-primary" style="width:100%">Upload</button>
+                <button type="submit" class="btn btn-primary gs-save">Save</button>
             </form>
         </div>
+    </section>
+    </div>
     </div>
 
     <!-- ── Appearance tab ── -->
@@ -3388,6 +3579,56 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
     </div>
 
 <?php require __DIR__ . '/_footer.php'; ?>
+
+<script nonce="<?= csp_nonce() ?>">
+// ── General: section switcher (v1.36.0), as on Account Settings ─────────────
+// The server rendered the open section; this only switches. A closed section
+// is hidden="until-found": find-in-page can reach into it (beforematch).
+var GS_PANES = <?= js_json(array_keys(GS_PANES)) ?>;
+var gsCurrent = <?= js_json($gs_pane) ?>;
+function gsShow(name, animate) {
+    if (GS_PANES.indexOf(name) < 0 || name === gsCurrent) return;
+    var from = gsCurrent; gsCurrent = name;
+    var btns = document.querySelectorAll('#gsSeg button');
+    for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('active', btns[i].getAttribute('data-pane') === name);
+    var shown = null;
+    for (var j = 0; j < GS_PANES.length; j++) {
+        var pane = document.getElementById('gs-' + GS_PANES[j]);
+        if (!pane) continue;
+        if (GS_PANES[j] === name) { pane.hidden = false; shown = pane; } else pane.hidden = 'until-found';
+    }
+    positionSegThumb('gsSeg', !!animate);
+    if (animate && shown) slideViewIn(shown, segTravelDirection('gsSeg', 'data-pane', from, name));
+    var active = document.querySelector('#gsSeg button.active');
+    if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'nearest', container: 'nearest' });
+    try { history.replaceState(null, '', location.pathname + location.search + '#' + name); } catch (e) {}
+}
+function gsTab() { gsShow(this.getAttribute('data-pane'), true); }
+(function () {
+    var wrap = document.getElementById('gsWrap');
+    if (!wrap) return;
+    function fromHash(animate) {
+        var h = (location.hash || '').replace('#', '');
+        if (GS_PANES.indexOf(h) >= 0) gsShow(h, animate);
+    }
+    positionSegThumb('gsSeg', false);
+    fromHash(false);
+    window.addEventListener('hashchange', function () { fromHash(true); });
+    wrap.addEventListener('beforematch', function (e) {
+        var pane = e.target.closest ? e.target.closest('.gs-pane') : null;
+        if (pane) gsShow(pane.getAttribute('data-pane'), false);
+    });
+    // Edge fades where scroll-driven animations are missing.
+    var nav = wrap.querySelector('.gs-nav'), seg = document.getElementById('gsSeg');
+    if (nav && seg && window.IntersectionObserver && !(window.CSS && CSS.supports && CSS.supports('animation-timeline', 'scroll()'))) {
+        var tabs = seg.querySelectorAll('button'), first = tabs[0], last = tabs[tabs.length - 1];
+        var io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (en) { nav.classList.toggle(en.target === first ? 'more-start' : 'more-end', en.intersectionRatio < 1); });
+        }, { root: nav, threshold: 1, rootMargin: '1px' });
+        io.observe(first); io.observe(last);
+    }
+})();
+</script>
 
 <script nonce="<?= csp_nonce() ?>">
 function openUserModal() {

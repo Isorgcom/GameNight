@@ -41,6 +41,18 @@ function gn_actor_has_scope(array $actor, string $scope): bool {
     return in_array('*', $s, true) || in_array($scope, $s, true);
 }
 
+/**
+ * Refuse an action that would tell people something when the actor's token
+ * lacks the `messages` scope, else null (v1.36.0). Sending is one checkbox: a
+ * connection allowed to change events but not to send must not reach anyone
+ * by cancelling, approving or removing either. The web actor has every scope.
+ */
+function gn_needs_messages(array $actor, string $what): ?array {
+    if (gn_actor_has_scope($actor, 'messages')) return null;
+    return gn_err('messages_permission_needed',
+        "$what tells people, and this connection is not allowed to send messages. Do it on the site, or turn on the Messages permission for this app under Settings, Connected Apps.", 403);
+}
+
 /** 'YYYY-MM-DD HH:MM:SS' (UTC, as SQLite stores it) to ISO 8601 with a Z, or null. */
 function gn_iso(?string $db_utc): ?string {
     $db_utc = trim((string)$db_utc);

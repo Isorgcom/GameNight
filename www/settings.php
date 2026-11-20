@@ -152,7 +152,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $flash = ['type' => 'error', 'msg' => 'Save a phone number first.'];
             } elseif (get_setting('sms_provider') !== 'surge') {
                 $flash = ['type' => 'error', 'msg' => 'Phone verification requires Surge SMS provider.'];
+            } elseif (phone_verify_send_limited($db, (int)$current['id'])) {
+                // Every code is a paid text (v1.36.0): 5 per 15 minutes, 20 a day,
+                // per account, the same budget as the sign-in codes.
+                $flash = ['type' => 'error', 'msg' => 'Too many codes sent. Wait a while before asking for another.'];
             } else {
+                db_log_activity((int)$current['id'], 'phone_verify_send');
                 $result = surge_send_verification($phoneVal);
                 if (!empty($result['id'])) {
                     $_SESSION['phone_verify_id']  = $result['id'];
