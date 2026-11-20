@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.39.0] - 2026-11-20
+
 ### Security
 
 - **A cancelled game can no longer be run.** Most of the check-in console's actions (game settings, starting and finishing, payouts, walk-ins, table moves, loading a payout preset) still worked on an event that had been cancelled. They now answer that the event was cancelled, as the rest of the console already did. An entry ticket can no longer be pointed at a cancelled event either. (`www/checkin_dl.php`)
