@@ -11,6 +11,16 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.41.0] - 2026-11-21
+
+### Changed
+
+- **The game preset bar in Setup works like the timer layout editor's Load and Save.** There is no separate Load button: pick a preset in the list and it loads at once (asking first if you have unsaved changes), and the list goes back to "Load preset…". The preset this game came from is marked "• this game", and picking it again puts a modified game back the way the preset has it. **Save preset** shows a • when there is something to save, unsaved edits included, and flashes "Saved ✓" after a save or a Save as…. The ⋯ menu's Delete and Set as site default act on the preset this game is set up from. (`www/checkin.js`, `www/checkin.css`)
+
+### Fixed
+
+- **Loading a preset no longer leaves the unsaved-changes dot lit.** After a load the editor matches the game, but the dot stayed on and the next load asked about unsaved changes that did not exist. (`www/checkin.js`)
+
 ## [v1.40.0] - 2026-11-21
 
 ### Added

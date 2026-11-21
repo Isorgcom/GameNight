@@ -260,6 +260,7 @@ body.view-payouts #payoutCard{display:none}
 .pk-preset-mod{background:var(--bg-fffbeb, #fffbeb);color:var(--fg-92400e, #92400e);border:1px solid #f59e0b;border-radius:999px;font-size:.66rem;font-weight:800;letter-spacing:.04em;padding:.05rem .45rem}
 .pk-preset-update{border-color:#f59e0b !important;color:var(--fg-92400e, #92400e) !important;background:var(--bg-fffbeb, #fffbeb) !important}
 .pk-preset-update:hover{background:var(--bg-fef3c7, #fef3c7) !important}
+.pk-preset-bar button.pk-preset-saved{border-color:#16a34a !important;color:var(--fg-16a34a, #16a34a) !important;opacity:1 !important}
 .pk-preset-bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
 .pk-preset-head{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding-bottom:.4rem}
 .pk-preset-head .pk-cfg-title,.pk-preset-head .pk-preset-from{margin:0}

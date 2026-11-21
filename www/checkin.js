@@ -1693,6 +1693,7 @@ function markSettingsDirty() {
     if (dot) dot.style.display = '';
     var saved = document.getElementById('svSaved');
     if (saved) saved.style.display = 'none';
+    setPresetSaveState();   // Save preset picks up its "•"
 }
 
 // Re-render the open editor in place (after Save / structure load / ticket
@@ -1896,8 +1897,7 @@ function renderSettingsView() {
         h += '</div>';
         h += '<div id="presetBody"' + (presetOpen ? '' : ' hidden') + '>';
         h += '<div class="pk-preset-bar">';
-        h += '<select id="payoutStructureSelect" aria-label="Game preset" data-act-change="onPayoutStructureChange" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,var(--bd-e2e8f0, #e2e8f0));border-radius:4px;font-size:.85rem"></select>';
-        h += '<button data-act="loadPayoutStructure" title="Apply the selected preset to this game: game setup, payout split, points, ticket prizes, prizes, bounty and jackpot entry, blind schedule and timer settings">Load</button>';
+        h += '<select id="payoutStructureSelect" aria-label="Game preset" title="Pick a preset to apply it to this game: game setup, payout split, points, ticket prizes, prizes, bounty and jackpot entry, blind schedule and timer settings" data-act-change="onPayoutStructureChange" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,var(--bd-e2e8f0, #e2e8f0));border-radius:4px;font-size:.85rem"></select>';
         h += '<button id="btnUpdPayoutStructure" data-act="updatePayoutStructure">Save preset</button>';
         h += '<button data-act="savePayoutStructureAs" title="Save everything in this editor as a NEW named preset">Save as…</button>';
         // Destructive / admin actions live behind the ⋯ menu: they applied to
@@ -1935,6 +1935,8 @@ document.addEventListener('input', _settingsDirtyDelegate);
 document.addEventListener('change', _settingsDirtyDelegate);
 function _settingsDirtyDelegate(e) {
     if (!SETTINGS_OPEN) return;
+    // The preset list is a menu, not a setting: picking from it loads.
+    if (e.target && e.target.closest && e.target.closest('#cfgPresetSection')) return;
     if (e.target && e.target.closest && e.target.closest('.pk-sv-inline')) markSettingsDirty();
 }
 
@@ -2785,12 +2787,14 @@ function showPresetHelp() {
         '<div class="pk-help-content">'
         + '<h4>What a preset stores</h4>'
         + '<p>A snapshot of everything in this editor: the Game tab (buy-in, rebuys, add-ons, chips, tables), the Payouts &amp; Rewards tab (payout split, points, ticket prize values, prize labels, and the bounty and jackpot setup including baked-in vs. optional), the Blinds tab (the full level schedule), and the Timer tab (the Classic switch and this game\'s display layout). The satellite target event is the one thing not stored; that stays per-game.</p>'
-        + '<h4>Load</h4>'
-        + '<p>Applies the selected preset to <b>this game</b> right away, replacing the current setup on both tabs. There is no separate save step after loading.</p>'
+        + '<h4>Load preset&#8230;</h4>'
+        + '<p>Pick a preset in the list and it is applied to <b>this game</b> right away, replacing the current setup on every tab. There is no separate save step after loading. The preset this game came from is marked &#8220;&#8226; this game&#8221;; pick it again to put a modified game back the way the preset has it.</p>'
+        + '<h4>Save preset</h4>'
+        + '<p>Writes this game&#8217;s setup back over the preset it came from. It shows a &#8226; when the game no longer matches the preset, and is greyed out when there is nothing to save or the preset is not yours to change.</p>'
         + '<h4>Save As&#8230;</h4>'
         + '<p>Saves the editor as a named preset so you can reuse the same setup for future games, e.g. "Friday $20 bounty" or "Free roll".</p>'
         + '<h4>Delete</h4>'
-        + '<p><b>Delete</b> removes the selected preset. Games that used it are not affected.</p>'
+        + '<p><b>Delete preset</b>, under &#8943;, removes the preset this game is set up from. Games that used it are not affected.</p>'
         + '</div>',
         { title: 'Game presets', okLabel: 'Got it' }
     );
@@ -2813,9 +2817,13 @@ function renderPayoutStructureSelect() {
             leagueGroups[s._leagueId].items.push(s);
         } else personal.push(s);
     });
-    // Leading blank so "unsaved custom" is a valid state
+    // Works like the timer layout editor's Load list (v1.40.1): the select is
+    // a menu, not a state. It rests on "Load preset…", picking an entry loads
+    // it at once, and it returns to rest, so the same preset can be picked
+    // again to put a modified game back. The preset this game came from is
+    // marked in the list; the "From:" line above says so in words.
     var blank = document.createElement('option');
-    blank.value = ''; blank.textContent = '— Custom (unsaved) —';
+    blank.value = ''; blank.textContent = 'Load preset…';
     sel.appendChild(blank);
     function addGroup(label, items) {
         if (!items.length) return;
@@ -2824,7 +2832,7 @@ function renderPayoutStructureSelect() {
         items.forEach(function(s) {
             var opt = document.createElement('option');
             opt.value = s.id;
-            opt.textContent = s.name;
+            opt.textContent = s.name + (CURRENT_STRUCTURE_ID && parseInt(s.id) === CURRENT_STRUCTURE_ID ? ' • this game' : '');
             opt.dataset.isDefault = s._isDefault;
             opt.dataset.isGlobal  = s._isGlobal;
             opt.dataset.leagueId  = s._leagueId || 0;
@@ -2839,7 +2847,7 @@ function renderPayoutStructureSelect() {
         addGroup('League: ' + leagueGroups[lid].name, leagueGroups[lid].items);
     });
     addGroup('My Structures', personal);
-    if (CURRENT_STRUCTURE_ID) sel.value = String(CURRENT_STRUCTURE_ID);
+    sel.value = '';
     updatePayoutStructureButtons();
     renderPresetState();
 }
@@ -2865,11 +2873,13 @@ function updatePayoutStructureButtons() {
         if (reason) btn.title = reason; else btn.removeAttribute('title');
     }
 
-    var opt = sel.options[sel.selectedIndex];
+    // The list rests on "Load preset…" now, so these act on the preset this
+    // game was set up from, the one the "From:" line names.
+    var opt = CURRENT_STRUCTURE_ID ? sel.querySelector('option[value="' + CURRENT_STRUCTURE_ID + '"]') : null;
     if (!opt || !opt.value) {
         if (hint) {
             hint.style.display = '';
-            hint.textContent = 'Choose a preset in the list first — these act on the selected preset.';
+            hint.textContent = 'Load a preset first. These act on the preset this game is set up from.';
         }
         if (defBtn) defBtn.style.display = 'none';
         if (delBtn) delBtn.style.display = 'none';
@@ -2901,7 +2911,8 @@ function updatePayoutStructureButtons() {
 }
 
 function onPayoutStructureChange() {
-    updatePayoutStructureButtons();
+    var sel = document.getElementById('payoutStructureSelect');
+    if (sel && sel.value) loadPayoutStructure();
 }
 
 // ── Preset provenance ────────────────────────────────────────────────────────
@@ -2952,16 +2963,43 @@ function renderPresetState() {
 function setPresetSaveState() {
     var upd = document.getElementById('btnUpdPayoutStructure');
     if (!upd) return;
-    var allowed = !!(PRESET_STATE && PRESET_STATE.modified && PRESET_STATE.can_update);
+    // While "Saved ✓" shows, only the words wait (its timeout re-runs this);
+    // whether it can be pressed and why stay current.
+    var flashing = !!upd.getAttribute('data-flash');
+    // Unsaved edits in the editor count too: Save preset writes what the
+    // editor shows, not the last thing saved to the game.
+    var changed = !!(PRESET_STATE && (PRESET_STATE.modified || SETTINGS_DIRTY));
+    var allowed = !!(changed && PRESET_STATE.can_update);
+    // The same marker as the timer layout editor's Save layout (v1.40.1).
+    if (!flashing) upd.textContent = allowed ? 'Save preset •' : 'Save preset';
     upd.disabled = !allowed;
     upd.classList.toggle('disabled', !allowed);
     // Amber only when pressing it would write over a preset: the warning
     // colour on a button that could not be pressed read as the thing to click.
-    upd.classList.toggle('pk-preset-update', allowed);
+    upd.classList.toggle('pk-preset-update', allowed && !flashing);
     upd.title = !PRESET_STATE ? 'This game was not set up from a preset — use Save as… to make one.'
         : !PRESET_STATE.can_update ? 'You cannot change "' + PRESET_STATE.name + '" — use Save as… to make your own copy.'
-        : !PRESET_STATE.modified ? 'This game already matches "' + PRESET_STATE.name + '".'
-        : 'Write this game\'s setup back over "' + PRESET_STATE.name + '".';
+        : !changed ? 'This game already matches "' + PRESET_STATE.name + '".'
+        : 'Unsaved changes: write this game\'s setup back over "' + PRESET_STATE.name + '".';
+}
+
+// "Saved ✓" on Save preset after a save, like Save layout in the timer layout
+// editor, then back to whatever the marker says.
+function flashPresetSaved() {
+    var upd = document.getElementById('btnUpdPayoutStructure');
+    if (!upd) return;
+    upd.setAttribute('data-flash', '1');
+    upd.classList.remove('pk-preset-update');
+    upd.classList.add('pk-preset-saved');
+    upd.textContent = 'Saved ✓';
+    if (window.pkAnnounce) pkAnnounce('Preset saved');
+    setTimeout(function () {
+        var b = document.getElementById('btnUpdPayoutStructure');
+        if (!b) return;
+        b.removeAttribute('data-flash');
+        b.classList.remove('pk-preset-saved');
+        setPresetSaveState();
+    }, 1500);
 }
 
 function svEl(tag, cls, text) {
@@ -3041,6 +3079,7 @@ async function loadPayoutStructure() {
     var sel = document.getElementById('payoutStructureSelect');
     if (!sel || !sel.value) { pkAlert('Pick a structure first.'); return; }
     var sid = sel.value;
+    sel.value = '';   // back to "Load preset…" whatever happens next
     // Loading rebuilds every pane from the server, so whatever is typed and
     // not yet saved goes with it: say so first.
     if (SETTINGS_DIRTY && !(await pkConfirm('Load the preset and drop your unsaved changes?', { okLabel: 'Load', danger: true }))) return;
@@ -3067,6 +3106,7 @@ async function loadPayoutStructure() {
             POOL = j.pool || POOL;
             if (j.session) SESSION = j.session;  // recipe presets update bounty/jackpot too
             CURRENT_STRUCTURE_ID = parseInt(sid);
+            renderPayoutStructureSelect();   // move the "• this game" mark
             refreshPresetState();
             // The preset may have replaced the blind schedule and timer flags:
             // drop the pane's cached grid (it refetches on remount) and
@@ -3093,6 +3133,10 @@ async function loadPayoutStructure() {
             // cash and then loading a preset used to snap the dropdown back and
             // hide the preset bar you had just used.
             var pendingType = (document.getElementById('cfg_game_type') || {}).value || '';
+            // The editor now shows exactly what the preset saved to the game,
+            // so nothing is unsaved (v1.40.1). The flag used to survive the
+            // load, leaving the dot lit and the next load asking again.
+            SETTINGS_DIRTY = false;
             // Redraw: the editor re-renders in place (keeps tab + open state),
             // and the dashboard refreshes underneath it.
             renderDashboard();
@@ -3101,6 +3145,7 @@ async function loadPayoutStructure() {
             if (typeSel && pendingType && pendingType !== typeSel.value) {
                 typeSel.value = pendingType;
                 previewGameType(pendingType);
+                markSettingsDirty();   // that choice is still unsaved
             }
         })
         .catch(function() { pkProgressDone(); pkAlert('Request failed'); });
@@ -3166,6 +3211,7 @@ function confirmSaveStruct() {
         .then(function(j) {
             if (!j.ok) { pkAlert(j.error || 'Error'); return; }
             CURRENT_STRUCTURE_ID = parseInt(j.structure_id);
+            flashPresetSaved();
             loadPayoutStructures();
             refreshPresetState();
         });
@@ -3238,6 +3284,7 @@ async function updatePayoutStructure() {
         .then(function(r) { return r.json(); })
         .then(function(j) {
             if (!j.ok) { pkAlert(j.error || 'Error'); return; }
+            flashPresetSaved();
             loadPayoutStructures();
             refreshPresetState();
         })
@@ -3245,31 +3292,31 @@ async function updatePayoutStructure() {
 }
 
 async function deletePayoutStructure() {
-    var sel = document.getElementById('payoutStructureSelect');
-    if (!sel || !sel.value) return;
-    if (!(await pkConfirm('Delete this payout structure?'))) return;
+    if (!CURRENT_STRUCTURE_ID) return;
+    var delId = CURRENT_STRUCTURE_ID;
+    var nm = PRESET_STATE && PRESET_STATE.id === delId ? PRESET_STATE.name : 'this preset';
+    if (!(await pkConfirm('Delete the preset "' + escHtml(nm) + '"? This game keeps its setup.', { okLabel: 'Delete preset', danger: true }))) return;
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
     fd.append('action', 'delete_payout_structure');
-    fd.append('structure_id', sel.value);
+    fd.append('structure_id', delId);
     fetch('/checkin_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(j) {
             if (!j.ok) { pkAlert(j.error || 'Error'); return; }
-            if (parseInt(sel.value) === CURRENT_STRUCTURE_ID) CURRENT_STRUCTURE_ID = 0;
+            if (delId === CURRENT_STRUCTURE_ID) CURRENT_STRUCTURE_ID = 0;
             loadPayoutStructures();
             refreshPresetState();
         });
 }
 
 async function setDefaultPayoutStructure() {
-    var sel = document.getElementById('payoutStructureSelect');
-    if (!sel || !sel.value) return;
-    if (!(await pkConfirm('Set this structure as the site default?'))) return;
+    if (!CURRENT_STRUCTURE_ID) return;
+    if (!(await pkConfirm('Set this game\'s preset as the site default?'))) return;
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
     fd.append('action', 'set_default_payout_structure');
-    fd.append('structure_id', sel.value);
+    fd.append('structure_id', CURRENT_STRUCTURE_ID);
     fetch('/checkin_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(j) {
