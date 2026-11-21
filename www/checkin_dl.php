@@ -2229,7 +2229,7 @@ if ($action === 'load_payout_structure') {
 
     // Current timer flags so the client can retarget the Timer button and
     // refresh the Blinds pane without another round-trip.
-    $tq2 = $db->prepare('SELECT use_beta, preset_id FROM timer_state WHERE session_id = ?');
+    $tq2 = $db->prepare('SELECT use_beta, preset_id, layout_id, layout_builtin FROM timer_state WHERE session_id = ?');
     $tq2->execute([$session_id]);
     $trow2 = $tq2->fetch() ?: [];
 
@@ -2246,6 +2246,12 @@ if ($action === 'load_payout_structure') {
 
     echo json_encode([
         'ok'      => true,
+        // The layout the preset bound (v1.40.0), so the Setup's layout editor
+        // can show it without a reload; layout_changed is false when the preset
+        // carried no timer settings and left the binding as it was.
+        'layout_changed' => !empty($struct['timer_config']),
+        'layout_id'      => (int)($trow2['layout_id'] ?? 0) ?: null,
+        'layout_builtin' => ($trow2['layout_builtin'] ?? null) ?: null,
         'session' => $sessRow,
         'payouts' => get_payouts($db, $session_id),
         'pool'    => calc_pool($db, $session_id),

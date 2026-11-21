@@ -73,6 +73,31 @@ if ($token === '' && $page_eid > 0) {
     $evCancelled = !empty($ev['cancelled_at']);
     $evUpcoming  = (string)$ev['start_date'] >= (new DateTime('now', new DateTimeZone(get_setting('timezone', 'UTC'))))->format('Y-m-d');
 
+    // "Run a poker game" (v1.40.0): an event that is not a poker game gave its
+    // host no way to the game console short of finding the switch in the
+    // editor. This turns poker on through the editor's own save (the same path
+    // the API uses, so the game is created with the host's usual settings) and
+    // opens Manage Game.
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'start_poker') {
+        if (!csrf_verify() || !$canManage || $evCancelled) {
+            http_response_code(403);
+            ev_show_simple('Not allowed', 'Only the event\'s host can turn on a poker game, and not on a cancelled event.');
+            exit;
+        }
+        if ((int)$ev['is_poker'] !== 1) {
+            require_once __DIR__ . '/svc/events.php';
+            $res = gn_event_update($db, gn_web_actor($current), $page_eid, ['is_poker' => true]);
+            if (empty($res['ok'])) {
+                http_response_code(400);
+                ev_show_simple('Could not start a poker game', (string)($res['message'] ?? 'Open Edit and turn on Poker game there.'));
+                exit;
+            }
+            db_log_activity((int)$current['id'], "turned on a poker game for event id: $page_eid");
+        }
+        header('Location: /checkin.php?event_id=' . $page_eid);
+        exit;
+    }
+
     // Played online: the connected app, the game as this side knows it, and
     // (for managers) everything "Set up the table" would send, so the page
     // and the endpoint agree before the button is pressed. $ftApp is the row
@@ -332,6 +357,14 @@ if ($token === '' && $page_eid > 0) {
             <?php if ((int)$ev['is_poker'] === 1): ?>
             <a class="btn" style="background:#059669;color:#fff;text-decoration:none" href="/checkin.php?event_id=<?= $page_eid ?>">Manage Game</a>
             <a class="btn" style="background:#0f172a;color:#fff;text-decoration:none" href="/table_manager.php?event_id=<?= $page_eid ?>" title="Phone-first table console">&#128242; Table Manager</a>
+            <?php elseif (!$evCancelled): ?>
+            <?php /* Not a poker game yet: the way to one, where Manage Game would be (v1.40.0). */ ?>
+            <form method="post" action="/event.php?id=<?= $page_eid ?>" style="margin:0"
+                  data-confirm="Run a poker game at this event? It becomes a poker event, with seats set by tables instead of a guest limit. Set the buy-in, tables and payouts next." data-confirm-ok="Run a poker game">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                <input type="hidden" name="action" value="start_poker">
+                <button type="submit" class="btn" style="background:#059669;color:#fff">&#9824; Run a poker game</button>
+            </form>
             <?php endif; ?>
             <?php if ($evUpcoming): ?>
             <button type="button" class="btn btn-outline" id="evShareBtn" data-act="toggleSharePanel" aria-expanded="false" aria-controls="evSharePanel">&#128228; Share invite</button>

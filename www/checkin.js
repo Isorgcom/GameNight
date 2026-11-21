@@ -3073,6 +3073,12 @@ async function loadPayoutStructure() {
             // retarget the Timer button to whatever the preset restored.
             if (window.pkBlindsEditor) pkBlindsEditor._state = null;
             if (j.session) { loadChipSet(); renderChipRows(); }
+            // The preset's timer layout: tell the Setup's layout editor, which
+            // otherwise kept showing the layout the page loaded with (v1.40.0).
+            if (j.layout_changed) {
+                window.ES_LAYOUT_ID = j.layout_id || null; window.ES_LAYOUT_KEY = j.layout_builtin || null;
+                if (typeof window.tbeEventBindingChanged === 'function') window.tbeEventBindingChanged(j.layout_id, j.layout_builtin);
+            }
             if (j.use_beta !== undefined) {
                 USE_BETA_TIMER = j.use_beta ? 1 : 0;
                 var tl = document.getElementById('timerLink');

@@ -11,6 +11,16 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.40.0] - 2026-11-21
+
+### Added
+
+- **"Run a poker game" on an event that is not a poker game yet.** An event created without the poker switch had no Manage Game button and no hint of how to get one, short of finding the switch in the editor. The host now sees a green **Run a poker game** button where Manage Game would be. After a confirmation it turns the event into a poker game, with the host's usual game settings, and opens Manage Game to set the buy-in, tables and payouts. Guests do not see it, and it is not offered on a cancelled event. (`www/event.php`)
+
+### Fixed
+
+- **Loading a game preset in Setup now shows its timer layout straight away.** A preset brings the timer layout it was saved with, and the game did switch to it, but the layout editor in Setup went on showing the old layout, and marking it as this game's, until the page was reloaded. It now opens the preset's layout as soon as the preset loads. A preset saved without timer settings leaves the editor alone, so unsaved layout edits are not thrown away. (`www/checkin.js`, `www/checkin_dl.php`, `www/timer_layouts.js`)
+
 ## [v1.39.2] - 2026-11-20
 
 ### Fixed

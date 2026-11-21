@@ -3818,6 +3818,21 @@ function loadChoice(v) {
     loadSel.value = '';
 }
 
+/* The game's layout binding changed outside this editor (v1.40.0): loading a
+ * Setup preset binds the layout it was saved with. Record the new binding and
+ * open that layout, the way the page does when it first loads; before, the
+ * editor went on showing the old one until a reload. */
+window.tbeEventBindingChanged = function (id, key) {
+    if (!EV_ID) return;
+    evLayoutId = id ? (id | 0) : null;
+    evLayoutKey = key ? String(key) : null;
+    if (!PV || !PV.builtins) return;            // not booted yet: boot reads the new binding
+    if (evLayoutId) loadChoice('id:' + evLayoutId);
+    else if (evLayoutKey && PV.builtins[evLayoutKey]) loadChoice('builtin:' + evLayoutKey);
+    populateLoadList();
+    updateEventBtn();
+};
+
 /* ── Layout Library ─────────────────────────────────────────────────────
  * A gallery of ready-made layouts: the built-ins (pictures shipped in
  * /img/timer_library/) and every site layout, whose card, a line of
