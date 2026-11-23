@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.42.0] - 2026-11-23
+
 ### Added
 
 - **A slim clock feed for small battery devices.** `timer_dl.php?action=get_brief&key=…` answers with just the clock: the current level and the next two, whether it is running and when it ends, players left, the average stack and the pool, in about 400 bytes instead of the 6 to 7 KB a TV screen fetches. It is meant for devices like the DealerButton, which counts down on its own and checks in every 15 to 30 seconds. An unchanged clock costs an empty "not modified" reply, so most checks transfer nothing. It is read-only and uses the same timer key a TV uses, so it shows nothing a TV paired with that game could not already show. A cancelled event and a cash game are refused, as Send to TV refuses them. Nothing changes for anyone who does not use such a device. (`www/timer_dl.php`, `TOURNAMENT_TIMER.md`)
