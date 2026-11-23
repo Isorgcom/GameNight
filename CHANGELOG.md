@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.42.1] - 2026-11-23
+
+### Added
+
+- **Pair a DealerButton once and it follows your games.** A button paired to a game had to be paired again every game night, and after its game finished it sat at 0:00 until someone did. A button can now be paired to your account instead: it shows a code, you enter it on the new **/button** page (or scan its QR), and from then on it shows whichever tournament you are running. A game being played comes first, then one that finished in the last half hour (shown as over), then one set up for today or the next 12 hours; with none, it says nothing is running and names your next game. It only ever shows the clock and can't control a game. Your buttons are listed under **Settings > Security > DealerButtons**, where you can rename one or remove it, and a removed button stops on its next check. A TV's code entered on /button, or a button's on Send to TV, goes to the right page. Games now record when they started and finished, which is how the button picks. (`www/_button.php`, `www/button_pair.php`, `www/tv_dl.php`, `www/tv_send.php`, `www/timer_dl.php`, `www/settings.php`, `www/db.php`, `www/.htaccess`, `TOURNAMENT_TIMER.md`)
+
 ## [v1.42.0] - 2026-11-23
 
 ### Added

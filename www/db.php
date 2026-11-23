@@ -1048,6 +1048,45 @@ function db_init(PDO $pdo): void {
         paired_at  DATETIME
     )"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_tv_pairings_code ON tv_pairings(code)"); } catch (Exception $e) {}
+    // 'button' for a DealerButton's pairing (v1.42.1); NULL for a TV.
+    try { $pdo->exec("ALTER TABLE tv_pairings ADD COLUMN device TEXT"); } catch (Exception $e) {}
+
+    // DealerButtons paired to an account (v1.42.1, _button.php). The button
+    // holds a long token; only its hash is kept. token_hash stays NULL from
+    // the host's claim until the button collects its token on its next poll.
+    // Remove in Settings sets revoked_at rather than deleting the row.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS button_devices (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id      INTEGER NOT NULL,
+        name         TEXT    NOT NULL,
+        token_hash   TEXT    UNIQUE,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_seen_at DATETIME,
+        last_ip      TEXT,
+        revoked_at   DATETIME,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_button_devices_user ON button_devices(user_id)"); } catch (Exception $e) {}
+
+    // When a game started and finished (v1.42.1), for a paired button's choice
+    // of game: the most recently started of several being played, and "Game
+    // over" for half an hour after one finishes. Kept by a trigger rather than
+    // by each writer, because six places change a session's status (the
+    // console, auto-finish on the last knockout, reopen, FinalTable's start
+    // and finish, and the API through the console bridge). Reopening a game
+    // clears finished_at and keeps started_at. A game already running when
+    // this lands has no started_at; the button falls back to its clock's.
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN started_at DATETIME"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN finished_at DATETIME"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE TRIGGER IF NOT EXISTS trg_poker_sessions_status_times
+        AFTER UPDATE OF status ON poker_sessions
+        WHEN NEW.status IS NOT OLD.status
+        BEGIN
+            UPDATE poker_sessions SET
+                started_at  = CASE WHEN NEW.status = 'active' AND started_at IS NULL THEN datetime('now') ELSE started_at END,
+                finished_at = CASE WHEN NEW.status = 'finished' THEN datetime('now') ELSE NULL END
+            WHERE id = NEW.id;
+        END"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN commanded_at DATETIME"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN prev_state TEXT"); } catch (Exception $e) {}  // one-deep undo: pre-command {l,r,run,ts} JSON
     try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN user_id INTEGER"); } catch (Exception $e) {}

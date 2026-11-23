@@ -22,6 +22,14 @@ $code = tv_pair_clean_code((string)($_POST['code'] ?? $_GET['c'] ?? ''));
 $raw_code = (string)($_POST['code'] ?? $_GET['c'] ?? '');
 $pick = (int)($_POST['event_id'] ?? $_GET['event_id'] ?? 0);
 
+// A DealerButton's code (v1.42.1) belongs on /button, which pairs the button
+// to this account rather than to one game. Scanned or typed, send it there.
+if ($code !== '') {
+    $bq = $db->prepare("SELECT 1 FROM tv_pairings WHERE code = ? AND device = 'button' AND target IS NULL AND expires_at >= datetime('now')");
+    $bq->execute([$code]);
+    if ($bq->fetchColumn()) { header('Location: /button?c=' . rawurlencode($code)); exit; }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // A miss costs a guess; ten in ten minutes and this ADDRESS waits (counted
     // in activity_log, so a fresh session does not reset it). A code only

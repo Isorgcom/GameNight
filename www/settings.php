@@ -312,6 +312,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        elseif ($action === 'button_remove' || $action === 'button_rename') {
+            // A paired DealerButton (v1.42.1, _button.php). Remove sets
+            // revoked_at: the button's next poll is a 401 "revoked" and it
+            // shows a pairing code. Rename changes only what this list shows.
+            require_once __DIR__ . '/_button.php';
+            $bid = (int)($_POST['button_id'] ?? 0);
+            $bq  = $db->prepare('SELECT name FROM button_devices WHERE id = ? AND user_id = ? AND revoked_at IS NULL');
+            $bq->execute([$bid, $current['id']]);
+            $bname = $bq->fetchColumn();
+            if ($bname === false) {
+                $flash = ['type' => 'error', 'msg' => 'That button is no longer paired.'];
+            } elseif ($action === 'button_rename') {
+                $new_name = button_clean_name((string)($_POST['name'] ?? ''));
+                $db->prepare('UPDATE button_devices SET name = ? WHERE id = ? AND user_id = ?')->execute([$new_name, $bid, $current['id']]);
+                db_log_activity($current['id'], "renamed DealerButton '$bname' to '$new_name'");
+                $flash = ['type' => 'success', 'msg' => 'Renamed to ' . $new_name . '.'];
+            } else {
+                $db->prepare("UPDATE button_devices SET revoked_at = datetime('now') WHERE id = ? AND user_id = ?")->execute([$bid, $current['id']]);
+                db_log_activity($current['id'], "removed DealerButton '$bname'");
+                $flash = ['type' => 'success', 'msg' => $bname . ' is removed. It no longer shows your games.'];
+            }
+        }
+
         elseif ($action === 'api_token_revoke') {
             $tid = (int)($_POST['token_id'] ?? 0);
             $row = $db->prepare('SELECT label FROM api_tokens WHERE id = ? AND user_id = ?');
@@ -418,6 +441,22 @@ foreach ($connected_apps as &$_ca) {
     $_ca['host'] = (string)(parse_url($_u, PHP_URL_HOST) ?: '');
 }
 unset($_ca);
+// DealerButtons paired to this account (v1.42.1). Uncollected claims (the
+// button never came back for its token) and removed ones are not listed.
+$bdq = $db->prepare('SELECT id, name, created_at, last_seen_at FROM button_devices
+                      WHERE user_id = ? AND token_hash IS NOT NULL AND revoked_at IS NULL ORDER BY id DESC');
+$bdq->execute([$current['id']]);
+$paired_buttons = $bdq->fetchAll();
+// "2 minutes ago" for a stored UTC time; past a week, the date.
+$st_ago = function (?string $utc) use ($st_when): string {
+    if (!$utc) return '';
+    $s = max(0, time() - (int)strtotime($utc . ' UTC'));
+    if ($s < 60)      return 'just now';
+    if ($s < 3600)    { $n = intdiv($s, 60);    return $n . ' minute' . ($n === 1 ? '' : 's') . ' ago'; }
+    if ($s < 86400)   { $n = intdiv($s, 3600);  return $n . ' hour' . ($n === 1 ? '' : 's') . ' ago'; }
+    if ($s < 7 * 86400) { $n = intdiv($s, 86400); return $n . ' day' . ($n === 1 ? '' : 's') . ' ago'; }
+    return 'on ' . $st_when($utc, 'M j, Y');
+};
 // Each token's most recent requests, for its "Recent activity" list. The path
 // stored is the route pattern (/api/v2/events/{id}), never the raw address.
 $token_activity = [];
@@ -1065,6 +1104,45 @@ $site_name = get_setting('site_name', 'Game Night');
             <?php endif; ?>
         </div>
 
+        <?php if ($paired_buttons): ?>
+        <!-- DealerButtons paired to this account (v1.42.1) -->
+        <div class="card" id="paired-buttons">
+            <h2 id="st-h-buttons">DealerButtons</h2>
+            <p class="subtitle">Buttons that show the clock of the tournament you are running, and move on to your next game by themselves. They can only show it, never control it. <a href="/button">Pair another</a></p>
+            <div class="st-rows">
+            <?php foreach ($paired_buttons as $b): $_bn = htmlspecialchars($b['name'], ENT_QUOTES | ENT_SUBSTITUTE); ?>
+                <div class="st-token">
+                <div class="st-row">
+                    <div class="st-row-main">
+                        <span class="st-row-title"><?= $_bn ?></span>
+                        <span class="st-row-sub">
+                            Paired <?= htmlspecialchars($st_when((string)$b['created_at'], 'M j, Y'), ENT_QUOTES | ENT_SUBSTITUTE) ?>
+                            &middot; <?= $b['last_seen_at'] ? 'last seen ' . htmlspecialchars($st_ago((string)$b['last_seen_at']), ENT_QUOTES | ENT_SUBSTITUTE) : 'not seen yet' ?>
+                        </span>
+                    </div>
+                    <form method="post" action="/settings.php" style="margin:0;flex:none" data-confirm="Remove <?= $_bn ?>? It stops showing your games until it is paired again." data-confirm-ok="Remove" data-confirm-danger="1">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="security">
+                        <input type="hidden" name="action" value="button_remove">
+                        <input type="hidden" name="button_id" value="<?= (int)$b['id'] ?>">
+                        <button type="submit" class="btn btn-sm btn-danger-outline">Remove</button>
+                    </form>
+                </div>
+                <details class="st-activity">
+                    <summary>Rename</summary>
+                    <form method="post" action="/settings.php" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:.5rem 0 0">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="security">
+                        <input type="hidden" name="action" value="button_rename">
+                        <input type="hidden" name="button_id" value="<?= (int)$b['id'] ?>">
+                        <input type="text" name="name" maxlength="40" value="<?= $_bn ?>" aria-label="New name for <?= $_bn ?>" style="flex:1 1 12rem;min-width:0">
+                        <button type="submit" class="btn btn-sm btn-outline">Save name</button>
+                    </form>
+                </details>
+                </div>
+            <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Personal API tokens -->
         <div class="card" id="api-tokens">
             <h2 id="st-h-tokens">API Tokens</h2>
@@ -1233,7 +1311,7 @@ $site_name = get_setting('site_name', 'Game Night');
 // reach into it (it fires beforematch, handled below). Sections can be linked
 // to: /settings.php#security.
 var ST_PANES = <?= js_json(array_keys(ST_PANES)) ?>;
-var ST_ALIAS = { 'api-tokens': 'security' };
+var ST_ALIAS = { 'api-tokens': 'security', 'paired-buttons': 'security' };
 var stCurrent = <?= js_json($st_pane) ?>;
 function stShow(name, animate) {
     if (ST_PANES.indexOf(name) < 0 || name === stCurrent) return;

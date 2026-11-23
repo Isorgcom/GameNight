@@ -1392,6 +1392,47 @@ a PHP session (no cookie, no session file per poll).
   accepted.
 - Refusals carry a `code`: `not_found` (404, unknown key or deleted game),
   `cash_game` (404), `cancelled` (410), the same games Send to TV refuses.
+- Since v1.42.1 every answer also carries `game_id` (the poker session, null
+  for a standalone timer) and `idle: false`.
+
+### A button paired to an account (v1.42.1)
+
+The DealerButton pairs once with the host's account and then always shows
+that host's current game, moving on to the next one by itself. The spec the
+firmware is written against is Trilium `vJKfuzpryuew` ("Addition 2, detailed
+spec"); the code is `www/_button.php`.
+
+1. The button asks `GET /tv_dl.php?action=new&device=button`: the same answer
+   as a TV's, plus `pair_path` (`/button?c=CODE`) for its QR. Same rate limits.
+2. The host enters the code on `/button` (`button_pair.php`), with an optional
+   name. Send to TV forwards a button's code there, scanned or typed, and
+   `/button` turns a TV's code away, so neither kind can be used as the other.
+3. The button's poll (`action=poll&s=SECRET`) answers
+   `{"ok":true,"button_token":"<64 hex>","name":"..."}` exactly once. The
+   token is minted at that moment and only its SHA-256 is stored
+   (`button_devices.token_hash`).
+4. The clock: `GET /timer_dl.php?action=get_brief` with
+   `Authorization: Bearer <button_token>` (or `&button=<token>`, which lands in
+   the access log). The current game's brief, or when there is none:
+   `{"ok":true,"rev","server_now_ms","idle":true,"game_id":null,"next":{"title","starts_at_ms"}|null}`.
+   Note `next` is the host's next event here, not levels. An unknown or
+   removed token is `401 {"code":"revoked"}`. No session starts;
+   `last_seen_at` and `last_ip` are written at most once a minute.
+
+The current game (`button_current_game()`): tournaments on events the host
+runs (created, event manager, league owner or manager; an admin gets only
+their own, as on Send to TV), not cancelled, in this order: one being played,
+most recently started first; one finished in the last 30 minutes (shown as
+`finished`); one in setup dated today or starting within 12 hours. Else idle.
+`poker_sessions.started_at` / `finished_at` feed this and are stamped by the
+trigger `trg_poker_sessions_status_times`, because six places change a
+session's status. A game already running when 1.42.1 landed has no
+`started_at`, and its clock's time stands in.
+
+The host lists, renames and removes buttons in Settings > Security >
+DealerButtons (`#paired-buttons`). Remove sets `revoked_at`. Firmware that
+pairs without `device=button` still gets a game's timer key through Send to
+TV, as before. Suite: `~/qa-headless/button_pair_check.js`.
 
 ## Per-event pages (tournaments only)
 
