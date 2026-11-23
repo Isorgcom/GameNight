@@ -86,6 +86,126 @@ function resolve_timer_from_post($db, $current, $isAdmin) {
     return $timer;
 }
 
+// ─── GET: get_brief (v1.42.0) ─────────────────────────────
+// The clock in about 300 bytes, for a small battery device such as the
+// DealerButton that cannot afford get_state's 7 KB (players, payouts, theme,
+// sounds) every poll. Read-only, and authorised the same way as get_state's
+// ?key path: possessing the unguessable remote_key is the permission. It
+// never calls current_user(), so a device that keeps no cookies does not mint
+// a PHP session file on every poll.
+//
+// Answers carry an ETag hashed from everything except server_now_ms, so a
+// device sending If-None-Match gets an empty 304 until something actually
+// changes. That holds while the clock runs: ends_at_ms is updated_at plus the
+// stored remainder, the same instant on every poll (see compute_live_state).
+// The device counts down from ends_at_ms itself and can roll into the next
+// level from `next` without asking.
+//
+// Levels are numbered as the timer display numbers them: a break takes a
+// number too, so "level 5" on the button is level 5 on the TV.
+if ($action === 'get_brief') {
+    header('Cache-Control: no-cache');
+    $fail = function (int $http, string $code, string $msg) {
+        http_response_code($http);
+        echo json_encode(['ok' => false, 'code' => $code, 'error' => $msg]);
+        exit;
+    };
+
+    $key = (string)($_GET['key'] ?? '');
+    $timer = $key !== '' ? resolve_timer($db, $key) : false;
+    if (!$timer) $fail(404, 'not_found', 'Timer not found');
+
+    $session_id = (int)$timer['session_id'];
+    $session = null;
+    if ($session_id > 0) {
+        $sq = $db->prepare('SELECT ps.status, ps.game_type, e.id AS event_id, e.title AS event_title
+                            FROM poker_sessions ps JOIN events e ON ps.event_id = e.id WHERE ps.id = ?');
+        $sq->execute([$session_id]);
+        $session = $sq->fetch(PDO::FETCH_ASSOC) ?: null;
+        if (!$session) $fail(404, 'not_found', 'Timer not found');
+        // As Send to TV: a cancelled event's game is not run, and a cash game
+        // has no tournament clock to show.
+        if (event_is_cancelled($db, (int)$session['event_id'])) $fail(410, 'cancelled', EVENT_CANCELLED_MSG);
+        if (($session['game_type'] ?? '') === 'cash') $fail(404, 'cash_game', 'That game has no tournament timer to show.');
+    }
+
+    $live = compute_live_state($db, $timer);
+    $cur_n = (int)$live['current_level'];
+
+    $brief_level = function (array $lv): array {
+        $out = ['n' => (int)$lv['level_number']];
+        if ((int)$lv['is_break']) {
+            $out['is_break'] = true;
+        } else {
+            $out['sb'] = (int)$lv['small_blind'];
+            $out['bb'] = (int)$lv['big_blind'];
+            $out['ante'] = (int)$lv['ante'];
+            $out['is_break'] = false;
+        }
+        $out['dur_s'] = (int)$lv['duration_minutes'] * 60;
+        return $out;
+    };
+    $level = null;
+    $next = [];
+    if (!empty($timer['preset_id'])) {
+        $lq = $db->prepare('SELECT level_number, small_blind, big_blind, ante, duration_minutes, is_break
+                            FROM blind_preset_levels WHERE preset_id = ? AND level_number >= ?
+                            ORDER BY level_number LIMIT 3');
+        $lq->execute([(int)$timer['preset_id'], $cur_n]);
+        foreach ($lq->fetchAll(PDO::FETCH_ASSOC) as $lv) {
+            if ((int)$lv['level_number'] === $cur_n) $level = $brief_level($lv);
+            elseif (count($next) < 2) $next[] = $brief_level($lv);
+        }
+    }
+
+    $players = null;
+    $avg_stack = null;
+    $pool_cents = null;
+    if ($session) {
+        $pool = calc_pool($db, $session_id);
+        $left = (int)$pool['still_playing'];
+        $players = ['left' => $left, 'total' => (int)$pool['total_players']];
+        $chips = (int)$pool['chips_in_play'];
+        $avg_stack = ($chips > 0 && $left > 0) ? (int)round($chips / $left) : null;
+        $pool_cents = (int)$pool['pool_total'];
+    }
+
+    $title = $session ? (string)$session['event_title'] : '';
+    if (mb_strlen($title) > 80) $title = mb_substr($title, 0, 80);
+
+    $body = [
+        'title'        => $title,
+        // setup | active | finished from the game; null for a standalone timer.
+        'status'       => $session ? (string)$session['status'] : null,
+        'running'      => (bool)$live['is_running'],
+        'ends_at_ms'   => $live['ends_at_ms'],
+        'remaining_ms' => $live['remaining_ms'],
+        'level'        => $level,
+        'next'         => $next,
+        'players'      => $players,
+        'avg_stack'    => $avg_stack,
+        'pool_cents'   => $pool_cents,
+    ];
+    $flags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE;
+    $rev = substr(hash('sha256', json_encode($body, $flags)), 0, 16);
+    header('ETag: "' . $rev . '"');
+
+    // If-None-Match may be a list, weak (W/), or carry the -gzip / -br suffix
+    // Apache's compression adds to an ETag on the way out.
+    foreach (explode(',', (string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? '')) as $tag) {
+        $tag = trim(preg_replace('#^W/#', '', trim($tag)), '"');
+        $tag = preg_replace('#-(gzip|br|deflate)$#', '', $tag);
+        if ($tag === $rev || $tag === '*') {
+            http_response_code(304);
+            exit;
+        }
+    }
+
+    echo json_encode(['ok' => true, 'rev' => $rev,
+                      'server_now_ms' => (int)round(microtime(true) * 1000)] + $body, $flags);
+    exit;
+}
+
 // ─── GET: get_state ───────────────────────────────────────
 if ($action === 'get_state') {
     $timer = null;

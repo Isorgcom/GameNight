@@ -1363,6 +1363,36 @@ tolerance the two cannot meaningfully disagree; above it the difference is a
 real correction (someone adjusted the clock, or the tab was asleep) that must
 be obeyed. Both halves are asserted.
 
+### get_brief: the clock for small devices (v1.42.0)
+
+`GET /timer_dl.php?action=get_brief&key=REMOTE_KEY` is the same anchor in
+about 300 bytes instead of get_state's 6 to 7 KB, for battery devices like
+the DealerButton. Read-only, authorised by the key alone, and it never starts
+a PHP session (no cookie, no session file per poll).
+
+```
+{"ok":true, "rev":"63d7f95c0c25a0c1", "server_now_ms":1795448399882,
+ "title":"Friday game", "status":"active",      // setup|active|finished, null standalone
+ "running":true, "ends_at_ms":1795449285000, "remaining_ms":null,
+ "level":{"n":7,"sb":1000,"bb":2000,"ante":0,"is_break":false,"dur_s":900},
+ "next":[{"n":8,"is_break":true,"dur_s":600},
+         {"n":9,"sb":2000,"bb":4000,"ante":0,"is_break":false,"dur_s":900}],
+ "players":{"left":4,"total":5}, "avg_stack":15000, "pool_cents":12000}
+```
+
+- `n` is the display's level number: breaks take a number. `level` is null
+  with no blind schedule; `next` holds up to two entries.
+- `players`, `avg_stack` and `pool_cents` are null on a standalone timer;
+  `avg_stack` is null until chips are in play.
+- `rev` is a hash of everything but `server_now_ms` and is also the `ETag`.
+  Send it back as `If-None-Match` and the answer is an empty `304` until
+  something changes. A running clock does not change it, because
+  `ends_at_ms` is the same instant on every poll; poll every 15 to 30 s and
+  count down locally. Weak tags, lists and Apache's `-gzip`/`-br` suffixes are
+  accepted.
+- Refusals carry a `code`: `not_found` (404, unknown key or deleted game),
+  `cash_game` (404), `cancelled` (410), the same games Send to TV refuses.
+
 ## Per-event pages (tournaments only)
 
 `event_blinds.php?event_id=N` and `event_display.php?event_id=N` — standalone
