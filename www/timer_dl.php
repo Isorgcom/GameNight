@@ -103,16 +103,57 @@ function resolve_timer_from_post($db, $current, $isAdmin) {
 //
 // Levels are numbered as the timer display numbers them: a break takes a
 // number too, so "level 5" on the button is level 5 on the TV.
+//
+// Two ways in. ?key=REMOTE_KEY names one game's timer. A button paired to an
+// account (v1.42.1, _button.php) sends "Authorization: Bearer <button_token>"
+// (or &button=<token>) and is answered with whatever game that host is on now
+// (button_current_game), or {"idle": true, "next": {...}|null} when there is
+// none; an unknown or removed token is a 401 "revoked", which tells the button
+// to forget it and show its pairing code. Every answer carries game_id (the
+// poker session, null for a standalone timer) and idle, so the button notices
+// a change of game without comparing titles.
 if ($action === 'get_brief') {
-    header('Cache-Control: no-cache');
+    require_once __DIR__ . '/_button.php';
+    header('Cache-Control: private, no-cache');
     $fail = function (int $http, string $code, string $msg) {
         http_response_code($http);
         echo json_encode(['ok' => false, 'code' => $code, 'error' => $msg]);
         exit;
     };
+    $flags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE;
+    $emit = function (array $body) use ($flags) {
+        $rev = substr(hash('sha256', json_encode($body, $flags)), 0, 16);
+        header('ETag: "' . $rev . '"');
+        // If-None-Match may be a list, weak (W/), or carry the -gzip / -br
+        // suffix Apache's compression adds to an ETag on the way out.
+        foreach (explode(',', (string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? '')) as $tag) {
+            $tag = trim(preg_replace('#^W/#', '', trim($tag)), '"');
+            $tag = preg_replace('#-(gzip|br|deflate)$#', '', $tag);
+            if ($tag === $rev || $tag === '*') {
+                http_response_code(304);
+                exit;
+            }
+        }
+        echo json_encode(['ok' => true, 'rev' => $rev,
+                          'server_now_ms' => (int)round(microtime(true) * 1000)] + $body, $flags);
+        exit;
+    };
 
     $key = (string)($_GET['key'] ?? '');
-    $timer = $key !== '' ? resolve_timer($db, $key) : false;
+    $timer = false;
+    if ($key !== '') {
+        $timer = resolve_timer($db, $key);
+    } else {
+        $dev = button_device_for_token($db, button_token_from_request());
+        if (!$dev) $fail(401, 'revoked', 'This button is not paired. Pair it again at /button.');
+        $uid = (int)$dev['user_id'];
+        $sid = button_current_game($db, $uid);
+        if ($sid === null) {
+            // Nothing on. `next` here is the host's next event, not levels.
+            $emit(['idle' => true, 'game_id' => null, 'next' => button_next_event($db, $uid)]);
+        }
+        $timer = pk_ensure_timer_row($db, $sid, pk_user_beta_pref($db, $uid));
+    }
     if (!$timer) $fail(404, 'not_found', 'Timer not found');
 
     $session_id = (int)$timer['session_id'];
@@ -174,6 +215,8 @@ if ($action === 'get_brief') {
     if (mb_strlen($title) > 80) $title = mb_substr($title, 0, 80);
 
     $body = [
+        'idle'         => false,
+        'game_id'      => $session ? $session_id : null,
         'title'        => $title,
         // setup | active | finished from the game; null for a standalone timer.
         'status'       => $session ? (string)$session['status'] : null,
@@ -186,24 +229,7 @@ if ($action === 'get_brief') {
         'avg_stack'    => $avg_stack,
         'pool_cents'   => $pool_cents,
     ];
-    $flags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE;
-    $rev = substr(hash('sha256', json_encode($body, $flags)), 0, 16);
-    header('ETag: "' . $rev . '"');
-
-    // If-None-Match may be a list, weak (W/), or carry the -gzip / -br suffix
-    // Apache's compression adds to an ETag on the way out.
-    foreach (explode(',', (string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? '')) as $tag) {
-        $tag = trim(preg_replace('#^W/#', '', trim($tag)), '"');
-        $tag = preg_replace('#-(gzip|br|deflate)$#', '', $tag);
-        if ($tag === $rev || $tag === '*') {
-            http_response_code(304);
-            exit;
-        }
-    }
-
-    echo json_encode(['ok' => true, 'rev' => $rev,
-                      'server_now_ms' => (int)round(microtime(true) * 1000)] + $body, $flags);
-    exit;
+    $emit($body);
 }
 
 // ─── GET: get_state ───────────────────────────────────────

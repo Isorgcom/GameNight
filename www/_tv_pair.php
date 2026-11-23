@@ -42,7 +42,7 @@ function tv_pair_mint_limited(PDO $db): bool {
  * row means the table is being filled, and then minting stops rather than
  * handing two TVs one code (RuntimeException).
  */
-function tv_pair_new(PDO $db): array {
+function tv_pair_new(PDO $db, ?string $device = null): array {
     $db->exec("DELETE FROM tv_pairings WHERE expires_at < datetime('now')");
     $live = $db->prepare("SELECT 1 FROM tv_pairings WHERE code = ?");
     $code = '';
@@ -57,8 +57,10 @@ function tv_pair_new(PDO $db): array {
     }
     db_log_anon_activity('tv_pair_mint');
     $secret = bin2hex(random_bytes(16));
-    $db->prepare("INSERT INTO tv_pairings (code, secret, expires_at) VALUES (?, ?, datetime('now', ?))")
-       ->execute([$code, $secret, '+' . TV_CODE_MINUTES . ' minutes']);
+    // $device 'button': a DealerButton pairing to an account (_button.php),
+    // claimed on /button rather than Send to TV.
+    $db->prepare("INSERT INTO tv_pairings (code, secret, expires_at, device) VALUES (?, ?, datetime('now', ?), ?)")
+       ->execute([$code, $secret, '+' . TV_CODE_MINUTES . ' minutes', $device]);
     return ['code' => $code, 'secret' => $secret, 'expires_in' => TV_CODE_MINUTES * 60];
 }
 
