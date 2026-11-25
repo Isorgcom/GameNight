@@ -125,6 +125,7 @@ function gn_event_get(PDO $db, array $actor, int $event_id): array {
     $out['capacity'] = (int)$cap['capacity'] > 0 ? (int)$cap['capacity'] : null;
     $out['rsvp_deadline_hours'] = $r['rsvp_deadline_hours'] !== null ? (int)$r['rsvp_deadline_hours'] : null;
     $out['guest_list_hidden']   = (int)($r['hide_guest_list'] ?? 0) === 1;
+    $out['guest_list_public']   = (int)($r['guest_list_public'] ?? 0) === 1;
     if (!empty($r['league_id'])) {
         $l = $db->prepare('SELECT name FROM leagues WHERE id = ?');
         $l->execute([(int)$r['league_id']]);
@@ -204,7 +205,7 @@ require_once __DIR__ . '/../_notifications.php';
 const GN_EVENT_COLORS = ['#2563eb', '#16a34a', '#dc2626', '#d97706', '#7c3aed', '#0891b2', '#db2777'];
 /** Every field a create or update body may carry. Anything else is refused by name. */
 const GN_EVENT_FIELDS = ['title', 'description', 'location', 'venue_name', 'color', 'start_at', 'end_at',
-    'league_id', 'visibility', 'is_poker', 'poker', 'requires_approval', 'hide_guest_list',
+    'league_id', 'visibility', 'is_poker', 'poker', 'requires_approval', 'hide_guest_list', 'guest_list_public',
     'waitlist_enabled', 'max_guests', 'rsvp_deadline_hours', 'reminders_enabled', 'reminder_minutes'];
 
 /** The users row event_save() expects for the actor. */
@@ -271,11 +272,19 @@ function gn_event_body_to_input(PDO $db, array $actor, array $body): array {
         if ($body['visibility'] === 'public' && !$actor['is_admin']) return gn_err('public_needs_admin', 'Only a site admin can make an event public.', 403);
         $in['visibility'] = $body['visibility'];
     }
-    foreach (['is_poker', 'requires_approval', 'hide_guest_list', 'waitlist_enabled', 'reminders_enabled'] as $k) {
+    foreach (['is_poker', 'requires_approval', 'hide_guest_list', 'guest_list_public', 'waitlist_enabled', 'reminders_enabled'] as $k) {
         if (!array_key_exists($k, $body)) continue;
         if (!is_bool($body[$k])) return gn_err('bad_field', "\"$k\" must be true or false.", 400);
         $in[$k] = $body[$k] ? '1' : '';
     }
+    // The guest list is seen by guests, hidden, or public on the invite link:
+    // never hidden and public at once. Turning one on turns the other off, so
+    // a change that names only one of the two takes effect on a stored event.
+    if (($in['hide_guest_list'] ?? '') === '1' && ($in['guest_list_public'] ?? '') === '1') {
+        return gn_err('bad_field', 'hide_guest_list and guest_list_public cannot both be true.', 400);
+    }
+    if (($in['guest_list_public'] ?? '') === '1') $in['hide_guest_list'] = '';
+    if (($in['hide_guest_list'] ?? '') === '1')   $in['guest_list_public'] = '';
     if (array_key_exists('max_guests', $body)) {
         $mg = $body['max_guests'] === null ? 0 : $body['max_guests'];
         if (!is_int($mg) || $mg < 0 || $mg > 999) return gn_err('bad_field', 'max_guests must be a whole number from 0 to 999 (0 or null for no limit).', 400);
@@ -453,7 +462,7 @@ function gn_event_stored_input(PDO $db, array $actor, array $ev): array {
         'league_id' => (int)($ev['league_id'] ?? 0), 'visibility' => (string)$ev['visibility'],
         'max_guests' => (int)($ev['max_guests'] ?? 0), 'rsvp_deadline_hours' => (int)($ev['rsvp_deadline_hours'] ?? 0),
     ];
-    foreach (['is_poker', 'requires_approval', 'hide_guest_list', 'waitlist_enabled', 'reminders_enabled'] as $k) {
+    foreach (['is_poker', 'requires_approval', 'hide_guest_list', 'guest_list_public', 'waitlist_enabled', 'reminders_enabled'] as $k) {
         $in[$k] = (int)($ev[$k] ?? 0) === 1 ? '1' : '';
     }
     $ps = $db->prepare('SELECT game_type, buyin_amount, num_tables, seats_per_table FROM poker_sessions WHERE event_id = ?');

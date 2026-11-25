@@ -207,14 +207,6 @@ $pStmt = $db->prepare(
 $pStmt->execute([$league_id]);
 $publicPosts = $pStmt->fetchAll();
 
-// "Brad Cooper" -> "Brad C." so full member names never appear on a public page.
-function lp_public_name(string $n): string {
-    $p = preg_split('/\s+/', trim($n));
-    $out = $p[0] ?? '';
-    if (isset($p[1]) && $p[1] !== '') $out .= ' ' . mb_strtoupper(mb_substr($p[1], 0, 1)) . '.';
-    return $out;
-}
-
 $pubPath  = '/league/' . $league['slug'];
 $pubUrl   = get_site_url() . $pubPath;
 $icsUrl   = $pubUrl . '.ics';
@@ -445,7 +437,8 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
             <?php foreach ($teaser as $i => $row): ?>
                 <tr>
                     <td><?= $i + 1 ?></td>
-                    <td><?= htmlspecialchars(lp_public_name((string)$row['display_name'])) ?></td>
+                    <?php /* "Brad Cooper" -> "Brad C.": full member names never appear on a public page. */ ?>
+                    <td><?= htmlspecialchars(public_short_name((string)$row['display_name'])) ?></td>
                     <td><?= (int)$row['games'] ?></td>
                     <td><?= (int)$row['wins'] ?></td>
                     <td><?= $row['avg_score'] !== null ? htmlspecialchars((string)$row['avg_score']) : '&mdash;' ?></td>

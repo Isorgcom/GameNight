@@ -11,6 +11,20 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Security
+
+- **A hidden guest list is now hidden on the calendar page too.** With **Hide guest list** on, the event page showed guests only a headcount, but the calendar page still carried every guest's name and answer in its page data. Nothing on screen showed them, yet anyone who could see the event could read them in the page source. A viewer who does not run the event now gets only their own row there, and a signed-out viewer none. Hosts and co-hosts see everything as before. The change is in `www/calendar.php`; emails and phone numbers were already kept out of that data since 1.35.0.
+
+### Added
+
+- **A guest list can be made public on the invite link.** The editor's Guest options menu has a **Guest list** picker in place of the old Hide guest list tick box: *Guests see it* (the default, as before), *Hidden* (the old tick), or *Public on the invite link*. With Public chosen, anyone who opens your shared invite link sees who is on the list in four groups: Going, Maybe, Invited and Can't make it. Because that link can be forwarded to anyone, names are shortened to first name and last initial ("Jane Smith" reads "Jane S."), with no pictures and no contact details, and only approved guests are listed. An email address typed in as a guest's name is cut at the @ and a bare phone number reads "Guest". Events that had Hide guest list ticked stay Hidden. The API and the Claude connector take it as `guest_list_public` (new column `events.guest_list_public`; it cannot be on together with `hide_guest_list`), and a duplicated event keeps the choice.
+- **Seats left shows on every invite link.** The shared invite link already said "6 of 18 seats left", but only before you joined; it now stays on the page once you are on the list and counts your own seat right after you join. A guest's personal link (the one in their invitation) and the screen that confirms a Yes, No or Maybe from an email now show the same line, or "Full". An event with no limit has no seats to count, so its shared link says how many are going instead. The count is the one the link has always used: a seat is taken by a guest who answered Yes.
+
+### Fixed
+
+- **The RSVP confirm screen can be read in dark mode.** The screen that asks "RSVP for this event as Yes?" after a tap on an email's Yes, No or Maybe kept its pale green (or pale red) card in dark mode while its text turned light, so the question and the Cancel link were close to invisible. The card now darkens with the rest of the page (`www/rsvp.php`).
+- **The editor's Guest options menu is as wide as it was meant to be.** A later style rule had been overriding its width, so the menu was squeezed to the width of its own button and every hint wrapped three or four words to a line. It is now 250px wide (`www/event_edit.php`).
+
 ## [v1.42.1] - 2026-11-23
 
 ### Added

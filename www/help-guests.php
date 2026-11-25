@@ -74,7 +74,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
 
     <div class="help-step">
         <h2><span class="step-num">3</span> Got a shared invite link?</h2>
-        <p>A host can share one link for a game, in a group chat, by AirDrop, or as a QR code on their phone. Open it and you'll see the game, when it is and roughly where (the venue's name). Type your name and an email address or phone number, tap <strong>I'm in</strong> or <strong>Ask to join</strong>, and you're on the list or waiting for the host's OK. Signed in already? It's one tap.</p>
+        <p>A host can share one link for a game, in a group chat, by AirDrop, or as a QR code on their phone. Open it and you'll see the game, when it is, roughly where (the venue's name) and how many seats are left. If the host made the guest list public, you'll also see who's coming, by first name and last initial. Type your name and an email address or phone number, tap <strong>I'm in</strong> or <strong>Ask to join</strong>, and you're on the list or waiting for the host's OK. Signed in already? It's one tap.</p>
         <div class="hint">The street address isn't on the shared page. It arrives in your confirmation once you're on the list. If the page says the link is no longer active, ask the host for the current one.</div>
     </div>
 

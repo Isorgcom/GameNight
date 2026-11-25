@@ -902,12 +902,38 @@ if ($current && !empty($allPageEids)) {
 // Map each page event to its creator, so invites saved with no contact info can be
 // back-filled from that creator's saved contacts (e.g. a contact whose email was added
 // after the invite was created). Surfaces the email in the editor; re-saving persists it.
-$ev_created_by = [];
+$ev_created_by  = [];
+$ev_hidden_list = [];  // [eid] = true where the host hid the guest list
 if (!empty($allPageEids)) {
     $cbph = implode(',', array_fill(0, count($allPageEids), '?'));
-    $cbs  = $db->prepare("SELECT id, created_by FROM events WHERE id IN ($cbph)");
+    $cbs  = $db->prepare("SELECT id, created_by, hide_guest_list FROM events WHERE id IN ($cbph)");
     $cbs->execute($allPageEids);
-    foreach ($cbs->fetchAll() as $cbr) $ev_created_by[(int)$cbr['id']] = (int)$cbr['created_by'];
+    foreach ($cbs->fetchAll() as $cbr) {
+        $ev_created_by[(int)$cbr['id']] = (int)$cbr['created_by'];
+        if ((int)$cbr['hide_guest_list'] === 1) $ev_hidden_list[(int)$cbr['id']] = true;
+    }
+}
+
+// A hidden guest list (events.hide_guest_list) is hidden here too. Until
+// v1.43.0 this page's script carried every guest's name and answer whatever
+// the setting, readable in the page source by anyone who could see the event.
+// A viewer who does not run the event now gets only their own row, matched on
+// the row's account id (never the name), which is all the RSVP code below
+// needs; a signed-out viewer gets none. This runs after the manager and
+// message-audience checks above, which read the full list, and before the
+// contact strip below drops user_id.
+if ($ev_hidden_list && !$isAdmin) {
+    $_meId = (int)($current['id'] ?? 0);
+    $_mine = fn(array $rows): array => array_values(array_filter($rows,
+        fn($iv) => $_meId > 0 && (int)($iv['user_id'] ?? 0) === $_meId));
+    foreach (array_keys($ev_hidden_list) as $_hid) {
+        if ($_meId > 0 && (($ev_created_by[$_hid] ?? 0) === $_meId || in_array($_hid, $managedEventIds, true))) continue;
+        if (isset($ev_invites[$_hid])) $ev_invites[$_hid] = $_mine($ev_invites[$_hid]);
+        foreach (($ev_invites_occ[$_hid] ?? []) as $_occDate => $_occRows) {
+            $ev_invites_occ[$_hid][$_occDate] = $_mine($_occRows);
+        }
+    }
+    unset($_meId, $_mine, $_hid, $_occDate, $_occRows);
 }
 
 // The invite data goes into this page's script for every visible event, so it

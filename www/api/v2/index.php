@@ -117,7 +117,7 @@ function v2_routes(): array {
         ['GET', '/events/{id}/invites', 'read', 'The guest list. The host sees invite state and hand-entered contact details.',
             fn($a, $p, $q) => gn_event_invites($db, $a, $p['id'])],
 
-        ['POST', '/events', 'events', 'Create an event. Body: title, start_at (required); description, location, venue_name, color, end_at, league_id, visibility, is_poker, poker{game_type,buyin_cents,tables,seats_per_table}, requires_approval, hide_guest_list, waitlist_enabled, max_guests, rsvp_deadline_hours, reminders_enabled, reminder_minutes[], guests[]. Sends nothing to the guests.',
+        ['POST', '/events', 'events', 'Create an event. Body: title, start_at (required); description, location, venue_name, color, end_at, league_id, visibility, is_poker, poker{game_type,buyin_cents,tables,seats_per_table}, requires_approval, hide_guest_list, guest_list_public, waitlist_enabled, max_guests, rsvp_deadline_hours, reminders_enabled, reminder_minutes[], guests[]. Sends nothing to the guests.',
             fn($a, $p, $q, $b) => gn_event_create($db, $a, $b)],
         ['PATCH', '/events/{id}', 'events', 'Host. Change an event: any of the create fields except guests. Only what you send changes.',
             fn($a, $p, $q, $b) => gn_event_update($db, $a, $p['id'], $b)],

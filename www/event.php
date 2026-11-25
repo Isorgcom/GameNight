@@ -447,8 +447,8 @@ if ($token === '' && $page_eid > 0) {
         <?php
             // Poster for the full-screen QR: the event's own details, so the code
             // reads as an invitation rather than a bare square.
-            $qrCap  = event_capacity($db, $page_eid);
-            $qrLeft = ($qrCap['capacity'] ?? 0) > 0 ? max(0, (int)$qrCap['capacity'] - (int)$qrCap['filled']) : null;
+            $qrCap   = event_capacity($db, $page_eid);
+            $qrSeats = event_seats_label($qrCap, (int)($ev['is_poker'] ?? 0) === 1);
             $qrLogo = get_setting('logo_path', '');
             $qrDate = ($t = strtotime($date_lbl2)) ? date('D, M j', $t) : $date_lbl2; // the viewer's own date, shortened
             $qrWhen = trim($qrDate . ($time_lbl2 !== '' ? ' · ' . $time_lbl2 : ''));
@@ -471,8 +471,8 @@ if ($token === '' && $page_eid > 0) {
                     </ul>
                     <div class="ev-qr-frame"><div id="evShareQrImg"></div></div>
                     <div class="ev-share-qr-sub"><span aria-hidden="true">&#128247;</span> Point your phone's camera at the code to join</div>
-                    <?php if ($qrLeft !== null): ?>
-                    <div class="ev-qr-seats<?= $qrLeft === 0 ? ' full' : '' ?>"><?= $qrLeft === 0 ? ($qrCap['waitlist'] ? 'Full &middot; you\'ll go on the waiting list' : 'Full') : $qrLeft . ' of ' . (int)$qrCap['capacity'] . ((int)($ev['is_poker'] ?? 0) === 1 ? ' seats' : ' spots') . ' left' ?></div>
+                    <?php if ($qrSeats): ?>
+                    <div class="ev-qr-seats<?= $qrSeats['full'] ? ' full' : '' ?>"><?= htmlspecialchars($qrSeats['text']) ?><?= $qrSeats['full'] && $qrCap['waitlist'] ? ' &middot; you\'ll go on the waiting list' : '' ?></div>
                     <?php endif; ?>
                     <button type="button" class="btn btn-primary ev-qr-done" data-act="closeShareQr">Done</button>
                 </div>
@@ -1463,7 +1463,7 @@ if ($token === '') {
 
 // ── Look up the invite + event by token ──────────────────────────────────────
 $stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.user_id, ei.rsvp, ei.approval_status,
-                             e.title, e.description, e.location, e.venue_name, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.created_by, e.cancelled_at
+                             e.title, e.description, e.location, e.venue_name, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.created_by, e.cancelled_at, e.is_poker
                       FROM event_invites ei
                       JOIN events e ON e.id = ei.event_id
                       WHERE ei.rsvp_token = ?');
@@ -1525,18 +1525,8 @@ $btn_meta  = [
     'no'    => ['No',    '#dc2626'],
 ];
 
-function ev_names_block(string $label, array $names, string $color, array $avatars = [], array $known = []): string {
-    if (empty($names)) return '';
-    $out  = '<div style="margin-top:1rem"><div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:' . $color . ';margin-bottom:.35rem">'
-          . htmlspecialchars($label) . ' (' . count($names) . ')</div>';
-    $out .= '<div style="display:flex;flex-wrap:wrap;gap:.35rem">';
-    foreach ($names as $n) {
-        $av = $avatars ? avatar_html($n, $avatars[strtolower($n)] ?? null, 20) . ' ' : '';
-        $kn = $known[strtolower($n)] ?? '';
-        $out .= '<span style="display:inline-flex;align-items:center;gap:.35rem;font-size:.85rem;color:var(--fg-334155, #334155);background:var(--bg-f1f5f9, #f1f5f9);border-radius:999px;padding:.2rem .7rem .2rem ' . ($av ? '.3rem' : '.7rem') . '">' . $av . htmlspecialchars($n) . ($kn !== '' ? ' <span class="pk-known" title="Known as in the league">(' . htmlspecialchars($kn) . ')</span>' : '') . '</span>';
-    }
-    return $out . '</div></div>';
-}
+// Seats still open, the line the invite link shows (null when there is no limit).
+$seatsLbl = event_seats_label(event_capacity($db, $eid), (int)($invite['is_poker'] ?? 0) === 1);
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1549,6 +1539,9 @@ function ev_names_block(string $label, array $names, string $color, array $avata
         .ev-wrap { min-height:100vh;min-height:100dvh; display:flex; align-items:flex-start; justify-content:center; padding:1.5rem; }
         .ev-card { background:var(--bg-ffffff, #ffffff); border-radius:14px; box-shadow:0 8px 32px rgba(0,0,0,.12); padding:1.75rem 1.75rem 1.5rem; width:100%; max-width:480px; margin-top:1rem; }
         .ev-rsvp-btn { display:inline-block; flex:1; text-align:center; padding:.6rem .5rem; border-radius:8px; text-decoration:none; font-weight:700; font-size:.95rem; border:2px solid; }
+        /* Seats left: the invite link's line (.iv-seats in invite.php), green while there is room, amber when full. */
+        .ev-seats { display:inline-block; font-size:.85rem; font-weight:600; border-radius:8px; padding:.35rem .7rem; margin-top:.6rem; background:var(--bg-f0fdf4, #f0fdf4); color:var(--fg-166534, #166534); }
+        .ev-seats.full { background:var(--bg-fffbeb, #fffbeb); color:var(--fg-92400e, #92400e); border:1px solid #f59e0b; }
     </style>
 </head>
 <body>
@@ -1581,6 +1574,9 @@ function ev_names_block(string $label, array $names, string $color, array $avata
             <?php if (!empty($invite['location'])): ?><?= htmlspecialchars($invite['location']) ?><?php endif; ?>
             &middot; <a href="https://www.google.com/maps/search/?api=1&amp;query=<?= urlencode($invite['location'] ?: $invite['venue_name']) ?>" target="_blank" rel="noopener">Open in Maps</a>
         </div>
+        <?php endif; ?>
+        <?php if ($seatsLbl): ?>
+        <div class="ev-seats<?= $seatsLbl['full'] ? ' full' : '' ?>"><?= htmlspecialchars($seatsLbl['text']) ?></div>
         <?php endif; ?>
         <div style="font-size:.85rem;color:var(--fg-64748b, #64748b);margin-top:.45rem">
             &#128197; Add to calendar:

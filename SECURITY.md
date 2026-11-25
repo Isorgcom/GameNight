@@ -371,6 +371,39 @@ and accepts signed requests from it. What holds it:
   event carries `online_app_id`; give a dev event one before the
   double-dispatch sweep, or it walks `event.php` without them.
 
+## Who sees a guest list (v1.43.0)
+
+An event's guest list is in one of three states, two columns on `events`:
+
+| State | `hide_guest_list` | `guest_list_public` | Who sees names |
+|---|---|---|---|
+| Guests see it (default) | 0 | 0 | anyone who can open the event: the event page, the personal link (`event.php?token=`), the RSVP confirm screen |
+| Hidden | 1 | 0 | the hosts only; everyone else gets a headcount |
+| Public on the invite link | 0 | 1 | as the default, plus anyone holding the shared invite link (`invite.php`) |
+
+- **Hidden wins.** `event_save()` stores `guest_list_public = 0` whenever the
+  list is hidden, the API refuses both flags true, and `invite.php` checks both
+  columns before it prints a name, so a row that somehow held 1/1 still shows
+  nothing.
+- **The invite link can be forwarded to anyone**, so its list is narrower than
+  the one guests see: approved rows only (nobody pending, waitlisted or
+  denied), no avatars, no league "known as" names, and every name through
+  `public_short_name()` in `db.php`: first name and last initial, an underscore
+  treated as a space (link joiners are stored as `Jane_Smith`), an address typed
+  as a name cut at the `@`, a bare phone number shown as "Guest". A host can
+  type anything into a guest's name; that function is why a contact detail
+  typed there does not reach a public page. Print a name on any page a
+  signed-out stranger can open only through it.
+- **`calendar.php` embeds guest rows in its script**, and until v1.43.0 did so
+  whatever the setting: a guest could read a hidden list in the page source.
+  A viewer who does not run the event now gets only their own row for a hidden
+  list (matched on `user_id`), a signed-out viewer none. The filter sits after
+  the manager and message-audience checks, which need the full list, and before
+  the contact strip. `event_invites_dl.php`, the live refresh, was already
+  host-only.
+- The seats line on the links (`event_seats_label()`) is a count, shown in all
+  three states, like the headcount a hidden list already showed.
+
 ## Personal API tokens and the service layer (v1.26.0)
 
 `/api/v2` authenticates a **person**, not a league. The rules that keep that from becoming a second, weaker way into the site:
