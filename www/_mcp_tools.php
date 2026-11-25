@@ -144,6 +144,7 @@ function gn_mcp_tools(): array {
         'poker' => ['type' => 'object', 'description' => 'For a poker game.', 'properties' => ['game_type' => mcp_e(['tournament', 'cash'], 'Kind of game.'),
             'buyin_cents' => mcp_i('Buy-in in cents: 4000 is $40.'), 'tables' => mcp_i('Number of tables.'), 'seats_per_table' => mcp_i('Seats at each table.')]],
         'requires_approval' => mcp_b('Guests who sign themselves up wait for the host\'s approval.'), 'hide_guest_list' => mcp_b('Guests cannot see who else is coming.'),
+        'guest_list_public' => mcp_b('Anyone who opens the shared invite link sees who is on the guest list and their answers, as first name and last initial. Cannot be true together with hide_guest_list.'),
         'waitlist_enabled' => mcp_b('People past capacity go on a waitlist.'), 'max_guests' => mcp_i('Capacity, for an event that is not a poker game.'),
         'rsvp_deadline_hours' => mcp_i('Hours before the start by which guests must answer.'), 'reminders_enabled' => mcp_b('Send reminders before the event.'),
         'reminder_minutes' => ['type' => 'array', 'items' => ['type' => 'integer'], 'description' => 'When to remind, in minutes before the start, e.g. [1440, 120].'],

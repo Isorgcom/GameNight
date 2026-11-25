@@ -200,6 +200,17 @@ function event_save(PDO $db, array $current, bool $isAdmin, bool $allowMaybe, ar
     if ($is_poker) require_once __DIR__ . '/_finaltable.php';   // the games an online table may play
     $requires_approval = !empty($in['requires_approval']) ? 1 : 0;
     $hide_guest_list   = !empty($in['hide_guest_list']) ? 1 : 0;
+    // Who sees the guest list. The editor posts one three-way choice
+    // (guest_list: guests | hidden | public); the API posts the two flags.
+    // Hidden wins, so the pair is never 1/1. A write path that carries
+    // neither leaves guest_list_public alone (unless it hides the list).
+    $guest_list_public = !empty($in['guest_list_public']) ? 1 : 0;
+    $guest_list_posted = array_key_exists('guest_list', $in) || array_key_exists('guest_list_public', $in);
+    if (array_key_exists('guest_list', $in)) {
+        $hide_guest_list   = $in['guest_list'] === 'hidden' ? 1 : 0;
+        $guest_list_public = $in['guest_list'] === 'public' ? 1 : 0;
+    }
+    if ($hide_guest_list) $guest_list_public = 0;
     $poker_game_type   = in_array($in['poker_game_type'] ?? '', ['tournament','cash'], true) ? $in['poker_game_type'] : 'tournament';
     $poker_buyin       = (int)(round(floatval($in['poker_buyin'] ?? 20) * 100));
     $poker_tables      = max(1, (int)($in['poker_tables'] ?? 1));
@@ -271,9 +282,9 @@ function event_save(PDO $db, array $current, bool $isAdmin, bool $allowMaybe, ar
 
     $new_invitee_usernames = [];
     if ($action === 'add') {
-        $db->prepare('INSERT INTO events (title, description, location, venue_name, max_guests, start_date, end_date, start_time, end_time, color, created_by, is_poker, requires_approval, hide_guest_list, league_id, visibility, rsvp_deadline_hours, waitlist_enabled, reminders_enabled, reminder_offsets, online_app_id, online_game, online_limit)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-           ->execute([$title, $desc ?: null, $location, $venue_name, $max_guests, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval, $hide_guest_list, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json, $online_app_id, $online_game, $online_limit]);
+        $db->prepare('INSERT INTO events (title, description, location, venue_name, max_guests, start_date, end_date, start_time, end_time, color, created_by, is_poker, requires_approval, hide_guest_list, guest_list_public, league_id, visibility, rsvp_deadline_hours, waitlist_enabled, reminders_enabled, reminder_offsets, online_app_id, online_game, online_limit)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+           ->execute([$title, $desc ?: null, $location, $venue_name, $max_guests, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval, $hide_guest_list, $guest_list_public, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json, $online_app_id, $online_game, $online_limit]);
         $notify_eid = (int)$db->lastInsertId();
         // Sticky poker default: remember this create choice for the user's next new event.
         $db->prepare('UPDATE users SET last_poker_default = ? WHERE id = ?')->execute([$is_poker, $current['id']]);
@@ -367,6 +378,9 @@ function event_save(PDO $db, array $current, bool $isAdmin, bool $allowMaybe, ar
 
         $db->prepare('UPDATE events SET title=?, description=?, location=?, venue_name=?, max_guests=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, is_poker=?, requires_approval=?, hide_guest_list=?, league_id=?, visibility=?, rsvp_deadline_hours=?, waitlist_enabled=?, reminders_enabled=?, reminder_offsets=? WHERE id=?')
            ->execute([$title, $desc ?: null, $location, $venue_name, $max_guests, $sd, $ed, $st, $et, $color, $is_poker, $requires_approval, $hide_guest_list, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json, $id]);
+        if ($guest_list_posted || $hide_guest_list) {
+            $db->prepare('UPDATE events SET guest_list_public = ? WHERE id = ?')->execute([$guest_list_public, $id]);
+        }
         if ($online_app_posted || !$is_poker || $poker_game_type !== 'tournament') {
             $db->prepare('UPDATE events SET online_app_id = ?, online_game = ?, online_limit = ? WHERE id = ?')
                ->execute([$online_app_id, $online_game, $online_limit, $id]);

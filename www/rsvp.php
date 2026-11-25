@@ -27,7 +27,7 @@ if ($token === '' || !in_array($rsvp, $valid, true)) {
 }
 
 $db   = get_db();
-$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.user_id, ei.rsvp, ei.approval_status, ei.rsvp_token_flips, e.title, e.description, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.created_by, e.cancelled_at
+$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.user_id, ei.rsvp, ei.approval_status, ei.rsvp_token_flips, e.title, e.description, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.created_by, e.cancelled_at, e.is_poker
                        FROM event_invites ei
                        JOIN events e ON e.id = ei.event_id
                        WHERE ei.rsvp_token = ?');
@@ -110,6 +110,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     $body .= '<div style="font-size:1.05rem;font-weight:800;color:var(--fg-1e293b, #1e293b);margin-bottom:.3rem">' . htmlspecialchars($invite['title']) . '</div>';
     $body .= '<div style="font-size:.9rem;color:var(--fg-475569, #475569)">' . htmlspecialchars($pretty_date) . '</div>';
     if ($pretty_time !== '') $body .= '<div style="font-size:.9rem;color:var(--fg-475569, #475569)">' . $pretty_time . '</div>';
+    // Seats still open, the line the invite link and the personal link show.
+    $seatsLbl = event_seats_label(event_capacity($db, (int)$invite['event_id']), (int)($invite['is_poker'] ?? 0) === 1);
+    if ($seatsLbl) {
+        $body .= '<div style="display:inline-block;margin-top:.5rem;font-size:.85rem;font-weight:600;border-radius:8px;padding:.3rem .65rem;'
+               . ($seatsLbl['full']
+                    ? 'background:var(--bg-fffbeb, #fffbeb);color:var(--fg-92400e, #92400e);border:1px solid #f59e0b'
+                    : 'background:var(--bg-f0fdf4, #f0fdf4);color:var(--fg-166534, #166534)')
+               . '">' . htmlspecialchars($seatsLbl['text']) . '</div>';
+    }
     if (!empty($invite['description'])) {
         $body .= '<div style="margin-top:.7rem;font-size:.9rem;color:var(--fg-334155, #334155);line-height:1.5">' . nl2br(htmlspecialchars($invite['description'])) . '</div>';
     }
@@ -188,7 +197,9 @@ exit;
 function show_page(string $title, string $body, string $type): void {
     global $site_name;
     $color = $type === 'success' ? '#16a34a' : '#dc2626';
-    $bg    = $type === 'success' ? '#f0fdf4' : '#fef2f2';
+    // Tokens, not bare colours: the text below is a token that turns light in
+    // dark mode, and on a fixed pale card it could not be read.
+    $bg    = $type === 'success' ? 'var(--bg-f0fdf4, #f0fdf4)' : 'var(--bg-fef2f2, #fef2f2)';
 ?>
 <!DOCTYPE html>
 <html lang="en">

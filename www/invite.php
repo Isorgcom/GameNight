@@ -36,6 +36,7 @@ $state = 'inactive';   // inactive | cancelled | past | open
 if ($event_id > 0 && $token !== '') {
     $s = $db->prepare('SELECT e.id, e.title, e.description, e.start_date, e.start_time, e.end_time, e.venue_name,
                               e.created_by, e.cancelled_at, e.share_token, e.is_poker, e.league_id,
+                              e.hide_guest_list, e.guest_list_public,
                               u.username AS host_name, ps.game_type
                        FROM events e
                        LEFT JOIN users u ON u.id = e.created_by
@@ -71,10 +72,7 @@ function share_rate_limited(PDO $db, int $eid): string {
     return '';
 }
 
-// ── Seats, and whether the viewer is already on the list ──────────────────────
-$cap = $state === 'open' ? event_capacity($db, $event_id) : ['capacity' => 0, 'filled' => 0, 'waitlist' => true];
-$seatsLeft = $cap['capacity'] > 0 ? max(0, $cap['capacity'] - $cap['filled']) : null;
-$isFull    = $seatsLeft === 0;
+// ── Whether the viewer is already on the list ─────────────────────────────────
 $needsOk   = $state === 'open' && share_needs_approval($db, $event_id);
 
 $mine = null;
@@ -107,6 +105,45 @@ if ($state === 'open' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Sorry, this game just filled up.';
         $result = null;
     }
+}
+
+// ── Seats: counted after the POST, so someone who just joined sees the number
+// with their own seat taken. Shown in every state of an open page. With no
+// limit there is nothing to count down from, so the line says how many are going.
+$cap      = $state === 'open' ? event_capacity($db, $event_id) : ['capacity' => 0, 'filled' => 0, 'waitlist' => true];
+$seatsLbl = $state === 'open' ? event_seats_label($cap, (int)$event['is_poker'] === 1) : null;
+$isFull   = $seatsLbl !== null && $seatsLbl['full'];
+
+// ── Public guest list (events.guest_list_public): who is on the list, for
+// anyone holding the link. Approved guests only, grouped by answer, and each
+// name shortened by public_short_name() ("Jane Smith" -> "Jane S."): this page
+// can be forwarded to anyone, so no full name, picture or contact detail.
+$whos = '';
+if ($state === 'open' && (int)($event['guest_list_public'] ?? 0) === 1 && (int)($event['hide_guest_list'] ?? 0) !== 1) {
+    $att = $db->prepare("SELECT username, rsvp FROM event_invites
+                         WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'approved'
+                         ORDER BY COALESCE(sort_order, 999999), username");
+    $att->execute([$event_id]);
+    $grp = ['yes' => [], 'maybe' => [], '' => [], 'no' => []];
+    foreach ($att->fetchAll() as $a) {
+        $r = strtolower((string)($a['rsvp'] ?? ''));
+        $grp[isset($grp[$r]) ? $r : ''][] = public_short_name((string)$a['username']);
+    }
+    $whos = ev_names_block('Going', $grp['yes'], 'var(--fg-16a34a, #16a34a)')
+          . ev_names_block('Maybe', $grp['maybe'], 'var(--fg-d97706, #d97706)')
+          . ev_names_block('Invited', $grp[''], 'var(--fg-64748b, #64748b)')
+          . ev_names_block("Can't make it", $grp['no'], 'var(--fg-94a3b8, #94a3b8)');
+}
+
+// ── Which body the open page shows: the answer to a join just made, "you're
+// on the list", "you've asked", or the join form.
+$view = 'join';
+if ($result) {
+    $view = 'result';
+} elseif ($mine && ($mine['approval_status'] ?? 'approved') === 'approved' && ($mine['rsvp'] ?? '') !== 'no') {
+    $view = 'on';
+} elseif ($mine && in_array($mine['approval_status'] ?? '', ['pending', 'denied', 'waitlisted'], true)) {
+    $view = 'asked';
 }
 
 $csrf = csrf_token();
@@ -156,6 +193,7 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
         .iv-seats { font-size: .88rem; font-weight: 600; border-radius: 8px; padding: .5rem .75rem; margin-bottom: 1.1rem; }
         .iv-seats.open { background: var(--bg-f0fdf4, #f0fdf4); color: var(--fg-166534, #166534); }
         .iv-seats.full { background: var(--bg-fffbeb, #fffbeb); color: var(--fg-92400e, #92400e); border: 1px solid #f59e0b; }
+        .iv-whos { margin-top: 1.25rem; padding-top: .25rem; border-top: 1px solid var(--bd-e2e8f0, #e2e8f0); }
         .iv-note { font-size: .82rem; color: var(--fg-64748b, #64748b); margin: 0 0 .8rem; }
         .iv-ok { background: var(--bg-f0fdf4, #f0fdf4); border: 1.5px solid var(--bd-86efac, #86efac); border-radius: 8px; padding: 1rem 1.1rem; color: var(--fg-166534, #166534); line-height: 1.5; margin-bottom: 1rem; }
         .iv-wait { background: var(--bg-fffbeb, #fffbeb); border: 1.5px solid #f59e0b; border-radius: 8px; padding: 1rem 1.1rem; color: var(--fg-92400e, #92400e); line-height: 1.5; margin-bottom: 1rem; }
@@ -198,7 +236,21 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
             <?php if (!empty($event['host_name'])): ?><li>&#128100; Hosted by <?= $h($event['host_name']) ?></li><?php endif; ?>
         </ul>
 
-        <?php if ($result): ?>
+        <?php if ($seatsLbl): ?>
+        <div class="iv-seats <?= $isFull ? 'full' : 'open' ?>">
+            <?php if (!$isFull || $view !== 'join'): ?>
+            <?= $h($seatsLbl['text']) ?>
+            <?php elseif ($cap['waitlist']): ?>
+            It's full: you'll go on the waiting list.
+            <?php else: ?>
+            It's full.
+            <?php endif; ?>
+        </div>
+        <?php elseif ((int)$cap['filled'] > 0): ?>
+        <div class="iv-seats open"><?= (int)$cap['filled'] ?> going</div>
+        <?php endif; ?>
+
+        <?php if ($view === 'result'): ?>
             <?php $st = $result['status']; ?>
             <?php if ($st === 'approved'): ?>
             <div class="iv-ok" role="status"><strong>You're on the list.</strong> We've sent you the details, including where it is.</div>
@@ -227,28 +279,16 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
             <p class="iv-alt"><a href="/event.php?id=<?= (int)$event_id ?>">Open the event</a></p>
             <?php endif; ?>
 
-        <?php elseif ($mine && in_array($mine['approval_status'] ?? 'approved', ['approved'], true) && ($mine['rsvp'] ?? '') !== 'no'): ?>
+        <?php elseif ($view === 'on'): ?>
             <div class="iv-ok" role="status"><strong>You're already on the list.</strong></div>
             <p class="iv-alt"><a href="/event.php?id=<?= (int)$event_id ?>">Open the event</a></p>
 
-        <?php elseif ($mine && in_array($mine['approval_status'] ?? '', ['pending', 'denied', 'waitlisted'], true)): ?>
+        <?php elseif ($view === 'asked'): ?>
             <div class="iv-wait" role="status"><strong><?= ($mine['approval_status'] === 'waitlisted') ? "You're on the waiting list." : "You've asked to join." ?></strong> The host will let you know.</div>
 
         <?php else: ?>
             <?php if (!empty($event['description'])): ?>
             <p class="iv-desc"><?= nl2br($h($event['description'])) ?></p>
-            <?php endif; ?>
-
-            <?php if ($seatsLeft !== null): ?>
-            <div class="iv-seats <?= $isFull ? 'full' : 'open' ?>">
-                <?php if (!$isFull): ?>
-                <?= (int)$seatsLeft ?> of <?= (int)$cap['capacity'] ?> <?= (int)$event['is_poker'] === 1 ? 'seats' : 'spots' ?> left
-                <?php elseif ($cap['waitlist']): ?>
-                It's full: you'll go on the waiting list.
-                <?php else: ?>
-                It's full.
-                <?php endif; ?>
-            </div>
             <?php endif; ?>
 
             <?php if ($error !== ''): ?><div class="iv-err" role="alert"><?= $h($error) ?></div><?php endif; ?>
@@ -281,6 +321,13 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
                 <p class="iv-alt">Already have an account? <a href="/login.php?redirect=<?= $h(urlencode($selfPath)) ?>">Sign in</a></p>
                 <?php endif; ?>
             <?php endif; ?>
+        <?php endif; ?>
+
+        <?php if ($whos !== ''): ?>
+        <section class="iv-whos" aria-labelledby="ivWhosTitle">
+            <h2 class="sr-only" id="ivWhosTitle">Who's coming</h2>
+            <?= $whos ?>
+        </section>
         <?php endif; ?>
         <?php endif; ?>
     </div>

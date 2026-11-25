@@ -2361,6 +2361,10 @@ JSON;
     // people joining through the link wait for the host (default on).
     try { $pdo->exec("ALTER TABLE events ADD COLUMN share_token TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE events ADD COLUMN share_requires_approval INTEGER NOT NULL DEFAULT 1"); } catch (Exception $e) {}
+    // Public guest list (v1.43.0): the invite link also shows who is on the
+    // list, as short names (public_short_name()). Never 1 together with
+    // hide_guest_list; event_save() stores 0 whenever the list is hidden.
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN guest_list_public INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     // How a guest got on the list when they put themselves there: 'share'
     // (invite link) or 'walkin' (door QR); NULL = added by a host or the API.
     try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN join_source TEXT"); } catch (Exception $e) {}
@@ -3353,6 +3357,46 @@ function avatar_html(string $username, ?string $avatarPath = null, int $size = 3
          . htmlspecialchars($init) . '</span>';
 }
 
+/**
+ * A name as a page anyone can open shows it: "Brad Cooper" -> "Brad C.", so a
+ * full name never appears there (the public league page, a public guest list
+ * on the invite link). A one-word name is left alone. A second word gives an
+ * initial only when it starts with a letter ("Bob (Mike's friend)" -> "Bob").
+ * An underscore separates words like a space does: someone who joins by the
+ * invite link as "Jane Smith" gets the account name "Jane_Smith"
+ * (public_join_parse()), and that is a full name too.
+ * A host can type anything as a guest's name, so an address is cut at the @
+ * and a bare phone number becomes "Guest": no contact detail gets out this way.
+ */
+function public_short_name(string $n): string {
+    $n = trim($n);
+    if (($at = strpos($n, '@')) !== false) $n = trim(substr($n, 0, $at));
+    if (!preg_match('/\p{L}/u', $n) && preg_match_all('/\d/', $n) >= 7) return 'Guest';
+    $p = preg_split('/[\s_]+/', $n, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    if (!$p) return 'Guest';
+    $out = (string)$p[0];
+    if (isset($p[1]) && preg_match('/^\p{L}/u', $p[1])) $out .= ' ' . mb_strtoupper(mb_substr($p[1], 0, 1)) . '.';
+    return $out;
+}
+
+/**
+ * One group of a guest list ("Going (4)" and its name chips), for the event
+ * page, the personal link and the invite link. $avatars and $known are keyed
+ * by lower(name) and are only passed where the viewer may see them.
+ */
+function ev_names_block(string $label, array $names, string $color, array $avatars = [], array $known = []): string {
+    if (empty($names)) return '';
+    $out  = '<div style="margin-top:1rem"><div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:' . $color . ';margin-bottom:.35rem">'
+          . htmlspecialchars($label) . ' (' . count($names) . ')</div>';
+    $out .= '<div style="display:flex;flex-wrap:wrap;gap:.35rem">';
+    foreach ($names as $n) {
+        $av = $avatars ? avatar_html($n, $avatars[strtolower($n)] ?? null, 20) . ' ' : '';
+        $kn = $known[strtolower($n)] ?? '';
+        $out .= '<span style="display:inline-flex;align-items:center;gap:.35rem;font-size:.85rem;color:var(--fg-334155, #334155);background:var(--bg-f1f5f9, #f1f5f9);border-radius:999px;padding:.2rem .7rem .2rem ' . ($av ? '.3rem' : '.7rem') . '">' . $av . htmlspecialchars($n) . ($kn !== '' ? ' <span class="pk-known" title="Known as in the league">(' . htmlspecialchars($kn) . ')</span>' : '') . '</span>';
+    }
+    return $out . '</div></div>';
+}
+
 function normalize_phone(string $phone): string {
     $phone  = trim($phone);
     $digits = preg_replace('/\D/', '', $phone);
@@ -4017,6 +4061,22 @@ function event_capacity(PDO $db, int $event_id): array {
     $out['filled'] = (int)($c['filled'] ?? 0);
     $out['held']   = (int)($c['held'] ?? 0);
     return $out;
+}
+
+/**
+ * The seats line a guest reads on the invite link, their personal link, the
+ * RSVP confirm screen and the QR poster: "6 of 18 seats left" ("spots" off a
+ * poker game), or "Full". Takes event_capacity()'s answer and counts
+ * `filled`, the number that decides whether a link join gets a seat. Null
+ * when the event has no limit, so there is nothing to count down from.
+ * 'left' is the number itself.
+ */
+function event_seats_label(array $cap, bool $is_poker): ?array {
+    $capacity = (int)($cap['capacity'] ?? 0);
+    if ($capacity <= 0) return null;
+    $left = max(0, $capacity - (int)($cap['filled'] ?? 0));
+    if ($left === 0) return ['text' => 'Full', 'full' => true, 'left' => 0];
+    return ['text' => $left . ' of ' . $capacity . ($is_poker ? ' seats' : ' spots') . ' left', 'full' => false, 'left' => $left];
 }
 
 function maybe_promote_waitlisted(PDO $db, int $event_id): void {

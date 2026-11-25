@@ -372,9 +372,10 @@ For people the host has no contact details for, the event page's **Share invite*
 - **Show QR** fills the screen with a QR code for the link and keeps the screen awake while it is up. The code is drawn in the site's style, rounded modules in navy with blue finder corners, like every QR code the site draws; the site icon (Admin → Settings → Site Icon / Logo) sits in the middle, and the code is made with extra error correction so it still scans.
 - **People who join need my OK** (on by default): people who join through the link wait in Pending Approval. With it off they go straight on the list, up to the event's capacity, then onto the waiting list. The event's own *requires approval* setting still applies.
 - **Seats left** on the panel, the QR card and the invite page count a seat as taken only by a guest who has answered Yes. An invited guest who has not answered, or said Maybe, does not hold one, so inviting more people than seats does not make the link read as full. The host's own waiting list in the editor keeps its rule: a guest placed beyond capacity there moves up when an invited guest says No.
+- **Who's coming** shows on the invite page only when the event's **Guest list** option (editor, Guest options) is set to *Public on the invite link*. It lists approved guests in four groups (Going, Maybe, Invited, Can't make it) by first name and last initial: "Jane Smith" reads "Jane S.", a one-word username is unchanged, an email typed as a name is cut at the @ and a bare phone number reads "Guest". No pictures, no contact details, nobody pending or waitlisted. *Guests see it* (the default) and *Hidden* show no names there.
 - **Make a new link** / **Turn link off**: the old link then says it is no longer active. People who already joined stay on the list. The walk-up QR uses its own token and is not affected.
 
-The invite page shows the title, date and time, the venue's name, the host and how many seats are left, but **not the street address**, since a link can be forwarded to anyone. The address reaches a guest in their confirmation (or approval notice) through their own event link. A signed-out visitor gives a name and an email or phone. An account found by that address is always Pending, so nobody can confirm a spot for someone else by typing their email. A signed-in visitor joins with one tap. Ten sign-ups per address per hour, and 100 per event per day. Guests who joined this way are tagged *via link* in the host's Invites panel.
+The invite page shows the title, date and time, the venue's name, the host and how many seats are left (in every state: before you join, after, and when you were already on the list; an event with no limit says how many are going instead), but **not the street address**, since a link can be forwarded to anyone. The address reaches a guest in their confirmation (or approval notice) through their own event link. A signed-out visitor gives a name and an email or phone. An account found by that address is always Pending, so nobody can confirm a spot for someone else by typing their email. A signed-in visitor joins with one tap. Ten sign-ups per address per hour, and 100 per event per day. Guests who joined this way are tagged *via link* in the host's Invites panel.
 
 ---
 
@@ -1886,6 +1887,7 @@ Only `title` and `start_at` are required. The event is made exactly as the edito
 | `is_poker` | boolean | Sets up a game |
 | `poker` | object | `game_type` (`tournament` or `cash`), `buyin_cents`, `tables`, `seats_per_table`. The rest of the game's setup comes from your last game, as on the site |
 | `requires_approval`, `hide_guest_list`, `waitlist_enabled` | boolean | `waitlist_enabled` defaults to on |
+| `guest_list_public` | boolean | The shared invite link shows who is on the list, as first name and last initial. Cannot be true together with `hide_guest_list` (400 `bad_field`); turning either one on turns the other off |
 | `max_guests` | integer | For an event that is not a poker game |
 | `rsvp_deadline_hours` | integer | Hours before the start |
 | `reminders_enabled` | boolean | Default on |
@@ -2028,7 +2030,7 @@ The first call to make: it says who the token is, what it may do, and which leag
 }
 ```
 
-`my_role` is `host`, `guest` or `viewer` (you can see it, for example through your league, but are not on the list). `GET /events/{id}` returns one such object as `event`, with these added: `capacity` (seats, or `null` for no limit), `rsvp_deadline_hours`, `guest_list_hidden`, `league_name`, and `game` (`status`, `game_type`, `buyin_cents`, `tables`, `seats_per_table`; `null` when it is not a poker event or has no game yet).
+`my_role` is `host`, `guest` or `viewer` (you can see it, for example through your league, but are not on the list). `GET /events/{id}` returns one such object as `event`, with these added: `capacity` (seats, or `null` for no limit), `rsvp_deadline_hours`, `guest_list_hidden`, `guest_list_public`, `league_name`, and `game` (`status`, `game_type`, `buyin_cents`, `tables`, `seats_per_table`; `null` when it is not a poker event or has no game yet).
 
 #### `GET /api/v2/events/{id}/invites`
 

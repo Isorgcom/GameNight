@@ -383,12 +383,18 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         .modal-close:hover { background:var(--bg-e2e8f0, #e2e8f0); }
 
         /* Guest-options dropdown rows: checkbox + bold title + muted explainer */
-        .go-panel { min-width: 250px; max-width: 300px; }
+        /* Two classes on purpose: .rem-dd-panel (min-width 150px) is declared later in
+           this page and used to win, which left this menu as narrow as its button. */
+        .rem-dd-panel.go-panel { min-width: 250px; max-width: 300px; }
         .go-row { display: flex; align-items: flex-start; gap: .5rem; padding: .32rem 0; cursor: pointer;
             font-size: .85rem; color: var(--fg-334155, #334155); white-space: normal !important; }
         .go-row input[type=checkbox] { margin-top: .2rem; flex-shrink: 0; }
         .go-row span strong { display: block; font-size: .85rem; }
         .go-row span small { display: block; color: var(--fg-64748b, #64748b); font-size: .72rem; line-height: 1.3; }
+        /* A row whose control is a picker: title and hint above, the picker full width under them. */
+        .go-row-pick { flex-direction: column; gap: .3rem; }
+        .go-row-pick select { width: 100%; padding: .28rem .4rem; border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 6px;
+            font-size: .82rem; background: var(--bg-ffffff, #ffffff); color: var(--fg-334155, #334155); }
         /* Explicit per-row remove — visible everywhere (double-click was invisible UX) */
         .inv-remove-x { flex-shrink:0;color:var(--fg-64748b, #64748b);font-weight:700;cursor:pointer;padding:0 .3rem;font-size:1.05rem;line-height:1;background:none;border:0;border-radius:4px;min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center; }
         .inv-remove-x:hover { color:var(--fg-dc2626, #dc2626);background:var(--bg-fee2e2, #fee2e2); }
@@ -654,9 +660,15 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                             <input type="checkbox" name="requires_approval" id="eRequiresApproval" value="1" data-act-change="updateGuestOptsBadge">
                             <span><strong>Require approval</strong><small>Walk-in QR and self sign-ups wait for your OK</small></span>
                         </label>
-                        <label class="go-row">
-                            <input type="checkbox" name="hide_guest_list" id="eHideGuestList" value="1" data-act-change="updateGuestOptsBadge">
-                            <span><strong>Hide guest list</strong><small>Guests can't see who else is coming</small></span>
+                        <?php /* One three-way choice, saved as hide_guest_list / guest_list_public
+                                 by event_save(). Hint texts live in GUEST_LIST_HINTS below. */ ?>
+                        <label class="go-row go-row-pick" for="eGuestList">
+                            <span><strong>Guest list</strong><small id="eGuestListHint">Everyone on the list sees who else is coming</small></span>
+                            <select name="guest_list" id="eGuestList" data-act-change="guestListChanged">
+                                <option value="guests">Guests see it</option>
+                                <option value="hidden">Hidden</option>
+                                <option value="public">Public on the invite link</option>
+                            </select>
                         </label>
                         <label class="go-row" id="eMaxGuestsLabel" style="display:none">
                             <span><strong>Max guests</strong><small>Blank = unlimited; with Waitlist on, extras queue up</small></span>
@@ -1863,12 +1875,26 @@ function toggleGuestOptsDD(e) {
     if (e) e.stopPropagation();
     setDD('eGuestOptsDD', document.getElementById('eGuestOptsDD').classList.toggle('open'));
 }
+// Guest list picker: the hint under the title says what the choice does.
+var GUEST_LIST_HINTS = {
+    guests: 'Everyone on the list sees who else is coming',
+    hidden: "Guests can't see who else is coming",
+    'public': 'Anyone who opens your invite link sees first names and answers'
+};
+function guestListChanged() {
+    var sel = document.getElementById('eGuestList');
+    var hint = document.getElementById('eGuestListHint');
+    if (sel && hint) hint.textContent = GUEST_LIST_HINTS[sel.value] || GUEST_LIST_HINTS.guests;
+    updateGuestOptsBadge();
+}
 function updateGuestOptsBadge() {
     var n = 0;
-    ['eWaitlistEnabled', 'eRequiresApproval', 'eHideGuestList'].forEach(function(id) {
+    ['eWaitlistEnabled', 'eRequiresApproval'].forEach(function(id) {
         var el = document.getElementById(id);
         if (el && el.checked) n++;
     });
+    var gl = document.getElementById('eGuestList');
+    if (gl && gl.value !== 'guests') n++;
     var mg = document.getElementById('eMaxGuests');
     if (mg && (parseInt(mg.value, 10) || 0) > 0) n++;
     var badge = document.getElementById('eGuestOptsBadge');
@@ -2035,7 +2061,9 @@ function regenWalkinFromEdit() {
     document.getElementById('eDescToggle').textContent = hasDesc ? '- Hide description' : '+ Description';
     document.getElementById('eIsPoker').checked = ev ? !!parseInt(ev.is_poker) : LAST_POKER_DEFAULT;
     document.getElementById('eRequiresApproval').checked = ev ? !!parseInt(ev.requires_approval) : false;
-    document.getElementById('eHideGuestList').checked = ev ? !!parseInt(ev.hide_guest_list) : false;
+    document.getElementById('eGuestList').value = !ev ? 'guests'
+        : (parseInt(ev.hide_guest_list) ? 'hidden' : (parseInt(ev.guest_list_public) ? 'public' : 'guests'));
+    guestListChanged();
     // Pre-fill poker session fields
     var ps = EVENT_POKER;
     document.getElementById('ePokerGameType').value = ps ? ps.game_type : 'tournament';
