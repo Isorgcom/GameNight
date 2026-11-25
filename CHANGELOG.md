@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.43.0] - 2026-11-25
+
 ### Security
 
 - **A hidden guest list is now hidden on the calendar page too.** With **Hide guest list** on, the event page showed guests only a headcount, but the calendar page still carried every guest's name and answer in its page data. Nothing on screen showed them, yet anyone who could see the event could read them in the page source. A viewer who does not run the event now gets only their own row there, and a signed-out viewer none. Hosts and co-hosts see everything as before. The change is in `www/calendar.php`; emails and phone numbers were already kept out of that data since 1.35.0.
