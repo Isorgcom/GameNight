@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.44.0] - 2026-11-26
+
 ### Changed
 
 - **A guest's personal link no longer shows the guest list to someone who is not signed in.** The link in an invitation (`/event.php?token=…`) opens without signing in, and until now it showed every guest's full name to whoever opened it, so with the Guest list option on *Guests see it* a forwarded link still gave the list away. It now follows who is looking. Signed out, it shows a headcount ("3 going") and, for a guest with an account, a prompt to log in to see who's coming. Signed in as a guest, you see the full list as before. If the host chose *Public on the invite link*, a signed-out visitor sees the list as first name and last initial, the same as on the shared invite link. *Hidden* stays a headcount for everyone. The screen that confirms a Yes, No or Maybe from an email follows the same rule. **Hosts:** a guest you typed in by name, with no account, can no longer see who is coming from their link unless you set Guest list to *Public on the invite link*. The rule lives in `guest_list_view_for_link()` (`www/db.php`).
