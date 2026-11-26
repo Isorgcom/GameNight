@@ -1463,7 +1463,7 @@ if ($token === '') {
 
 // ── Look up the invite + event by token ──────────────────────────────────────
 $stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.user_id, ei.rsvp, ei.approval_status,
-                             e.title, e.description, e.location, e.venue_name, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.created_by, e.cancelled_at, e.is_poker
+                             e.title, e.description, e.location, e.venue_name, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.guest_list_public, e.created_by, e.cancelled_at, e.is_poker
                       FROM event_invites ei
                       JOIN events e ON e.id = ei.event_id
                       WHERE ei.rsvp_token = ?');
@@ -1503,18 +1503,23 @@ $_evt     = event_public_time_labels($invite['start_date'], $invite['start_time'
 $date_lbl = $_evt['date_lbl'];
 $time_lbl = $_evt['time_lbl'];
 
-// Who's coming — approved base invitees only, display names + RSVP state (no contact info).
+// Who's coming: approved base invitees only, names + RSVP state (no contact info).
+// This link opens without signing in and can be forwarded, so what it shows of
+// the list is guest_list_view_for_link()'s call: full names to a signed-in
+// guest, short names when the host made the list public, else a headcount.
+$listView = guest_list_view_for_link($db, $invite, $eid, $_cu);
 $attStmt = $db->prepare("SELECT username, rsvp FROM event_invites
                          WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'approved'
                          ORDER BY COALESCE(sort_order, 999999), username");
 $attStmt->execute([$eid]);
 $going = []; $maybe = []; $declined = []; $pending = [];
 foreach ($attStmt->fetchAll() as $a) {
+    $nm = $listView === 'short' ? public_short_name((string)$a['username']) : (string)$a['username'];
     switch (strtolower((string)($a['rsvp'] ?? ''))) {
-        case 'yes':   $going[]    = $a['username']; break;
-        case 'maybe': $maybe[]    = $a['username']; break;
-        case 'no':    $declined[] = $a['username']; break;
-        default:      $pending[]  = $a['username']; break; // invited, no response yet
+        case 'yes':   $going[]    = $nm; break;
+        case 'maybe': $maybe[]    = $nm; break;
+        case 'no':    $declined[] = $nm; break;
+        default:      $pending[]  = $nm; break; // invited, no response yet
     }
 }
 
@@ -1610,10 +1615,11 @@ $seatsLbl = event_seats_label(event_capacity($db, $eid), (int)($invite['is_poker
             </div>
         </div>
 
-        <!-- Who's coming. With hide_guest_list the roster stays private but the
-             headcount still shows, so guests know the party is happening. -->
+        <!-- Who's coming. When the names are withheld (a hidden list, or a
+             signed-out visitor to a list that is not public) the headcount
+             still shows, so guests know the party is happening. -->
         <?php
-        $whos = empty($invite['hide_guest_list'])
+        $whos = $listView !== 'count'
               ? ev_names_block('Going', $going, '#16a34a')
               . ev_names_block('Maybe', $maybe, '#d97706')
               . ev_names_block('Invited', $pending, '#64748b')
@@ -1629,13 +1635,18 @@ $seatsLbl = event_seats_label(event_capacity($db, $eid), (int)($invite['is_poker
 
         <!-- Optional: full account features -->
         <div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--bd-e2e8f0, #e2e8f0)">
-            <p style="color:var(--fg-64748b, #64748b);font-size:.84rem;margin:0 0 .6rem">Want comments and the full calendar?</p>
             <?php
             $month_str = substr($invite['start_date'], 0, 7);
             $event_redirect = '/calendar.php?m=' . urlencode($month_str) . '&open=' . $eid . '&date=' . urlencode($invite['start_date']);
             // The invite row's own link says whether there is an account; a
             // stranger owning the name is not this invitee.
             $has_account = !empty($invite['user_id']);
+            // Names withheld only because the visitor is signed out: signing in
+            // shows them, for a guest whose invite is tied to an account.
+            $namesNeedSignIn = $listView === 'count' && empty($invite['hide_guest_list']) && !$_cu && $has_account;
+            ?>
+            <p style="color:var(--fg-64748b, #64748b);font-size:.84rem;margin:0 0 .6rem"><?= $namesNeedSignIn ? "Log in to see who's coming, with comments and the full calendar." : 'Want comments and the full calendar?' ?></p>
+            <?php
             $allow_reg = get_setting('allow_registration', '1') === '1';
             ?>
             <a href="/login.php?redirect=<?= urlencode($event_redirect) ?>" style="display:inline-block;margin:.2rem .3rem .2rem 0;padding:.45rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff;font-size:.88rem">Log in</a>
