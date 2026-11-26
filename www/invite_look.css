@@ -1,0 +1,154 @@
+/* Invite design: how an event's invitation looks to a guest.
+ *
+ * The <body> of invite.php and of a guest's personal link carries four
+ * attributes, each a key from the catalogue in _invite_design.php:
+ *   data-ivd-theme   the page background, and whether the card is light or dark
+ *   data-ivd-accent  buttons and links
+ *   data-ivd-font    the title's face
+ *   data-ivd-effect  read by invite_fx.js
+ * Everything here hangs off those names, so the host's editor changes the look
+ * of its preview by changing an attribute. Classic + blue + default is the
+ * site's own look and has no rules below: an event nobody designed renders as
+ * it always did.
+ *
+ * Colours here are fixed on purpose. A background is a picture, the same in
+ * light and dark; the card on top of it still uses the role tokens, and the
+ * theme pins <html data-theme> so they resolve the right way.
+ */
+
+/* ── Backgrounds ─────────────────────────────────────────────────────────────
+   Each theme defines --ivd-bg as a full background list. The page paints it on
+   a fixed layer behind everything (background-attachment: fixed is unreliable
+   on phones); the editor's swatches paint the same variable. */
+[data-ivd-theme="felt"] {
+    --ivd-bg:
+        radial-gradient(120% 70% at 50% 0%, rgba(255,255,255,.16) 0%, rgba(255,255,255,0) 60%),
+        repeating-linear-gradient(45deg, rgba(0,0,0,.05) 0 2px, rgba(255,255,255,.025) 2px 4px),
+        radial-gradient(ellipse at 50% 35%, #1f8a4c 0%, #166a3a 48%, #0b3f22 100%);
+}
+[data-ivd-theme="velvet"] {
+    --ivd-bg:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg fill='%23ffffff' fill-opacity='.07' font-family='serif' font-size='30' text-anchor='middle'%3E%3Ctext x='30' y='40'%3E%E2%99%A0%3C/text%3E%3Ctext x='90' y='40'%3E%E2%99%A5%3C/text%3E%3Ctext x='30' y='100'%3E%E2%99%A6%3C/text%3E%3Ctext x='90' y='100'%3E%E2%99%A3%3C/text%3E%3C/g%3E%3C/svg%3E") 0 0 / 120px 120px,
+        radial-gradient(ellipse at 50% 28%, #c22525 0%, #8b1a1a 50%, #430c0c 100%);
+}
+[data-ivd-theme="gold"] {
+    --ivd-bg:
+        radial-gradient(85% 48% at 50% 0%, rgba(251,191,36,.38) 0%, rgba(251,191,36,0) 70%),
+        repeating-linear-gradient(135deg, rgba(251,191,36,.08) 0 1px, rgba(0,0,0,0) 1px 14px),
+        linear-gradient(180deg, #1f1a14 0%, #0c0a09 100%);
+}
+[data-ivd-theme="midnight"] {
+    --ivd-bg:
+        radial-gradient(1.6px 1.6px at 22% 30%, rgba(255,255,255,.95) 50%, rgba(255,255,255,0) 52%) 0 0 / 230px 230px,
+        radial-gradient(1.2px 1.2px at 70% 62%, rgba(255,255,255,.8) 50%, rgba(255,255,255,0) 52%) 0 0 / 170px 170px,
+        radial-gradient(1px 1px at 45% 85%, rgba(199,210,254,.9) 50%, rgba(199,210,254,0) 52%) 0 0 / 130px 130px,
+        radial-gradient(2px 2px at 85% 15%, rgba(255,255,255,.9) 50%, rgba(255,255,255,0) 52%) 0 0 / 310px 310px,
+        linear-gradient(165deg, #0a0f24 0%, #131c45 55%, #2a1452 100%);
+}
+[data-ivd-theme="neon"] {
+    --ivd-bg:
+        radial-gradient(62% 44% at 12% 8%, rgba(236,72,153,.6) 0%, rgba(236,72,153,0) 70%),
+        radial-gradient(56% 44% at 92% 26%, rgba(34,211,238,.48) 0%, rgba(34,211,238,0) 70%),
+        radial-gradient(74% 50% at 50% 104%, rgba(139,92,246,.55) 0%, rgba(139,92,246,0) 70%),
+        linear-gradient(#0a0a14, #0a0a14);
+}
+[data-ivd-theme="sunset"] {
+    --ivd-bg: linear-gradient(165deg, #fbbf24 0%, #fb7185 42%, #c026d3 78%, #6d28d9 100%);
+}
+[data-ivd-theme="ocean"] {
+    --ivd-bg:
+        radial-gradient(90% 50% at 50% 0%, rgba(255,255,255,.22) 0%, rgba(255,255,255,0) 70%),
+        linear-gradient(165deg, #22d3ee 0%, #2563eb 55%, #1e3a8a 100%);
+}
+[data-ivd-theme="party"] {
+    --ivd-bg:
+        radial-gradient(circle at 20% 22%, #f472b6 0 7px, rgba(244,114,182,0) 8px) 0 0 / 180px 180px,
+        radial-gradient(circle at 72% 36%, #60a5fa 0 6px, rgba(96,165,250,0) 7px) 0 0 / 220px 220px,
+        radial-gradient(circle at 40% 72%, #fbbf24 0 8px, rgba(251,191,36,0) 9px) 0 0 / 200px 200px,
+        radial-gradient(circle at 86% 82%, #34d399 0 6px, rgba(52,211,153,0) 7px) 0 0 / 240px 240px,
+        radial-gradient(circle at 10% 86%, #a78bfa 0 5px, rgba(167,139,250,0) 6px) 0 0 / 160px 160px,
+        linear-gradient(#fff7ed, #ffedd5);
+}
+[data-ivd-theme="paper"] {
+    --ivd-bg:
+        radial-gradient(120% 80% at 50% 0%, rgba(255,255,255,.55) 0%, rgba(255,255,255,0) 62%),
+        repeating-linear-gradient(0deg, rgba(120,83,37,.05) 0 1px, rgba(0,0,0,0) 1px 3px),
+        linear-gradient(#ecdcb9, #dcc699);
+}
+[data-ivd-theme="slate"] {
+    --ivd-bg:
+        radial-gradient(90% 55% at 50% 0%, rgba(148,163,184,.2) 0%, rgba(148,163,184,0) 70%),
+        linear-gradient(#0f172a, #020617);
+}
+
+body[data-ivd-theme]:not([data-ivd-theme="classic"]) { background: transparent; }
+body[data-ivd-theme]:not([data-ivd-theme="classic"])::before {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--ivd-bg);
+}
+/* The colour behind the fixed layer, seen when a phone over-scrolls. */
+html:has(> body[data-ivd-theme]:not([data-ivd-theme="classic"])) { background-color: var(--ivd-base, #0f172a); }
+html:has(> body[data-ivd-theme="felt"])     { --ivd-base: #0b3f22; }
+html:has(> body[data-ivd-theme="velvet"])   { --ivd-base: #430c0c; }
+html:has(> body[data-ivd-theme="gold"])     { --ivd-base: #0c0a09; }
+html:has(> body[data-ivd-theme="midnight"]) { --ivd-base: #0a0f24; }
+html:has(> body[data-ivd-theme="neon"])     { --ivd-base: #0a0a14; }
+html:has(> body[data-ivd-theme="sunset"])   { --ivd-base: #6d28d9; }
+html:has(> body[data-ivd-theme="ocean"])    { --ivd-base: #1e3a8a; }
+html:has(> body[data-ivd-theme="party"])    { --ivd-base: #ffedd5; }
+html:has(> body[data-ivd-theme="paper"])    { --ivd-base: #dcc699; }
+html:has(> body[data-ivd-theme="slate"])    { --ivd-base: #020617; }
+
+/* The card sits on a picture now, so it lifts a little more. */
+body[data-ivd-theme]:not([data-ivd-theme="classic"]) .ivd-card {
+    box-shadow: 0 18px 50px rgba(0,0,0,.34), 0 2px 6px rgba(0,0,0,.18);
+}
+:root[data-theme="dark"] body[data-ivd-theme]:not([data-ivd-theme="classic"]) .ivd-card {
+    border: 1px solid rgba(255,255,255,.1);
+}
+
+/* ── Accent ──────────────────────────────────────────────────────────────────
+   Buttons (.btn-primary reads --accent) and links (--link). Blue is the site's
+   own and needs nothing. --ivd-link-dark is the same hue light enough to read
+   on a dark card. Values match the 'fill' column in _invite_design.php. */
+[data-ivd-accent="green"]  { --accent: #15803d; --accent-h: #166534; --link: #15803d; --ivd-link-dark: #86efac; }
+[data-ivd-accent="red"]    { --accent: #dc2626; --accent-h: #b91c1c; --link: #dc2626; --ivd-link-dark: #fca5a5; }
+[data-ivd-accent="gold"]   { --accent: #b45309; --accent-h: #92400e; --link: #b45309; --ivd-link-dark: #fcd34d; }
+[data-ivd-accent="purple"] { --accent: #7c3aed; --accent-h: #6d28d9; --link: #7c3aed; --ivd-link-dark: #c4b5fd; }
+[data-ivd-accent="teal"]   { --accent: #0e7490; --accent-h: #155e75; --link: #0e7490; --ivd-link-dark: #67e8f9; }
+[data-ivd-accent="pink"]   { --accent: #be185d; --accent-h: #9d174d; --link: #be185d; --ivd-link-dark: #f9a8d4; }
+:root[data-theme="dark"] [data-ivd-accent]:not([data-ivd-accent="blue"]) { --link: var(--ivd-link-dark); }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) [data-ivd-accent]:not([data-ivd-accent="blue"]) { --link: var(--ivd-link-dark); }
+}
+
+/* ── Title font ──────────────────────────────────────────────────────────────
+   The bundled faces are single cuts (fonts.css), so the weight is normal: a
+   heavier ask would have the browser smear a fake bold over them. Sizes are
+   per face, because a condensed poster face and a wide tube face do not read
+   the same at one size. */
+[data-ivd-font]:not([data-ivd-font="default"]) .ivd-title { font-weight: 400; line-height: 1.15; }
+[data-ivd-font="playfair"] .ivd-title { font-family: 'Playfair Display', Georgia, 'Times New Roman', serif; font-size: 1.75rem; }
+[data-ivd-font="cinzel"]   .ivd-title { font-family: 'Cinzel', Georgia, serif; font-size: 1.6rem; letter-spacing: .02em; }
+[data-ivd-font="oswald"]   .ivd-title { font-family: 'Oswald', 'Arial Narrow', sans-serif; font-size: 1.85rem; text-transform: uppercase; letter-spacing: .01em; }
+[data-ivd-font="bebas"]    .ivd-title { font-family: 'Bebas Neue', Impact, sans-serif; font-size: 2.3rem; letter-spacing: .03em; line-height: 1.05; }
+[data-ivd-font="anton"]    .ivd-title { font-family: 'Anton', Impact, sans-serif; font-size: 2rem; text-transform: uppercase; letter-spacing: .01em; line-height: 1.12; }
+[data-ivd-font="lobster"]  .ivd-title { font-family: 'Lobster', 'Brush Script MT', cursive; font-size: 2.05rem; }
+[data-ivd-font="rye"]      .ivd-title { font-family: 'Rye', Georgia, serif; font-size: 1.7rem; }
+[data-ivd-font="monoton"]  .ivd-title { font-family: 'Monoton', Impact, sans-serif; font-size: 1.75rem; line-height: 1.2; }
+[data-ivd-font="orbitron"] .ivd-title { font-family: 'Orbitron', 'Trebuchet MS', sans-serif; font-size: 1.5rem; letter-spacing: .02em; }
+
+/* ── Cover ───────────────────────────────────────────────────────────────────
+   First thing in the card, edge to edge: the negative margins undo the card's
+   own padding (--ivd-pad-x / --ivd-pad-top, set by each page's card rule). A
+   tall poster is cropped to the height limit rather than pushing the details
+   off a phone's first screen. */
+.ivd-cover {
+    margin: calc(-1 * var(--ivd-pad-top, 1.75rem)) calc(-1 * var(--ivd-pad-x, 1.5rem)) 1.1rem;
+    border-radius: 14px 14px 0 0; overflow: hidden; background: var(--bg-f1f5f9, #f1f5f9);
+}
+.ivd-cover[hidden] { display: none; }
+.ivd-cover img { display: block; width: 100%; height: auto; max-height: min(62vh, 480px); object-fit: cover; }
+
+/* ── Effect layer (invite_fx.js) ─────────────────────────────────────────────
+   Over the page, never in the way of a tap. */
+.ivd-fx { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 50; pointer-events: none; }

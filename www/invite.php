@@ -13,11 +13,20 @@
  * The join rules are shared with the walk-up QR (_public_join.php); unlike
  * the walk-in, nobody is seated from here. Token: events.share_token, its own
  * secret, separate from walkin_token, '' when the host turned the link off.
+ *
+ * The look (cover, background, accent, title font, effect) is the host's
+ * invite design, events.invite_design, read through _invite_design.php.
+ *
+ * Preview: /invite.php?e=<id>&preview=1 is the live preview framed by the
+ * host's design editor (invite_design.php). It needs no token but does need a
+ * signed-in host of that event, answers GET only, shows the page the way a
+ * signed-out visitor meets it, and takes no sign-ups.
  */
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/_notifications.php';
 require_once __DIR__ . '/_public_join.php';
+require_once __DIR__ . '/_invite_design.php';
 
 session_start_safe();
 
@@ -30,13 +39,22 @@ $event_id  = (int)($_GET['e'] ?? 0);
 $token     = trim((string)($_GET['t'] ?? ''));
 $viewer    = current_user();
 
+// The design editor's preview. Only a host of this event gets it; anyone else
+// asking for preview=1 falls through to the ordinary token check below.
+$preview = false;
+if (($_GET['preview'] ?? '') === '1' && $_SERVER['REQUEST_METHOD'] === 'GET' && $event_id > 0 && $viewer
+    && can_manage_event($db, $event_id, (int)$viewer['id'], ($viewer['role'] ?? '') === 'admin')) {
+    $preview = true;
+    csp_allow_same_origin_framing();
+}
+
 // ── Which page this is ─────────────────────────────────────────────────────────
 $event = null;
 $state = 'inactive';   // inactive | cancelled | past | open
-if ($event_id > 0 && $token !== '') {
+if ($event_id > 0 && ($token !== '' || $preview)) {
     $s = $db->prepare('SELECT e.id, e.title, e.description, e.start_date, e.start_time, e.end_time, e.venue_name,
                               e.created_by, e.cancelled_at, e.share_token, e.is_poker, e.league_id,
-                              e.hide_guest_list, e.guest_list_public,
+                              e.hide_guest_list, e.guest_list_public, e.invite_design,
                               u.username AS host_name, ps.game_type
                        FROM events e
                        LEFT JOIN users u ON u.id = e.created_by
@@ -44,7 +62,11 @@ if ($event_id > 0 && $token !== '') {
                        WHERE e.id = ?');
     $s->execute([$event_id]);
     $row = $s->fetch();
-    if ($row && (string)$row['share_token'] !== '' && hash_equals((string)$row['share_token'], $token)) {
+    if ($row && $preview) {
+        // The host is looking at the design, whatever the link's state.
+        $event = $row;
+        $state = 'open';
+    } elseif ($row && (string)$row['share_token'] !== '' && hash_equals((string)$row['share_token'], $token)) {
         $event = $row;
         $today = (new DateTime('now', new DateTimeZone(get_setting('timezone', 'UTC'))))->format('Y-m-d');
         if (!empty($row['cancelled_at']))                  $state = 'cancelled';
@@ -53,6 +75,10 @@ if ($event_id > 0 && $token !== '') {
     }
 }
 $selfPath = '/invite.php?e=' . $event_id . '&t=' . urlencode($token);
+$design   = invite_design_decode($event['invite_design'] ?? null, $event_id);
+// The preview is the page a stranger with the link sees, so it is drawn as
+// signed out. $viewer was only needed above, to check the host.
+if ($preview) $viewer = null;
 
 function invite_when(array $ev, ?array $viewer): string {
     $uid = !empty($viewer['id']) ? (int)$viewer['id'] : ((int)($ev['created_by'] ?? 0) ?: null);
@@ -153,9 +179,10 @@ if ($event && (int)$event['is_poker'] === 1) {
     $gameLbl = ($event['game_type'] ?? '') === 'cash' ? 'Cash game' : 'Poker tournament';
 }
 
-// Link-preview card: the league's banner when the event has one.
-$previewImg = null;
-if ($event && !empty($event['league_id'])) {
+// Link-preview card: the host's cover, else the league's banner when the
+// event has one.
+$previewImg = $state === 'open' ? invite_design_cover_abs($design) : null;
+if ($previewImg === null && $event && !empty($event['league_id'])) {
     $b = $db->prepare('SELECT banner_path FROM leagues WHERE id = ?');
     $b->execute([(int)$event['league_id']]);
     $bp = (string)($b->fetchColumn() ?: '');
@@ -164,7 +191,7 @@ if ($event && !empty($event['league_id'])) {
 $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"<?= $state === 'open' ? invite_design_html_attr($design) : '' ?>>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -179,13 +206,14 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
         render_seo_meta($event['title'] . ' · ' . $short, $desc, ltrim($selfPath, '/'), $previewImg);
     endif; ?>
     <link rel="stylesheet" href="/style.css?v=<?= $h(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
+    <?= $state === 'open' ? invite_design_head($design, $preview) : '' ?>
     <style>
         body { background: var(--bg, var(--bg-f8fafc, #f8fafc)); }
         .iv-wrap { min-height:100vh;min-height:100dvh; display: flex; align-items: center; justify-content: center; padding: 1.5rem 1rem; box-sizing: border-box; }
-        .iv-card { background: var(--bg-ffffff, #ffffff); border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,.12); padding: 1.75rem 1.5rem 1.5rem; width: 100%; max-width: 440px; box-sizing: border-box; }
+        .iv-card { --ivd-pad-top: 1.75rem; --ivd-pad-x: 1.5rem; background: var(--bg-ffffff, #ffffff); border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,.12); padding: 1.75rem 1.5rem 1.5rem; width: 100%; max-width: 440px; box-sizing: border-box; }
         .iv-site { text-align: center; font-size: .85rem; color: var(--fg-64748b, #64748b); margin-bottom: 1rem; }
         .iv-site img { max-height: 48px; }
-        .iv-kicker { font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-2563eb, #2563eb); margin: 0 0 .3rem; }
+        .iv-kicker { font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--link); margin: 0 0 .3rem; }
         .iv-title { font-size: 1.35rem; font-weight: 800; color: var(--fg-0f172a, #0f172a); margin: 0 0 .6rem; line-height: 1.25; overflow-wrap: anywhere; }
         .iv-meta { list-style: none; margin: 0 0 1rem; padding: 0; font-size: .92rem; color: var(--fg-334155, #334155); }
         .iv-meta li { padding: .18rem 0; }
@@ -206,9 +234,10 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
         .iv-verify { margin-top: 1rem; padding: 1rem; background: var(--bg-f8fafc, #f8fafc); border: 1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius: 10px; font-size: .88rem; color: var(--fg-334155, #334155); line-height: 1.5; }
     </style>
 </head>
-<body>
-<main class="iv-wrap">
-    <div class="iv-card">
+<body<?= $state === 'open' ? invite_design_body_attr($design) : '' ?>>
+<main class="iv-wrap"<?= $preview ? ' inert' : '' ?>>
+    <div class="iv-card ivd-card">
+        <?= $state === 'open' ? invite_design_cover($design, $preview) : '' ?>
         <?php $logo = get_setting('logo_path', ''); ?>
         <div class="iv-site"><?php if ($logo): ?><img src="<?= $h($logo) ?>" alt="<?= $h($site_name) ?>"><?php else: ?><?= $h($site_name) ?><?php endif; ?></div>
 
@@ -228,7 +257,7 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
 
         <?php else: ?>
         <p class="iv-kicker">You're invited</p>
-        <h1 class="iv-title"><?= $h($event['title']) ?></h1>
+        <h1 class="iv-title ivd-title"><?= $h($event['title']) ?></h1>
         <ul class="iv-meta">
             <li>&#128197; <?= $h($when) ?></li>
             <?php if (!empty($event['venue_name'])): ?><li>&#128205; <?= $h($event['venue_name']) ?></li><?php endif; ?>
@@ -334,5 +363,6 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
 </main>
 <script src="/_phone_input.js?v=<?= $h(APP_VERSION . '.' . (@filemtime(__DIR__ . '/_phone_input.js') ?: 0)) ?>"></script>
 <script nonce="<?= csp_nonce() ?>">initPhoneAutoFormat();</script>
+<?= $state === 'open' ? invite_design_fx($design, $preview) : '' ?>
 </body>
 </html>

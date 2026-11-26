@@ -61,6 +61,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // "Save & design invite": a quiet save that lands on the invite's design
+    // page. It never sends invitations, whatever an earlier click left in
+    // send_after_save: the point is to design before anything goes out.
+    $afterDesign = ($_POST['after_save'] ?? '') === 'design';
+    if ($afterDesign) $_POST['send_after_save'] = '';
+
     require_once __DIR__ . '/_event_save.php';
     $res = event_save_from_post($db, $current, $isAdmin, $allowMaybe);
     if (!$res['ok']) {
@@ -82,7 +88,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Invitations, and unlike the calendar ?open= deep link it can't miss when
     // the viewer's timezone shifts the event onto a different calendar day.
     if (!empty($res['event_id'])) {
-        header('Location: /event.php?id=' . (int)$res['event_id']);
+        // A duplicate keeps the look of the event it was copied from (its own
+        // copy of the cover). Only from an event this host manages.
+        $copyDesignFrom = (int)($_POST['copy_design_from'] ?? 0);
+        if ($action === 'add' && $copyDesignFrom > 0
+            && can_manage_event($db, $copyDesignFrom, (int)$current['id'], $isAdmin)) {
+            require_once __DIR__ . '/_invite_design.php';
+            invite_design_copy($db, $copyDesignFrom, (int)$res['event_id']);
+        }
+        header('Location: ' . ($afterDesign ? '/invite_design.php?id=' : '/event.php?id=') . (int)$res['event_id']);
         exit;
     }
     $back_wk = $_POST['wk_param'] ?? '';
@@ -596,6 +610,8 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             <input type="hidden" name="end_time" id="eEndTime" value="">
             <input type="hidden" name="color" id="eColor" value="#2563eb">
             <input type="hidden" name="send_after_save" id="eSendAfterSave" value="">
+            <input type="hidden" name="after_save" id="eAfterSave" value="">
+            <input type="hidden" name="copy_design_from" value="<?= $isCopy ? (int)($_GET['copy'] ?? 0) : '' ?>">
 
             <!-- ── Unified top bar: league + vis + color + title + date + time + duration ── -->
             <div class="edit-top-bar">
@@ -678,6 +694,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                 </div>
                 </div><!-- /.edit-guests-head -->
                 <button type="button" class="edit-desc-toggle" id="eDescToggle" data-act="toggleDesc" aria-expanded="false" aria-controls="eDescWrap">+ Description</button>
+                <button type="submit" class="edit-desc-toggle" id="eDesignBtn" data-save="design" data-act="saveThenDesign" title="Save the event, then choose how its invite looks: cover picture, background, colours and title font. No invitations are sent.">&#127912; Save &amp; design invite</button>
                 <div class="edit-toolbar-spacer" style="flex:1"></div>
                 <button type="submit" class="btn btn-primary" id="eSubmitBtn" data-save="quiet" data-set-value="eSendAfterSave:"><?= $event ? 'Save Changes' : 'Add Event' ?></button>
                 <?php if (get_setting('notifications_enabled', '0') === '1'): ?>
@@ -1681,7 +1698,7 @@ function snapshot() {
     if (!form) return '';
     var parts = [];
     new FormData(form).forEach(function (v, k) {
-        if (k === 'csrf_token' || k === 'send_after_save' || k.indexOf('invite_') === 0) return;
+        if (k === 'csrf_token' || k === 'send_after_save' || k === 'after_save' || k.indexOf('invite_') === 0) return;
         parts.push(k + '=' + v);
     });
     var t = document.getElementById('eTimeNative'), d = document.getElementById('eDuration');
@@ -1718,6 +1735,17 @@ function leaveEditor(ev) {
     if (typeof pkConfirm !== 'function') { if (confirm('Leave without saving?')) { submitting = true; location.href = href; } return; }
     pkConfirm('Leave without saving?', { danger: true }).then(function (yes) { if (yes) { submitting = true; location.href = href; } });
 }
+
+// Save & design invite: a quiet save that lands on invite_design.php. The
+// other save buttons clear the flag, so a design click that validation held
+// back does not redirect a later plain save.
+function saveThenDesign() {
+    document.getElementById('eAfterSave').value = 'design';
+    document.getElementById('eSendAfterSave').value = '';
+}
+document.querySelectorAll('[data-save="quiet"], [data-save="send"]').forEach(function (b) {
+    b.addEventListener('click', function () { document.getElementById('eAfterSave').value = ''; });
+});
 
 document.getElementById('editForm').addEventListener('submit', function(e) {
     // The one server-side refusal a host can reach from this page, caught

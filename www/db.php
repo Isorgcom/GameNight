@@ -2365,6 +2365,11 @@ JSON;
     // list, as short names (public_short_name()). Never 1 together with
     // hide_guest_list; event_save() stores 0 whenever the list is hidden.
     try { $pdo->exec("ALTER TABLE events ADD COLUMN guest_list_public INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    // Invite design: the host's look for this event's invitation (cover,
+    // background, accent, title font, effect) as JSON. NULL = the standard
+    // look. Read only through invite_design_decode() (_invite_design.php),
+    // which re-checks every value against its closed list.
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN invite_design TEXT"); } catch (Exception $e) {}
     // How a guest got on the list when they put themselves there: 'share'
     // (invite link) or 'walkin' (door QR); NULL = added by a host or the API.
     try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN join_source TEXT"); } catch (Exception $e) {}

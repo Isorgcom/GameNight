@@ -472,6 +472,9 @@ function cancel_event_with_notifications(PDO $db, int $event_id, int $actor_id, 
     $db->prepare($notify ? 'DELETE FROM pending_notifications WHERE event_id=? AND attempted_at IS NOT NULL'
                          : 'DELETE FROM pending_notifications WHERE event_id=?')->execute([$event_id]);
     $db->prepare('DELETE FROM event_notifications_sent WHERE event_id=?')->execute([$event_id]);
+    // The invite design's cover picture goes with the event.
+    require_once __DIR__ . '/_invite_design.php';
+    invite_design_forget($db, $event_id);
     $db->prepare('DELETE FROM events WHERE id=?')->execute([$event_id]);
     db_log_activity($actor_id, $notify ? "deleted event: $t" : "deleted event silently: $t");
     return ['title' => $t, 'notified' => $notified];
@@ -806,7 +809,7 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         if (queue_recipient_declined($db, $event_id, $row_uid0, $username, $row['occurrence_date'] ?? null)) return true;
     }
 
-    $evStmt = $db->prepare('SELECT id, title, description, location, venue_name, start_date, end_date, start_time, end_time, created_by, cancelled_at FROM events WHERE id = ?');
+    $evStmt = $db->prepare('SELECT id, title, description, location, venue_name, start_date, end_date, start_time, end_time, created_by, cancelled_at, invite_design FROM events WHERE id = ?');
     $evStmt->execute([$event_id]);
     $event = $evStmt->fetch();
     // A cancelled event sends only its cancellation and what people say about
@@ -958,12 +961,18 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             // The token-based public page lets invitees view details + RSVP without logging in.
             // Falls back to the login-gated calendar link for legacy invites that have no token.
             $event_link = $rsvp_token !== '' ? ($site_url . '/event.php?token=' . urlencode($rsvp_token)) : $url;
-            $htmlBody = '<p>Hi ' . htmlspecialchars($user['username']) . ',</p>'
+            // The host's invite design, as far as mail goes: the cover on top
+            // and the accent on the main button. An event nobody designed has
+            // no cover and the site's blue, so its email is unchanged.
+            require_once __DIR__ . '/_invite_design.php';
+            $look = invite_design_email(invite_design_decode($event['invite_design'] ?? null, $event_id), $site_url, $event_link);
+            $htmlBody = $look['cover']
+                      . '<p>Hi ' . htmlspecialchars($user['username']) . ',</p>'
                       . '<p>You have been invited to <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($when) . '.</p>'
                       . $locHtml
                       . ($desc ? '<p>' . nl2br(htmlspecialchars($desc)) . '</p>' : '')
                       . $rsvpButtons
-                      . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($event_link) . '" style="display:inline-block;padding:.5rem 1.5rem;border-radius:6px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff">Event Details</a></p>';
+                      . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($event_link) . '" style="display:inline-block;padding:.5rem 1.5rem;border-radius:6px;text-decoration:none;font-weight:600;background:' . $look['accent'] . ';color:#fff">Event Details</a></p>';
             if ($rsvp_token !== '') {
                 $ics_url = $site_url . '/ics.php?token=' . urlencode($rsvp_token);
                 $htmlBody .= '<p style="font-size:.85rem;color:#64748b">&#128197; Add to calendar: '
