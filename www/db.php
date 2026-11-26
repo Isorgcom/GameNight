@@ -4079,6 +4079,30 @@ function event_seats_label(array $cap, bool $is_poker): ?array {
     return ['text' => $left . ' of ' . $capacity . ($is_poker ? ' seats' : ' spots') . ' left', 'full' => false, 'left' => $left];
 }
 
+/**
+ * What a visitor to a guest's personal link (event.php?token=, the rsvp.php
+ * confirm screen) sees of the guest list. That link works without signing in
+ * and can be forwarded, so holding one is not the same as being a guest
+ * (v1.44.0; until then it showed every full name to whoever opened it):
+ *   'names'  the full list: the visitor is signed in and could open the event
+ *            page, which shows them the same names
+ *   'short'  short names (public_short_name()): the host made the list public
+ *            on the invite link
+ *   'count'  a headcount only: the list is hidden, or the visitor is signed
+ *            out and the list is not public
+ * $ev carries hide_guest_list and guest_list_public; $viewer is current_user().
+ */
+function guest_list_view_for_link(PDO $db, array $ev, int $event_id, ?array $viewer): string {
+    if ((int)($ev['hide_guest_list'] ?? 0) === 1) return 'count';
+    if ($viewer && !empty($viewer['id'])) {
+        $vis = event_visibility_sql('e', (int)$viewer['id']);
+        $st  = $db->prepare("SELECT 1 FROM events e WHERE e.id = ? AND {$vis['sql']}");
+        $st->execute(array_merge([$event_id], $vis['params']));
+        if ($st->fetchColumn()) return 'names';
+    }
+    return (int)($ev['guest_list_public'] ?? 0) === 1 ? 'short' : 'count';
+}
+
 function maybe_promote_waitlisted(PDO $db, int $event_id): void {
     $cap = event_capacity($db, $event_id);
     if (!$cap['found'] || !$cap['waitlist']) return; // waitlist disabled for this event

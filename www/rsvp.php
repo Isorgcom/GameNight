@@ -27,7 +27,7 @@ if ($token === '' || !in_array($rsvp, $valid, true)) {
 }
 
 $db   = get_db();
-$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.user_id, ei.rsvp, ei.approval_status, ei.rsvp_token_flips, e.title, e.description, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.created_by, e.cancelled_at, e.is_poker
+$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.user_id, ei.rsvp, ei.approval_status, ei.rsvp_token_flips, e.title, e.description, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.guest_list_public, e.created_by, e.cancelled_at, e.is_poker
                        FROM event_invites ei
                        JOIN events e ON e.id = ei.event_id
                        WHERE ei.rsvp_token = ?');
@@ -85,16 +85,19 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     $pretty_date = $_evt['date_lbl'];
     $pretty_time = $_evt['time_lbl'];
 
-    // Who's coming — approved base invitees only (display names, no contact info).
+    // Who's coming: approved base invitees only (names, no contact info), and
+    // only what guest_list_view_for_link() lets a visitor to this link see.
+    $listView = guest_list_view_for_link($db, $invite, (int)$invite['event_id'], $_cu);
     $attStmt = $db->prepare("SELECT username, rsvp FROM event_invites
                              WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'approved'
                              ORDER BY COALESCE(sort_order, 999999), username");
     $attStmt->execute([(int)$invite['event_id']]);
     $going = []; $maybeList = [];
     foreach ($attStmt->fetchAll() as $a) {
-        $r = strtolower((string)($a['rsvp'] ?? ''));
-        if ($r === 'yes')   $going[]     = $a['username'];
-        if ($r === 'maybe') $maybeList[] = $a['username'];
+        $r  = strtolower((string)($a['rsvp'] ?? ''));
+        $nm = $listView === 'short' ? public_short_name((string)$a['username']) : (string)$a['username'];
+        if ($r === 'yes')   $going[]     = $nm;
+        if ($r === 'maybe') $maybeList[] = $nm;
     }
     $names_block = function(string $lbl, array $names, string $color): string {
         if (empty($names)) return '';
@@ -122,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     if (!empty($invite['description'])) {
         $body .= '<div style="margin-top:.7rem;font-size:.9rem;color:var(--fg-334155, #334155);line-height:1.5">' . nl2br(htmlspecialchars($invite['description'])) . '</div>';
     }
-    if (empty($invite['hide_guest_list'])) {
+    if ($listView !== 'count') {
         $body .= $names_block('Going', $going, '#16a34a');
         $body .= $names_block('Maybe', $maybeList, '#d97706');
     }

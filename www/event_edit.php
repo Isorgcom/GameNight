@@ -663,7 +663,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                         <?php /* One three-way choice, saved as hide_guest_list / guest_list_public
                                  by event_save(). Hint texts live in GUEST_LIST_HINTS below. */ ?>
                         <label class="go-row go-row-pick" for="eGuestList">
-                            <span><strong>Guest list</strong><small id="eGuestListHint">Everyone on the list sees who else is coming</small></span>
+                            <span><strong>Guest list</strong><small id="eGuestListHint">Guests see who else is coming once they sign in</small></span>
                             <select name="guest_list" id="eGuestList" data-act-change="guestListChanged">
                                 <option value="guests">Guests see it</option>
                                 <option value="hidden">Hidden</option>
@@ -1877,9 +1877,9 @@ function toggleGuestOptsDD(e) {
 }
 // Guest list picker: the hint under the title says what the choice does.
 var GUEST_LIST_HINTS = {
-    guests: 'Everyone on the list sees who else is coming',
+    guests: 'Guests see who else is coming once they sign in',
     hidden: "Guests can't see who else is coming",
-    'public': 'Anyone who opens your invite link sees first names and answers'
+    'public': 'Anyone with an invite link sees first names and answers, no sign-in needed'
 };
 function guestListChanged() {
     var sel = document.getElementById('eGuestList');

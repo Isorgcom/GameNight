@@ -377,14 +377,21 @@ An event's guest list is in one of three states, two columns on `events`:
 
 | State | `hide_guest_list` | `guest_list_public` | Who sees names |
 |---|---|---|---|
-| Guests see it (default) | 0 | 0 | anyone who can open the event: the event page, the personal link (`event.php?token=`), the RSVP confirm screen |
+| Guests see it (default) | 0 | 0 | anyone **signed in** who can open the event. A signed-out visitor to a personal link (`event.php?token=`, the RSVP confirm screen) gets a headcount |
 | Hidden | 1 | 0 | the hosts only; everyone else gets a headcount |
-| Public on the invite link | 0 | 1 | as the default, plus anyone holding the shared invite link (`invite.php`) |
+| Public on the invite link | 0 | 1 | as the default, plus anyone holding the shared invite link (`invite.php`) or a personal link, signed out, as short names |
 
 - **Hidden wins.** `event_save()` stores `guest_list_public = 0` whenever the
   list is hidden, the API refuses both flags true, and `invite.php` checks both
   columns before it prints a name, so a row that somehow held 1/1 still shows
   nothing.
+- **A personal link is not a sign-in** (v1.44.0). `event.php?token=` and the
+  `rsvp.php` confirm screen open for whoever holds a guest's link, and a link
+  gets forwarded. Until 1.44.0 they showed every guest's full name to that
+  visitor whenever the list was not hidden. `guest_list_view_for_link()` in
+  `db.php` now decides: full names only for a signed-in viewer who could open
+  the event page anyway (`event_visibility_sql()`), short names when the list
+  is public, else a headcount. Any new page reached by a token asks it too.
 - **The invite link can be forwarded to anyone**, so its list is narrower than
   the one guests see: approved rows only (nobody pending, waitlisted or
   denied), no avatars, no league "known as" names, and every name through
