@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.45.1] - 2026-11-26
+
+### Changed
+
+- **A text now ends with its link, so a phone can show it as a preview card instead of a bare web address.** An iPhone only turns a link into a card (the event's name, when and where, and a picture) when the link is the very last thing in the message. Every text the site sends closed with "Reply STOP to unsubscribe, COMMANDS for options." after the link, so guests always saw the raw address. The opt-out line now sits on the line above a closing link: same words, same length, different order. This covers invitations, reminders, nudges, event updates, host messages, polls, comments and waiting-list notices; a text whose link sits in the middle of a sentence, or that has no link, is unchanged. The guest's own link, which is what an invitation text carries, now always describes itself for such a card: the event's title, its date, time and venue name (never the street address), and a picture, which is the host's cover from Invite design when there is one, otherwise the league's banner, otherwise the site's share image. **What the site cannot change:** an iPhone loads the card by itself only when the number the text came from is saved in the guest's contacts. From a number they have not saved, the guest sees "Tap to Load Preview" and gets the card with one tap. The change is `sms_with_optout()` in `www/sms.php` and the preview tags on the token page in `www/event.php`.
+
 ## [v1.45.0] - 2026-11-26
 
 ### Added

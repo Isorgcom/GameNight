@@ -1222,7 +1222,7 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             $rsvp_token = _invitee_rsvp_token($db, $event_id, $username);
             $event_link = $rsvp_token !== '' ? ($site_url . '/event.php?token=' . urlencode($rsvp_token)) : $url;
             $subject = "Moved to waitlist: $title";
-            $smsBody = "You didn't RSVP by the deadline for \"$title\" — you've been moved to the waitlist. Still want in? $event_link";
+            $smsBody = "You didn't RSVP by the deadline for \"$title\" - you've been moved to the waitlist. Still want in? RSVP: $event_link";
             $htmlBody = '<p>The RSVP deadline for <strong>' . htmlspecialchars($title) . '</strong> passed without a response, so you have been moved to the waitlist. You can still RSVP if a seat opens up.</p>'
                       . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($event_link) . '">View event &amp; RSVP</a></p>';
             break;

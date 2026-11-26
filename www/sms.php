@@ -258,6 +258,22 @@ function shorten_url(string $url): string {
  * Send an SMS via the configured provider.
  * Returns null on success, error string on failure.
  */
+/**
+ * Add the opt-out line to a text. It goes at the end, except when the text
+ * closes with a link: then the link (with a short label in front of it, as in
+ * "Details: https://...") stays the last line and the opt-out line goes above
+ * it. A phone only turns a link into a preview card when the link is the last
+ * thing in the message, so anything after it leaves the guest looking at a
+ * bare URL. A text with its link in the middle of a sentence is left as it is.
+ */
+function sms_with_optout(string $body, string $optout): string {
+    $body = rtrim($body);
+    if (preg_match('#^(.*?)\s*((?:\b[A-Za-z][A-Za-z ]{0,20}: ?)?https?://\S+)$#s', $body, $m) && trim($m[1]) !== '') {
+        return rtrim($m[1]) . "\n" . $optout . "\n" . $m[2];
+    }
+    return $body . "\n" . $optout;
+}
+
 function send_sms(string $to, string $body, bool $append_optout = true): ?string {
     $e164 = sms_normalize_phone($to);
     if (!$e164) return 'Invalid phone number.';
@@ -267,7 +283,7 @@ function send_sms(string $to, string $body, bool $append_optout = true): ?string
     // clean. COMMANDS (not HELP) because SMS platforms intercept the reserved
     // HELP keyword with their own auto-reply before it reaches our webhook.
     if ($append_optout) {
-        $body .= "\nReply STOP to unsubscribe, COMMANDS for options.";
+        $body = sms_with_optout($body, 'Reply STOP to unsubscribe, COMMANDS for options.');
     }
 
     // Auto-shorten any URLs in the body if URL shortener is enabled

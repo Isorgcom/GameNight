@@ -1480,7 +1480,7 @@ if ($token === '') {
 
 // ── Look up the invite + event by token ──────────────────────────────────────
 $stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.user_id, ei.rsvp, ei.approval_status,
-                             e.title, e.description, e.location, e.venue_name, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.guest_list_public, e.created_by, e.cancelled_at, e.is_poker, e.invite_design
+                             e.title, e.description, e.location, e.venue_name, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.guest_list_public, e.created_by, e.cancelled_at, e.is_poker, e.invite_design, e.league_id
                       FROM event_invites ei
                       JOIN events e ON e.id = ei.event_id
                       WHERE ei.rsvp_token = ?');
@@ -1553,6 +1553,27 @@ $seatsLbl = event_seats_label(event_capacity($db, $eid), (int)($invite['is_poker
 // The host's invite design: the same look the share link wears.
 require_once __DIR__ . '/_invite_design.php';
 $design = invite_design_decode($invite['invite_design'] ?? null, $eid);
+
+// Preview card. This link is what an invitation text carries, and a phone
+// turns it into a card (title, a line of detail, a picture) when it can read
+// these tags. The picture is the host's cover, else the league's banner, else
+// the site's own share image. The detail line is the date, time and the
+// venue's name: what the page already shows its holder, never the address.
+$ogImg = invite_design_cover_abs($design);
+if ($ogImg === null && !empty($invite['league_id'])) {
+    $lb = $db->prepare('SELECT banner_path FROM leagues WHERE id = ?');
+    $lb->execute([(int)$invite['league_id']]);
+    $lbp = (string)($lb->fetchColumn() ?: '');
+    if ($lbp !== '') $ogImg = get_site_url() . $lbp;
+}
+if ($ogImg === null) {
+    foreach (['seo_og_image_path', 'header_banner_path', 'banner_path'] as $_k) {
+        $_v = (string)get_setting($_k, '');
+        if ($_v !== '') { $ogImg = get_site_url() . $_v; break; }
+    }
+}
+$ogDesc = trim($date_lbl . ($time_lbl !== '' ? ' · ' . html_entity_decode($time_lbl, ENT_QUOTES | ENT_HTML5, 'UTF-8') : '')
+        . (!empty($invite['venue_name']) ? ' · ' . $invite['venue_name'] : ''));
 ?><!DOCTYPE html>
 <html lang="en"<?= invite_design_html_attr($design) ?>>
 <head>
@@ -1561,18 +1582,20 @@ $design = invite_design_decode($invite['invite_design'] ?? null, $eid);
     <title><?= htmlspecialchars($invite['title']) ?> &ndash; <?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <?= invite_design_head($design) ?>
-    <?php if ($design['cover'] !== ''):
-        // A personal link sent by text or WhatsApp unfurls into a card there:
-        // give it the host's cover. Title and picture only, nothing about the guest.
-        $_og = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE); ?>
+    <?php $_og = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE); ?>
+    <meta name="robots" content="noindex, nofollow">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="<?= $_og($site_name) ?>">
     <meta property="og:title" content="<?= $_og($invite['title']) ?>">
-    <meta property="og:image" content="<?= $_og(invite_design_cover_abs($design)) ?>">
-    <?php if ($design['cover_w'] > 0 && $design['cover_h'] > 0): ?>
+    <meta property="og:description" content="<?= $_og($ogDesc) ?>">
+    <?php if ($ogImg !== null): ?>
+    <meta property="og:image" content="<?= $_og($ogImg) ?>">
+    <?php if ($design['cover'] !== '' && $design['cover_w'] > 0 && $design['cover_h'] > 0): ?>
     <meta property="og:image:width" content="<?= (int)$design['cover_w'] ?>">
     <meta property="og:image:height" content="<?= (int)$design['cover_h'] ?>">
     <?php endif; ?>
-    <meta name="twitter:card" content="summary_large_image">
     <?php endif; ?>
+    <meta name="twitter:card" content="<?= $ogImg !== null ? 'summary_large_image' : 'summary' ?>">
     <style>
         body { background: var(--bg, var(--bg-f8fafc, #f8fafc)); }
         .ev-wrap { min-height:100vh;min-height:100dvh; display:flex; align-items:flex-start; justify-content:center; padding:1.5rem; }
