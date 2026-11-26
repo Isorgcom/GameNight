@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.45.0] - 2026-11-26
+
+### Added
+
+- **Hosts can design how an event's invitation looks.** Until now every invite was the same white card. An event now has an **Invite design** page with a live preview: pick one of ten ready-made looks (Poker night, High roller, Saloon, Casino, Neon night and more) or mix your own from a **cover picture**, eleven **backgrounds**, seven **accent colours**, ten **title fonts** and an optional **effect** (confetti, cards, chips or sparkle) that plays for a few seconds when the invite opens. The cover is a photo, a poster or a GIF of your own; a photo is scaled down in your browser before it is sent, and a GIF goes up as it is (4 MB at most) so an animated one keeps moving. Find it on the event page under **More**, in the **Share invite** panel, or straight from the event editor with **Save & design invite**, which saves without sending anything so the look is ready before the invitations go out. Each pick is saved as you make it. The design shows on the shared invite link, on each guest's own link, and on the full-screen QR poster; the invitation email carries the cover and the accent colour (mail programs cannot show the rest), and the cover is the picture that appears when either link is pasted or texted into a chat. An event nobody has designed looks exactly as it did, a duplicated event keeps its look, and a cancelled event cannot be redesigned. Effects stop by themselves within five seconds and do not play at all for a guest whose device asks for reduced motion. **Operators:** the design is stored in the new column `events.invite_design` and is only ever a set of names from a fixed list (`www/_invite_design.php`, with the look itself in `www/invite_look.css` and `www/invite_fx.js`), never colours or text a host typed. Covers are kept in `uploads/invite/`, are checked by content like every other upload, count against the daily upload limit, and are deleted with their event. The fonts are the ones already bundled for the tournament timer, so there is nothing new to download. The API and the Claude connector do not read or set the design yet.
+
 ## [v1.44.0] - 2026-11-26
 
 ### Changed

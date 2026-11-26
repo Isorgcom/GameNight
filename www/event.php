@@ -68,6 +68,9 @@ if ($token === '' && $page_eid > 0) {
     }
 
     $canManage = can_manage_event($db, $page_eid, (int)$current['id'], $isAdmin);
+    // The host's invite design, for the QR poster (and the link to its editor).
+    require_once __DIR__ . '/_invite_design.php';
+    $design = invite_design_decode($ev['invite_design'] ?? null, $page_eid);
     // Cancelled (cancel_event_keep): the page stays as a record the host can
     // duplicate, with RSVPs, edits, the game and invitations switched off.
     $evCancelled = !empty($ev['cancelled_at']);
@@ -247,6 +250,7 @@ if ($token === '' && $page_eid > 0) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($ev['title']) ?> &ndash; <?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
+    <?= invite_design_head($design) ?>
     <style>
         .evp-wrap { max-width: 640px; margin: 1.25rem auto 2rem; padding: 0 1rem; }
         .evp-card { background:var(--bg-ffffff, #ffffff); border:1.5px solid var(--bd-e2e8f0, #e2e8f0); border-radius:12px; padding:1.5rem; }
@@ -373,6 +377,9 @@ if ($token === '' && $page_eid > 0) {
                 <button type="button" class="btn btn-outline" data-act="toggleEvMore" data-a1="@event">More <span style="font-size:.7rem">&#9662;</span></button>
                 <div class="ev-more-panel" id="evMorePanel">
                     <a href="/event_edit.php?copy=<?= $page_eid ?>">Duplicate event</a>
+                    <?php if ($evUpcoming): ?>
+                    <a href="/invite_design.php?id=<?= $page_eid ?>">&#127912; Invite design</a>
+                    <?php endif; ?>
                     <a href="/event_polls.php?event_id=<?= $page_eid ?>">Polls</a>
                     <a href="/event_history.php?id=<?= $page_eid ?>">Message history</a>
                     <?php if (!empty($isTournament)): ?>
@@ -421,6 +428,7 @@ if ($token === '' && $page_eid > 0) {
         <section class="ev-share" id="evSharePanel" hidden aria-labelledby="evShareTitle">
             <h2 class="ev-share-title" id="evShareTitle">Share an invite link</h2>
             <p class="ev-share-hint">Post it in a group chat, AirDrop it to the phones around you, or let people scan the QR off your screen. Whoever opens it puts themselves on the list with a name and an email or phone. The link shows the venue's name, not the address.</p>
+            <p class="ev-share-design"><a href="/invite_design.php?id=<?= $page_eid ?>">&#127912; <?= invite_design_is_default($design) ? 'Design the invite' : 'Change the invite design' ?></a> <span>Cover picture, background, colours and title font.</span></p>
             <div class="ev-share-off" id="evShareOff" hidden>
                 <p>The link is turned off. Anyone who opens the old one is told it is no longer active.</p>
                 <button type="button" class="btn btn-primary" data-act="shareLinkAction" data-a1="rotate">Turn on with a new link</button>
@@ -453,7 +461,7 @@ if ($token === '' && $page_eid > 0) {
             $qrDate = ($t = strtotime($date_lbl2)) ? date('D, M j', $t) : $date_lbl2; // the viewer's own date, shortened
             $qrWhen = trim($qrDate . ($time_lbl2 !== '' ? ' · ' . $time_lbl2 : ''));
         ?>
-        <div class="pk-modal-overlay ev-share-qr" id="evShareQr" role="dialog" aria-modal="true" aria-labelledby="evShareQrTitle" data-act-self="closeShareQr">
+        <div class="pk-modal-overlay ev-share-qr" id="evShareQr" role="dialog" aria-modal="true" aria-labelledby="evShareQrTitle" data-act-self="closeShareQr"<?= invite_design_body_attr($design) ?>>
             <span class="ev-qr-suit s1" aria-hidden="true">&spades;</span>
             <span class="ev-qr-suit s2" aria-hidden="true">&hearts;</span>
             <span class="ev-qr-suit s3" aria-hidden="true">&clubs;</span>
@@ -462,7 +470,7 @@ if ($token === '' && $page_eid > 0) {
                 <div class="ev-qr-band">
                     <?php if ($qrLogo): ?><img class="ev-qr-logo" src="<?= htmlspecialchars($qrLogo, ENT_QUOTES | ENT_SUBSTITUTE) ?>" alt=""><?php endif; ?>
                     <div class="ev-qr-kicker">You're invited</div>
-                    <div class="ev-share-qr-title" id="evShareQrTitle"><?= htmlspecialchars($ev['title'], ENT_QUOTES | ENT_SUBSTITUTE) ?></div>
+                    <div class="ev-share-qr-title ivd-title" id="evShareQrTitle"><?= htmlspecialchars($ev['title'], ENT_QUOTES | ENT_SUBSTITUTE) ?></div>
                 </div>
                 <div class="ev-qr-body">
                     <ul class="ev-qr-meta">
@@ -503,6 +511,15 @@ if ($token === '' && $page_eid > 0) {
         .pk-modal-overlay.ev-share-qr { z-index:1300; padding:1rem; overflow:hidden; align-items:center !important;
             background: radial-gradient(120% 70% at 50% 0%, #1d4ed8 0%, #1e1b4b 55%, #020617 100%) !important; }
         .ev-share [hidden] { display:none !important; }
+        .ev-share-design { font-size:.88rem; margin:0 0 .9rem; }
+        .ev-share-design a { font-weight:700; }
+        .ev-share-design span { color:var(--fg-64748b, #64748b); }
+        /* The poster wears the host's invite design: its background, its accent on the band and the frame, its title font. */
+        .pk-modal-overlay.ev-share-qr[data-ivd-theme]:not([data-ivd-theme="classic"]) { background: var(--ivd-bg) !important; }
+        .ev-share-qr[data-ivd-accent]:not([data-ivd-accent="blue"]) .ev-qr-band { background:linear-gradient(135deg, var(--accent) 0%, var(--accent-h) 100%); }
+        .ev-share-qr[data-ivd-accent]:not([data-ivd-accent="blue"]) .ev-qr-frame::before,
+        .ev-share-qr[data-ivd-accent]:not([data-ivd-accent="blue"]) .ev-qr-frame::after { border-color:var(--accent); }
+        .ev-share-qr:not([data-ivd-font="default"]) .ev-share-qr-title.ivd-title { font-size:1.6rem; }
         .ev-qr-suit { position:absolute; font-size:9rem; line-height:1; color:rgba(255,255,255,.06); pointer-events:none; user-select:none; }
         .ev-qr-suit.s1 { top:-1.5rem; left:-1rem; transform:rotate(-14deg); }
         .ev-qr-suit.s2 { top:12%; right:-1.5rem; transform:rotate(18deg); color:rgba(248,113,113,.09); }
@@ -1463,7 +1480,7 @@ if ($token === '') {
 
 // ── Look up the invite + event by token ──────────────────────────────────────
 $stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.user_id, ei.rsvp, ei.approval_status,
-                             e.title, e.description, e.location, e.venue_name, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.guest_list_public, e.created_by, e.cancelled_at, e.is_poker
+                             e.title, e.description, e.location, e.venue_name, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.guest_list_public, e.created_by, e.cancelled_at, e.is_poker, e.invite_design
                       FROM event_invites ei
                       JOIN events e ON e.id = ei.event_id
                       WHERE ei.rsvp_token = ?');
@@ -1532,26 +1549,45 @@ $btn_meta  = [
 
 // Seats still open, the line the invite link shows (null when there is no limit).
 $seatsLbl = event_seats_label(event_capacity($db, $eid), (int)($invite['is_poker'] ?? 0) === 1);
+
+// The host's invite design: the same look the share link wears.
+require_once __DIR__ . '/_invite_design.php';
+$design = invite_design_decode($invite['invite_design'] ?? null, $eid);
 ?><!DOCTYPE html>
-<html lang="en">
+<html lang="en"<?= invite_design_html_attr($design) ?>>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($invite['title']) ?> &ndash; <?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
+    <?= invite_design_head($design) ?>
+    <?php if ($design['cover'] !== ''):
+        // A personal link sent by text or WhatsApp unfurls into a card there:
+        // give it the host's cover. Title and picture only, nothing about the guest.
+        $_og = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE); ?>
+    <meta property="og:title" content="<?= $_og($invite['title']) ?>">
+    <meta property="og:image" content="<?= $_og(invite_design_cover_abs($design)) ?>">
+    <?php if ($design['cover_w'] > 0 && $design['cover_h'] > 0): ?>
+    <meta property="og:image:width" content="<?= (int)$design['cover_w'] ?>">
+    <meta property="og:image:height" content="<?= (int)$design['cover_h'] ?>">
+    <?php endif; ?>
+    <meta name="twitter:card" content="summary_large_image">
+    <?php endif; ?>
     <style>
         body { background: var(--bg, var(--bg-f8fafc, #f8fafc)); }
         .ev-wrap { min-height:100vh;min-height:100dvh; display:flex; align-items:flex-start; justify-content:center; padding:1.5rem; }
-        .ev-card { background:var(--bg-ffffff, #ffffff); border-radius:14px; box-shadow:0 8px 32px rgba(0,0,0,.12); padding:1.75rem 1.75rem 1.5rem; width:100%; max-width:480px; margin-top:1rem; }
+        .ev-card { --ivd-pad-top:1.75rem; --ivd-pad-x:1.75rem; background:var(--bg-ffffff, #ffffff); border-radius:14px; box-shadow:0 8px 32px rgba(0,0,0,.12); padding:1.75rem 1.75rem 1.5rem; width:100%; max-width:480px; margin-top:1rem; }
+        .ev-title { font-size:1.45rem; font-weight:800; color:var(--fg-1e293b, #1e293b); margin:0 0 .5rem; overflow-wrap:anywhere; }
         .ev-rsvp-btn { display:inline-block; flex:1; text-align:center; padding:.6rem .5rem; border-radius:8px; text-decoration:none; font-weight:700; font-size:.95rem; border:2px solid; }
         /* Seats left: the invite link's line (.iv-seats in invite.php), green while there is room, amber when full. */
         .ev-seats { display:inline-block; font-size:.85rem; font-weight:600; border-radius:8px; padding:.35rem .7rem; margin-top:.6rem; background:var(--bg-f0fdf4, #f0fdf4); color:var(--fg-166534, #166534); }
         .ev-seats.full { background:var(--bg-fffbeb, #fffbeb); color:var(--fg-92400e, #92400e); border:1px solid #f59e0b; }
     </style>
 </head>
-<body>
+<body<?= invite_design_body_attr($design) ?>>
 <div class="ev-wrap">
-    <div class="ev-card">
+    <div class="ev-card ivd-card">
+        <?= invite_design_cover($design) ?>
         <?php
         $logo = get_setting('logo_path', '');
         if ($logo): ?>
@@ -1566,7 +1602,7 @@ $seatsLbl = event_seats_label(event_capacity($db, $eid), (int)($invite['is_poker
         </div>
         <?php endif; ?>
 
-        <h1 style="font-size:1.45rem;font-weight:800;color:var(--fg-1e293b, #1e293b);margin:0 0 .5rem"><?= htmlspecialchars($invite['title']) ?></h1>
+        <h1 class="ev-title ivd-title"><?= htmlspecialchars($invite['title']) ?></h1>
         <div style="font-size:.95rem;color:var(--fg-475569, #475569);margin-bottom:.15rem"><?= htmlspecialchars($date_lbl) ?></div>
         <?php if ($time_lbl !== ''): ?>
         <div style="font-size:.95rem;color:var(--fg-475569, #475569)"><?= $time_lbl ?></div>
@@ -1649,9 +1685,9 @@ $seatsLbl = event_seats_label(event_capacity($db, $eid), (int)($invite['is_poker
             <?php
             $allow_reg = get_setting('allow_registration', '1') === '1';
             ?>
-            <a href="/login.php?redirect=<?= urlencode($event_redirect) ?>" style="display:inline-block;margin:.2rem .3rem .2rem 0;padding:.45rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff;font-size:.88rem">Log in</a>
+            <a href="/login.php?redirect=<?= urlencode($event_redirect) ?>" style="display:inline-block;margin:.2rem .3rem .2rem 0;padding:.45rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:var(--accent);color:#fff;font-size:.88rem">Log in</a>
             <?php if (!$has_account && $allow_reg): ?>
-            <a href="/register.php?redirect=<?= urlencode($event_redirect) ?>" style="display:inline-block;margin:.2rem .3rem;padding:.45rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;border:2px solid #2563eb;color:var(--fg-2563eb, #2563eb);background:var(--bg-ffffff, #ffffff);font-size:.88rem">Create Account</a>
+            <a href="/register.php?redirect=<?= urlencode($event_redirect) ?>" style="display:inline-block;margin:.2rem .3rem;padding:.45rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;border:2px solid var(--accent);color:var(--link);background:var(--bg-ffffff, #ffffff);font-size:.88rem">Create Account</a>
             <?php endif; ?>
         </div>
 
@@ -1661,5 +1697,6 @@ $seatsLbl = event_seats_label(event_capacity($db, $eid), (int)($invite['is_poker
         </div>
     </div>
 </div>
+<?= invite_design_fx($design) ?>
 </body>
 </html>
