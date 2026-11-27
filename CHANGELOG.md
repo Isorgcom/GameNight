@@ -11,6 +11,16 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.46.0] - 2026-11-27
+
+### Added
+
+- **Claude can design the invitation.** A host who has connected Claude could build a whole game by asking, then had to open the site to give the invitation its look, because the invite design that arrived in 1.45.0 was out of the connector's reach. There is now a tool for it, `set_invite_design`: "make the invite look like a casino night" picks one of the ten ready-made looks, "red velvet with gold buttons" sets a background and an accent colour by themselves, and "use the same look as last month's game" brings a whole design over from another event the host runs, cover picture included. It needs only the permission to create and change events, which a connected Claude already has, so nothing has to be approved again; a new chat picks the tool up. Nobody is told when the look changes: guests see it the next time they open the invitation. `get_event` now says how an event's invitation looks. **A new cover picture is still added on the site:** a picture cannot travel through the connector, so Claude takes one off or copies one from another event, and hands over the link to the design page for anything else. The personal API has the same thing as `PUT /api/v2/events/{id}/design`, with `GET /api/v2/invite-designs` listing the choices. Every value is a key from the fixed lists in `www/_invite_design.php`, checked by `gn_invite_design_set()` in `www/svc/events.php` before anything is changed; one that is not on the list is refused with the list.
+
+### Fixed
+
+- **An event copied by Claude or through the API keeps its invite design.** Duplicate on the site has carried the look to the copy since 1.45.0, but `duplicate_event` and `POST /api/v2/events/{id}/duplicate` left it behind, so next month's game came out in the standard look. The copy now takes the design with it, with a copy of the cover picture that is its own, so deleting either event leaves the other's picture alone (`gn_event_duplicate()` in `www/svc/events.php`).
+
 ## [v1.45.2] - 2026-11-27
 
 ### Security
@@ -22,6 +32,7 @@ lands and that heading is renamed when a release is cut.
 ### Fixed
 
 - **An event's invite cover picture is deleted with the event in two more places.** Deleting a league, or deleting an event from the admin **Events** tab, removed the event and left its cover picture on disk, still reachable by its address. Both now remove the file (`delete_league_cascade()` in `www/db.php`, `www/admin_settings.php`).
+
 
 ## [v1.45.1] - 2026-11-26
 

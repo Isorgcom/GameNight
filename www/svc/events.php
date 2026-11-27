@@ -9,6 +9,7 @@
  */
 
 require_once __DIR__ . '/common.php';
+require_once __DIR__ . '/../_invite_design.php';
 
 /** The actor's relation to each of some events: [event_id => 'host'|'guest'|'viewer']. */
 function gn_event_roles(PDO $db, array $actor, array $event_ids): array {
@@ -126,6 +127,7 @@ function gn_event_get(PDO $db, array $actor, int $event_id): array {
     $out['rsvp_deadline_hours'] = $r['rsvp_deadline_hours'] !== null ? (int)$r['rsvp_deadline_hours'] : null;
     $out['guest_list_hidden']   = (int)($r['hide_guest_list'] ?? 0) === 1;
     $out['guest_list_public']   = (int)($r['guest_list_public'] ?? 0) === 1;
+    $out['invite_design'] = gn_invite_design_shape(invite_design_decode($r['invite_design'] ?? null, $event_id), $event_id, $roles[$event_id] === 'host');
     if (!empty($r['league_id'])) {
         $l = $db->prepare('SELECT name FROM leagues WHERE id = ?');
         $l->execute([(int)$r['league_id']]);
@@ -633,8 +635,105 @@ function gn_event_duplicate(PDO $db, array $actor, int $event_id, array $body): 
         if (empty($res['ok'])) { $db->rollBack(); return gn_err('event_not_saved', (string)$res['error'], 400); }
         $db->commit();
     } catch (Throwable $e) { if ($db->inTransaction()) $db->rollBack(); throw $e; }
+    // The copy keeps the original's invite design, as Duplicate on the site
+    // does, with a cover file of its own. After the commit: a file is not
+    // something a rollback takes back.
+    invite_design_copy($db, $event_id, (int)$res['event_id']);
     return gn_event_get($db, $actor, (int)$res['event_id']) + ['created' => true, 'copied_from' => $event_id]
         + ($quiet ? ['note' => 'Reminders are off on the copy: this connection is not allowed to send messages.'] : []);
+}
+
+// ── Invite design ────────────────────────────────────────────────────────────
+// How an event's invitation looks (_invite_design.php). Every part is a key of
+// that file's closed catalogue, so nothing sent here reaches markup or CSS. A
+// cover picture is uploaded on the site (invite_design.php) and never arrives
+// through these functions; they can take one off, or bring one over with a
+// whole design from another event the actor hosts.
+
+/** What an invitation can look like: the catalogue as lists, for a client to choose from. */
+function gn_invite_design_options(): array {
+    $cat = invite_design_catalog();
+    $out = [];
+    foreach (['themes', 'accents', 'fonts', 'effects'] as $list) {
+        $out[$list] = [];
+        foreach ($cat[$list] as $key => $v) $out[$list][] = ['key' => (string)$key, 'name' => (string)$v['name']];
+    }
+    $out['looks'] = [];
+    foreach ($cat['looks'] as $key => $v) {
+        $out['looks'][] = ['key' => (string)$key, 'name' => (string)$v['name'], 'theme' => $v['theme'],
+                           'accent' => $v['accent'], 'font' => $v['font'], 'effect' => $v['effect']];
+    }
+    return $out;
+}
+
+/**
+ * A checked design (from invite_design_decode()) as the API gives it. `look`
+ * names the ready-made look its four parts add up to, or null for a mix. The
+ * host also gets the page where a cover picture is added.
+ */
+function gn_invite_design_shape(array $d, int $event_id, bool $host): array {
+    $look = null;
+    foreach (invite_design_catalog()['looks'] as $key => $v) {
+        if ($v['theme'] === $d['theme'] && $v['accent'] === $d['accent'] && $v['font'] === $d['font'] && $v['effect'] === $d['effect']) { $look = (string)$key; break; }
+    }
+    $site = rtrim(get_site_url(), '/');
+    return ['look' => $look, 'theme' => $d['theme'], 'accent' => $d['accent'], 'font' => $d['font'], 'effect' => $d['effect'],
+            'standard'  => invite_design_is_default($d),
+            'cover_url' => $d['cover'] !== '' ? $site . $d['cover'] : null]
+         + ($host ? ['design_url' => $site . '/invite_design.php?id=' . $event_id] : []);
+}
+
+/**
+ * Change how an event's invitation looks. $body: any of look (a ready-made
+ * look: sets the four parts), theme, accent, font, effect (one part each, and
+ * they win over look), remove_cover (true takes the picture off), and
+ * copy_from_event_id (the whole design of another event the actor hosts, its
+ * picture included, replaces this one's). Only what is sent changes. Nobody is
+ * told: the look is what a guest sees the next time they open the invitation.
+ */
+function gn_invite_design_set(PDO $db, array $actor, int $event_id, array $body): array {
+    $ev = gn_event_guard($db, $actor, $event_id);
+    if (isset($ev['ok'])) return $ev;
+    $parts = ['theme' => 'themes', 'accent' => 'accents', 'font' => 'fonts', 'effect' => 'effects'];
+    $bad = array_diff(array_keys($body), array_merge(['look', 'remove_cover', 'copy_from_event_id'], array_keys($parts)));
+    if ($bad) return gn_err('unknown_field', 'Unknown field: ' . implode(', ', $bad) . '.', 400);
+    if (!$body) return gn_err('nothing_to_change', 'Send at least one of look, theme, accent, font, effect, remove_cover or copy_from_event_id.', 400);
+
+    // Everything is checked before anything is changed.
+    $cat = invite_design_catalog();
+    foreach ($parts + ['look' => 'looks'] as $k => $list) {
+        if (!array_key_exists($k, $body)) continue;
+        if (!is_string($body[$k]) || !isset($cat[$list][$body[$k]])) {
+            return gn_err('bad_field', "\"$k\" must be one of: " . implode(', ', array_keys($cat[$list])) . '.', 400);
+        }
+    }
+    if (array_key_exists('remove_cover', $body) && !is_bool($body['remove_cover'])) return gn_err('bad_field', '"remove_cover" must be true or false.', 400);
+    $from = null;
+    if (array_key_exists('copy_from_event_id', $body)) {
+        if (isset($body['look'])) return gn_err('bad_field', 'Send look or copy_from_event_id, not both.', 400);
+        $from = $body['copy_from_event_id'];
+        if (!is_int($from) || $from <= 0) return gn_err('bad_field', '"copy_from_event_id" must be an event\'s id.', 400);
+        if ($from === $event_id) return gn_err('bad_field', 'An event cannot copy its own design.', 400);
+        $src = gn_event_guard($db, $actor, $from, true);      // a cancelled event can still lend its look
+        if (isset($src['ok'])) return $src;
+    }
+
+    if ($from !== null) {
+        // The other event's design replaces this one whole, so this event's
+        // own picture goes first; the copy gets a file of its own.
+        invite_design_cover_remove($db, $event_id);
+        invite_design_store($db, $event_id, invite_design_default());
+        invite_design_copy($db, $from, $event_id);
+    }
+    $d = invite_design_for_event($db, $event_id);
+    if (isset($body['look'])) $d = array_merge($d, array_intersect_key($cat['looks'][$body['look']], $parts));
+    foreach ($parts as $k => $list) if (isset($body[$k])) $d[$k] = $body[$k];
+    invite_design_store($db, $event_id, $d);
+    if (($body['remove_cover'] ?? false) === true) $d = invite_design_cover_remove($db, $event_id);
+
+    db_log_activity((int)$actor['id'], "updated invite design for event id: $event_id");
+    return gn_ok(['event_id' => $event_id, 'title' => (string)$ev['title'], 'updated' => true,
+                  'invite_design' => gn_invite_design_shape(invite_design_for_event($db, $event_id), $event_id, true)]);
 }
 
 // ── Guest list ───────────────────────────────────────────────────────────────

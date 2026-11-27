@@ -112,7 +112,7 @@ function v2_routes(): array {
 
         ['GET', '/events', 'read', 'Same as /me/events.',
             fn($a, $p, $q) => gn_events_list($db, $a, $q)],
-        ['GET', '/events/{id}', 'read', 'One event, with RSVP totals, capacity and a summary of its game.',
+        ['GET', '/events/{id}', 'read', 'One event, with RSVP totals, capacity, how its invitation looks (invite_design) and a summary of its game.',
             fn($a, $p, $q) => gn_event_get($db, $a, $p['id'])],
         ['GET', '/events/{id}/invites', 'read', 'The guest list. The host sees invite state and hand-entered contact details.',
             fn($a, $p, $q) => gn_event_invites($db, $a, $p['id'])],
@@ -125,8 +125,13 @@ function v2_routes(): array {
             fn($a, $p, $q, $b) => gn_event_cancel($db, $a, $p['id'], $b)],
         ['DELETE', '/events/{id}', 'events', 'Host. Delete the event for good, with its guest list, messages and game. Body: {"confirm": "<code>"} with the code a first call without it returns, and "notify": false to delete without telling the guests of an upcoming event; without confirm the answer says what would be lost and who would be told. Telling the guests needs the messages scope too.',
             fn($a, $p, $q, $b) => gn_event_delete($db, $a, $p['id'], $b)],
-        ['POST', '/events/{id}/duplicate', 'events', 'Host. A new event copied from this one, guest list included, nobody\'s answer carried over. Body: start_at (required), title, end_at.',
+        ['POST', '/events/{id}/duplicate', 'events', 'Host. A new event copied from this one, guest list and invite design included, nobody\'s answer carried over. Body: start_at (required), title, end_at.',
             fn($a, $p, $q, $b) => gn_event_duplicate($db, $a, $p['id'], $b)],
+
+        ['GET', '/invite-designs', 'read', 'What an invitation can look like: the themes (backgrounds), accents, fonts and effects by key and name, and the ready-made looks with the four parts each one sets.',
+            fn($a, $p, $q, $b) => gn_ok(gn_invite_design_options())],
+        ['PUT', '/events/{id}/design', 'events', 'Host. Change how the invitation looks; only what you send changes and nobody is told. Body: look (a ready-made look), theme, accent, font, effect (keys from GET /invite-designs; a part wins over look), remove_cover (true), copy_from_event_id (take the whole design, cover picture included, from another event you host). A cover picture is uploaded on the site: the answer\'s design_url is the page.',
+            fn($a, $p, $q, $b) => gn_invite_design_set($db, $a, $p['id'], $b)],
 
         ['POST', '/events/{id}/invites', 'events', 'Host. Add guests. Body: {"guests": [{"user_id": 12} or {"name": "Dave", "email": "...", "phone": "..."}, each optionally "role": "manager"]}. Someone already on the list is skipped. Sends nothing.',
             fn($a, $p, $q, $b) => gn_invites_add($db, $a, $p['id'], $b)],
