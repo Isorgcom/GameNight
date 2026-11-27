@@ -1430,7 +1430,12 @@ session's status. A game already running when 1.42.1 landed has no
 `started_at`, and its clock's time stands in.
 
 The host lists, renames and removes buttons in Settings > Security >
-DealerButtons (`#paired-buttons`). Remove sets `revoked_at`. Firmware that
+DealerButtons (`#paired-buttons`). Remove sets `revoked_at`. So does a change
+or reset of the account's password (v1.45.2), for every button at once: the
+button is answered `401 revoked` and shows its pairing screen, and is paired
+again with a code. The owner is emailed each time a button is paired. A code
+that was entered on `/button` but never collected by the button lapses after
+15 minutes. Firmware that
 pairs without `device=button` still gets a game's timer key through Send to
 TV, as before. Suite: `~/qa-headless/button_pair_check.js`.
 

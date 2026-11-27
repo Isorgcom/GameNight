@@ -501,7 +501,7 @@ Both posts and events support comments.
 Go to **Settings** (gear icon or nav menu) to:
 
 - Update your username, email, or phone number. Changing any of these asks for your current password. A new email takes effect only after you use the confirmation link sent to it (the old address is told a change was requested), and a changed phone number must be verified again before SMS two-factor will text it.
-- Change your password. This signs out every other device and browser where you were logged in; a password reset does the same.
+- Change your password. This signs out every other device and browser where you were logged in, disconnects connected apps and API tokens, and unpairs every DealerButton (pair it again with a code); a password reset does the same.
 - Turn two-factor authentication on or off and regenerate recovery codes (your password is asked for each), and delete your account (type DELETE and your password). Turning two-factor on signs out your other devices and disconnects connected apps; they sign in again with a code.
 - Set your **preferred contact method**: Email, SMS, WhatsApp, Both (email + SMS), or None. A new account starts on SMS whenever a phone number is on file, email otherwise.
 

@@ -43,6 +43,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'That code was just used. Check the button for a new one.';
         } else {
             db_log_activity((int)$current['id'], "paired a DealerButton '$name'");
+            // Told by email, as for a new API token or connected app (v1.45.2):
+            // pairing asks for no password, so this is how the owner hears of
+            // one made from a session somebody else was using.
+            send_account_notice((int)$current['id'], 'A DealerButton was paired',
+                "A DealerButton named \"$name\" was paired to your account. It shows the clock of the games you run and can do nothing else. If this was not you, remove it under Settings, Security, DealerButtons, and change your password, which also unpairs every button.");
             $_SESSION['button_paired'] = $name;
             header('Location: /button?paired=1');
             exit;

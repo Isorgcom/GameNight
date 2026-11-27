@@ -861,7 +861,6 @@ if ($current && !$isAdmin) {
 // managers see all; an invitee sees only messages whose audience includes their RSVP.
 $ev_messages = [];
 if ($current && !empty($allPageEids)) {
-    $curLc = strtolower($current['username']);
     $mph = implode(',', array_fill(0, count($allPageEids), '?'));
     $mq  = $db->prepare("SELECT m.id, m.event_id, m.subject, m.body_html, m.audience, m.created_at, m.attachment_name, m.attachment_file, u.username AS author, e.created_by
                          FROM event_messages m JOIN events e ON e.id = m.event_id LEFT JOIN users u ON u.id = m.created_by
@@ -874,8 +873,11 @@ if ($current && !empty($allPageEids)) {
         $canMng = $isAdmin || (int)$m['created_by'] === (int)$current['id'] || in_array($eid, $managedEventIds, true);
         $visible = $canMng;
         if (!$visible) {
+            // My own row is the one that carries my account id (v1.45.2). It
+            // was matched on the name until then, so an account renamed to a
+            // typed-in guest's name read the messages meant for that guest.
             foreach (($ev_invites[$eid] ?? []) as $iv) {
-                if (strtolower($iv['username']) === $curLc && ($iv['approval_status'] ?? 'approved') === 'approved') {
+                if ((int)($iv['user_id'] ?? 0) === (int)$current['id'] && ($iv['approval_status'] ?? 'approved') === 'approved') {
                     $r = $iv['rsvp'] ?? '';
                     $visible = ($m['audience'] === 'all')
                             || ($m['audience'] === 'yes' && $r === 'yes')
@@ -934,6 +936,28 @@ if ($ev_hidden_list && !$isAdmin) {
         }
     }
     unset($_meId, $_mine, $_hid, $_occDate, $_occRows);
+}
+
+// Who asked to come and is waiting, who is on the waitlist and who was turned
+// down is the host's to know (v1.45.2), as on the event page and in the API.
+// This page's script carried those rows, with the name and the state, to
+// everyone who could see the event. A viewer who does not run the event now
+// gets the approved rows and their own, matched on the account id; a
+// signed-out viewer of a public event gets none.
+if (!$isAdmin) {
+    $_meId = (int)($current['id'] ?? 0);
+    $_shown = fn(array $rows): array => array_values(array_filter($rows,
+        fn($iv) => $_meId > 0 && ((string)($iv['approval_status'] ?? 'approved') === 'approved'
+                                  || (int)($iv['user_id'] ?? 0) === $_meId)));
+    foreach (array_unique(array_merge(array_keys($ev_invites), array_keys($ev_invites_occ))) as $_eid) {
+        $_eid = (int)$_eid;
+        if ($_meId > 0 && (($ev_created_by[$_eid] ?? 0) === $_meId || in_array($_eid, $managedEventIds, true))) continue;
+        if (isset($ev_invites[$_eid])) $ev_invites[$_eid] = $_shown($ev_invites[$_eid]);
+        foreach (($ev_invites_occ[$_eid] ?? []) as $_occDate => $_occRows) {
+            $ev_invites_occ[$_eid][$_occDate] = $_shown($_occRows);
+        }
+    }
+    unset($_meId, $_shown, $_eid, $_occDate, $_occRows);
 }
 
 // The invite data goes into this page's script for every visible event, so it
@@ -2811,7 +2835,20 @@ viewEvent(<?= (int)$autoOpenEvent['id'] ?>, <?= js_json((string)($autoOpenDate ?
 
 // ── Week view rendering ───────────────────────────────────────────────────────
 <?php if ($viewMode === 'week'): ?>
-const WK_BY_DATE  = <?= js_json($wkByDate) ?>;
+<?php
+// Only the columns the week grid reads (v1.45.2). Whole event rows went out
+// here until then, to everyone who could see the event: the walk-in link's
+// token and the share link's token with them, and every column added since.
+// A new column reaches the page only by being named here.
+$_wkCols = array_flip(['id', 'title', 'color', 'start_date', 'end_date', 'start_time', 'end_time',
+    'start_time_display', 'end_time_display', 'start_date_input', 'end_date_input', 'start_time_input', 'end_time_input',
+    'occurrence_start', 'league_id', 'league_name', 'cancelled_at', 'created_by', 'is_poker']);
+$_wkOut = [];
+foreach ($wkByDate as $_wkDay => $_wkRows) {
+    foreach ($_wkRows as $_wkRow) $_wkOut[$_wkDay][] = array_intersect_key($_wkRow, $_wkCols);
+}
+?>
+const WK_BY_DATE  = <?= js_json($_wkOut) ?>;
 const WK_TODAY    = '<?= $today->format('Y-m-d') ?>';
 const WK_START    = '<?= $wkStartStr ?>';
 const WK_END      = '<?= $wkEndStr ?>';

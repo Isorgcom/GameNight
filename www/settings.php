@@ -1108,7 +1108,7 @@ $site_name = get_setting('site_name', 'Game Night');
         <!-- DealerButtons paired to this account (v1.42.1) -->
         <div class="card" id="paired-buttons">
             <h2 id="st-h-buttons">DealerButtons</h2>
-            <p class="subtitle">Buttons that show the clock of the tournament you are running, and move on to your next game by themselves. They can only show it, never control it. <a href="/button">Pair another</a></p>
+            <p class="subtitle">Buttons that show the clock of the tournament you are running, and move on to your next game by themselves. They can only show it, never control it. Changing your password unpairs them all. <a href="/button">Pair another</a></p>
             <div class="st-rows">
             <?php foreach ($paired_buttons as $b): $_bn = htmlspecialchars($b['name'], ENT_QUOTES | ENT_SUBSTITUTE); ?>
                 <div class="st-token">
