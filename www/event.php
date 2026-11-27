@@ -131,14 +131,16 @@ if ($token === '' && $page_eid > 0) {
     $time_lbl2 = $_evt2['time_lbl'];
 
     // Roster + my own invite row
-    $att = $db->prepare("SELECT username, rsvp, approval_status FROM event_invites
+    $att = $db->prepare("SELECT username, user_id, rsvp, approval_status FROM event_invites
                          WHERE event_id = ? AND occurrence_date IS NULL
                          ORDER BY COALESCE(sort_order, 999999), username");
     $att->execute([$page_eid]);
     $going = []; $maybe = []; $pendingR = []; $declined = []; $myInv = null;
     $capUsed = 0;
     foreach ($att->fetchAll() as $a) {
-        if (strcasecmp($a['username'], $current['username']) === 0) $myInv = $a;
+        // My row is the one with my account id (v1.45.2), never one that
+        // only shares my name: a typed-in guest's row is that guest's.
+        if ((int)($a['user_id'] ?? 0) === (int)$current['id']) $myInv = $a;
         if (($a['approval_status'] ?? 'approved') !== 'approved') continue;
         switch (strtolower((string)($a['rsvp'] ?? ''))) {
             case 'yes':   $going[]    = $a['username']; break;
@@ -199,14 +201,14 @@ if ($token === '' && $page_eid > 0) {
     // Waitlist position (same computation the calendar modal used)
     $waitPos = 0;
     if ($isWaitMe) {
-        $wq = $db->prepare("SELECT username FROM event_invites
+        $wq = $db->prepare("SELECT user_id FROM event_invites
                             WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'waitlisted'
                             ORDER BY id");
         $wq->execute([$page_eid]);
         $pos = 0;
-        foreach ($wq->fetchAll(PDO::FETCH_COLUMN) as $wname) {
+        foreach ($wq->fetchAll(PDO::FETCH_COLUMN) as $wuid) {
             $pos++;
-            if (strcasecmp($wname, $current['username']) === 0) { $waitPos = $pos; break; }
+            if ((int)$wuid === (int)$current['id']) { $waitPos = $pos; break; }
         }
     }
 

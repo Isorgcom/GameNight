@@ -195,6 +195,11 @@ function button_claim(PDO $db, int $pairing_id, int $user_id, string $name): boo
  * when the device row is gone or was removed before the button collected it.
  */
 function button_collect(PDO $db, int $device_id): ?array {
+    // A claim is collected within seconds by the button that asked for it.
+    // One left lying (v1.45.2) is dropped here too, not only when the next
+    // host pairs: until then it could be collected at any later time, by
+    // whoever held the pairing's secret, and it is not listed in Settings.
+    button_drop_uncollected($db);
     $token = bin2hex(random_bytes(32));
     $u = $db->prepare('UPDATE button_devices SET token_hash = ? WHERE id = ? AND token_hash IS NULL AND revoked_at IS NULL');
     $u->execute([hash('sha256', $token), $device_id]);

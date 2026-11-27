@@ -3153,6 +3153,16 @@ function delete_league_cascade(PDO $db, int $league_id): void {
     if (!empty($evIds)) {
         $placeholders = implode(',', array_fill(0, count($evIds), '?'));
 
+        // An event's invite cover picture goes with it (v1.45.2): read here,
+        // while the rows exist, and removed once they are gone. Until then a
+        // league's deleted events left their pictures on disk.
+        require_once __DIR__ . '/_invite_design.php';
+        $evCovers = [];
+        foreach ($evIds as $evCoverId) {
+            $evCover = invite_design_for_event($db, $evCoverId)['cover'];
+            if ($evCover !== '') $evCovers[] = $evCover;
+        }
+
         // Poker-session cascade
         $sessIds = $db->prepare("SELECT id FROM poker_sessions WHERE event_id IN ($placeholders)");
         $sessIds->execute($evIds);
@@ -3172,6 +3182,7 @@ function delete_league_cascade(PDO $db, int $league_id): void {
         comment_unlink_attachments($db, "type='event' AND content_id IN ($placeholders)", $evIds);
         $db->prepare("DELETE FROM comments WHERE type='event' AND content_id IN ($placeholders)")->execute($evIds);
         $db->prepare("DELETE FROM events   WHERE id IN ($placeholders)")->execute($evIds);
+        foreach ($evCovers as $evCover) invite_design_cover_unlink($evCover);
     }
 
     // League-scoped posts and their comments

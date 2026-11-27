@@ -871,6 +871,13 @@ function invalidate_other_sessions(int $user_id, bool $keep_current = false): vo
     try { $db->prepare('UPDATE email_verifications SET used = 1 WHERE user_id = ? AND used = 0')->execute([$user_id]); } catch (Exception $e) {}
     try { $db->prepare('UPDATE password_resets SET used = 1 WHERE user_id = ? AND used = 0')->execute([$user_id]); } catch (Exception $e) {}
     try { $db->prepare('DELETE FROM oauth_codes WHERE user_id = ? AND used_at IS NULL')->execute([$user_id]); } catch (Exception $e) {}
+    // A paired DealerButton is a way in too, if a read-only one (v1.45.2):
+    // one paired from a borrowed session would otherwise go on reading the
+    // host's clock after the password changed. Marked removed rather than
+    // deleted, so the button is answered 401 "revoked" and shows its pairing
+    // screen; a pairing claimed but not yet collected ends with it, because
+    // button_collect() hands a token only to a row that is not removed.
+    try { $db->prepare("UPDATE button_devices SET revoked_at = datetime('now') WHERE user_id = ? AND revoked_at IS NULL")->execute([$user_id]); } catch (Exception $e) {}
     if ($keep_current) {
         session_start_safe();
         $_SESSION['session_epoch'] = user_session_epoch($user_id);

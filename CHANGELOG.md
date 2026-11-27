@@ -11,6 +11,18 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.45.2] - 2026-11-27
+
+### Security
+
+- **The calendar no longer hands an event's walk-in and share links to everyone who can see the event.** The week view gave its script each event's whole database row, and that row holds the secret part of two links only a host should be able to hand out: the walk-in link behind the QR at the door, and the invite link from **Share invite**. Any guest, and any member of the league for a league event, could read both in the page's source and pass them on, letting people the host never chose put themselves on the list. The week view now sends a fixed list of columns (`$_wkCols` in `www/calendar.php`): the title, times, colour and league it draws with, and nothing else, so a column added later is not sent by accident either. Nothing shows that either link was misused. **If you would rather be sure for an event still ahead:** press **Make a new link** in the event's **Share invite** panel and **Regenerate walk-up link** in its editor; each makes a new link and stops the old one.
+- **The calendar no longer tells guests who is waiting, waitlisted or turned down.** The same page carried every guest row of every event on it, with the name and the state, to anyone who could see the event. The event page and the API have always kept those rows for the host. A viewer who does not run the event now gets the approved guests and their own row, and a signed-out visitor looking at a public event gets none. Which of a host's messages a guest receives there is now decided by the account on the guest's row and not by a matching name: an account renamed to the name of a guest the host had typed in could read the messages meant for that guest. The event page matches "your own row" by account as well (`www/calendar.php`, `www/event.php`).
+- **Changing your password now unpairs your DealerButtons.** A password change or reset ends every other session, API token and connected app, but a paired button kept reading the clock of the games you run, so one paired by somebody who had borrowed your signed-in browser outlived the change that was meant to lock them out. Every button on the account is now removed when the password changes; the button shows its pairing screen and is paired again with a code. Two related gaps are closed with it: you now get an email whenever a button is paired to your account, as you do for a new API token or connected app, and a code that was entered on `/button` but never collected by the button lapses after 15 minutes where before it stayed collectable (`invalidate_other_sessions()` in `www/auth.php`, `button_collect()` in `www/_button.php`, `www/button_pair.php`). A button only ever shows the clock; it cannot control a game.
+
+### Fixed
+
+- **An event's invite cover picture is deleted with the event in two more places.** Deleting a league, or deleting an event from the admin **Events** tab, removed the event and left its cover picture on disk, still reachable by its address. Both now remove the file (`delete_league_cascade()` in `www/db.php`, `www/admin_settings.php`).
+
 ## [v1.45.1] - 2026-11-26
 
 ### Changed

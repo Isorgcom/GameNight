@@ -5,7 +5,7 @@ history of the CSP gap that is now closed — kept because the reasoning is what
 stops it being reopened, and because the conversion that closed it is still the
 main source of regressions.
 
-Last reviewed: 2026-11-10 (v1.21.2).
+Last reviewed: 2026-11-27 (v1.45.2).
 
 ---
 
@@ -392,6 +392,22 @@ An event's guest list is in one of three states, two columns on `events`:
   `db.php` now decides: full names only for a signed-in viewer who could open
   the event page anyway (`event_visibility_sql()`), short names when the list
   is public, else a headcount. Any new page reached by a token asks it too.
+- **The calendar's script follows the same rule** (v1.45.2). `calendar.php`
+  writes guest rows into the page for every event on it. A viewer who does not
+  run the event gets approved rows and their own (matched on `user_id`), as
+  on the event page and in `gn_event_invites()`; a signed-out viewer of a
+  public event gets none. Until 1.45.2 the rows of people waiting, waitlisted
+  and turned down went out too, name and state, to anyone who could see the
+  event. Which host messages an invitee gets is decided on the row's
+  `user_id` as well: it was matched on the name, so an account renamed to a
+  typed-in guest's name read that guest's messages.
+- **A page's script gets named columns, never a whole row** (v1.45.2). The
+  calendar's week grid was given `SELECT events.*` rows as JSON, so every
+  viewer of an event could read its `walkin_token` and `share_token` in the
+  page source, and each column added to `events` since went out with them.
+  It now sends a fixed list (`$_wkCols` in `calendar.php`). Anything new that
+  feeds rows to a script does the same: name what the script reads. A token
+  that opens a link goes only to a viewer who may hand that link out.
 - **The invite link can be forwarded to anyone**, so its list is narrower than
   the one guests see: approved rows only (nobody pending, waitlisted or
   denied), no avatars, no league "known as" names, and every name through
@@ -415,7 +431,7 @@ An event's guest list is in one of three states, two columns on `events`:
 
 `/api/v2` authenticates a **person**, not a league. The rules that keep that from becoming a second, weaker way into the site:
 
-- **A token is a session in another program.** Minting one asks for the password. The token (`gnp_` + 64 hex) is shown once and stored as `sha256`; `invalidate_other_sessions()` deletes every token on the account, so a password change or "sign out everywhere" ends them. Header only: `api_token_actor()` (`www/api/_auth.php`) never reads a token from the query string, where it would land in logs and history.
+- **A token is a session in another program.** Minting one asks for the password. The token (`gnp_` + 64 hex) is shown once and stored as `sha256`; `invalidate_other_sessions()` deletes every token on the account, so a password change or "sign out everywhere" ends them. The same call marks every paired DealerButton removed (v1.45.2): a button's token is read-only, but it is a way in that was made from a session, and until then it outlived the password. Pairing one mails the owner (`send_account_notice()`), since it asks for no password, and a claim the button never collected lapses 15 minutes after it was made (`button_drop_uncollected()`, now also run when a token is collected). Header only: `api_token_actor()` (`www/api/_auth.php`) never reads a token from the query string, where it would land in logs and history.
 - **Permission is decided in the service function, never in the route.** Every `gn_*()` function in `www/svc/` takes an `$actor` and applies the same helpers the pages use (`can_manage_event()`, `league_role()`, `event_visibility_sql()`). A route in `www/api/v2/index.php` only checks the token's scope and calls one. A new endpoint that does its own SQL instead of calling a service function has skipped the check: that is the review question for anything added there.
 - **Not visible is not found.** `gn_event_visible()` and `gn_league_guard()` answer a thing the actor cannot see exactly as a thing that does not exist (`404`), so ids cannot be probed. `403` is only for something visible that the actor may not do.
 - **An account's contact details are never returned.** `gn_event_invites()` and `gn_league_members()` give out an email or phone only when it sits on the invite or roster row itself (a guest or contact someone typed in by hand), never from `users`. This keeps rule 2c's spirit: the API never turns "I can see this person on a list" into "I have their address".

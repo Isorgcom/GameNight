@@ -497,11 +497,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $erow = $db->prepare('SELECT title FROM events WHERE id = ?');
                 $erow->execute([$id]);
                 $erow = $erow->fetch();
+                // The event's invite cover picture goes with it (v1.45.2):
+                // read while the row exists, removed once it is gone.
+                require_once __DIR__ . '/_invite_design.php';
+                $ecover = invite_design_for_event($db, $id)['cover'];
                 $db->prepare('DELETE FROM event_invites WHERE event_id = ?')->execute([$id]);
                 $db->prepare('DELETE FROM event_exceptions WHERE event_id = ?')->execute([$id]);
                 $db->prepare('DELETE FROM pending_notifications WHERE event_id = ? AND attempted_at IS NOT NULL')->execute([$id]);
                 $db->prepare('DELETE FROM event_notifications_sent WHERE event_id = ?')->execute([$id]);
                 $db->prepare('DELETE FROM events WHERE id = ?')->execute([$id]);
+                if ($ecover !== '') invite_design_cover_unlink($ecover);
                 db_log_activity($current['id'], 'deleted event: ' . ($erow['title'] ?? $id));
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event deleted.'];
             }
