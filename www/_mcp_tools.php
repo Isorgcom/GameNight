@@ -155,6 +155,12 @@ function gn_mcp_tools(): array {
     $ro = ['readOnlyHint' => true];
     $wr = ['readOnlyHint' => false, 'destructiveHint' => false];
     $act = fn(string $a) => fn($db, $ac, $x, $f) => gn_game_act($db, $ac, (int)$x['event_id'], $a, mcp_body($x, ['event_id']), $f);
+    // The invite design's choices come straight from its catalogue, so a
+    // key added there is offered here without touching this file.
+    $ivd = invite_design_catalog();
+    $ivd_pairs = fn(string $list) => implode(', ', array_map(fn($k, $v) => "$k ({$v['name']})", array_keys($ivd[$list]), $ivd[$list]));
+    $ivd_looks = implode(', ', array_map(fn($k, $v) => "$k ({$v['name']}: {$ivd['themes'][$v['theme']]['name']} background, "
+        . ($v['effect'] === 'none' ? 'no effect' : mb_strtolower($ivd['effects'][$v['effect']]['name']) . ' effect') . ')', array_keys($ivd['looks']), $ivd['looks']));
 
     return [
         // ── Reading ──────────────────────────────────────────────────────────
@@ -173,7 +179,7 @@ function gn_mcp_tools(): array {
                        'league_id' => mcp_i('Only this league\'s events.'), 'include_cancelled' => mcp_b('Include events that were called off.')],
             'run' => fn($db, $a, $x) => gn_events_list($db, $a, $x)],
         'get_event' => ['title' => 'Get an event', 'scope' => 'read', 'hints' => $ro, 'args' => $eid, 'required' => ['event_id'],
-            'description' => 'One event in full: details, RSVP totals, capacity, and a summary of its poker game if it has one.',
+            'description' => 'One event in full: details, RSVP totals, capacity, how its invitation looks (invite_design), and a summary of its poker game if it has one.',
             'run' => fn($db, $a, $x) => gn_event_get($db, $a, (int)$x['event_id'])],
         'list_guests' => ['title' => 'List guests', 'scope' => 'read', 'hints' => $ro, 'args' => $eid, 'required' => ['event_id'],
             'description' => 'The guest list of an event: each guest\'s name, answer (yes, no, maybe, or null for not answered), and for the host their status (approved, pending, waitlisted, denied). Use it to see who has not answered.',
@@ -248,9 +254,23 @@ function gn_mcp_tools(): array {
             'run' => fn($db, $a, $x) => gn_event_delete($db, $a, (int)$x['event_id'], ['confirm' => $x['confirm'] ?? null]
                                                      + (array_key_exists('notify', $x) ? ['notify' => $x['notify'] === false ? false : true] : []))],
         'duplicate_event' => ['title' => 'Copy an event to a new date', 'scope' => 'events', 'hints' => $wr, 'required' => ['event_id', 'start_at'],
-            'description' => 'Host only. Make a new event from an existing one: same details, game settings and guest list, with nobody\'s answer carried over. The usual way to set up "the same game next month". Nobody is told until send_invitations.',
+            'description' => 'Host only. Make a new event from an existing one: same details, game settings, invite design and guest list, with nobody\'s answer carried over. The usual way to set up "the same game next month". Nobody is told until send_invitations.',
             'args' => $eid + ['start_at' => mcp_s('When the copy starts. ' . MCP_WHEN), 'end_at' => mcp_s('When it ends. Optional.'), 'title' => mcp_s('A new name. Optional.')],
             'run' => fn($db, $a, $x) => gn_event_duplicate($db, $a, (int)$x['event_id'], mcp_body($x, ['event_id']))],
+        'set_invite_design' => ['title' => 'Design the invitation', 'scope' => 'events', 'hints' => $wr + ['idempotentHint' => true], 'required' => ['event_id'],
+            'description' => 'Host only. Change how an event\'s invitation looks to guests: on the invite link, each guest\'s own link, the QR poster and, for the picture and the button colour, the invitation email. Give a ready-made look, or any of theme, accent, font and effect; only what you give changes, and a part given beside a look wins over it. Nobody is told. A cover picture cannot be sent from here: the answer has design_url, the page where the host adds one. copy_from takes the whole design, picture included, from another event they host. get_event shows the look an event has now.',
+            'args' => $eid + ['look' => mcp_e(array_keys($ivd['looks']), 'A ready-made look, which sets theme, accent, font and effect together: ' . $ivd_looks . '.'),
+                'theme' => mcp_e(array_keys($ivd['themes']), 'The background: ' . $ivd_pairs('themes') . '.'),
+                'accent' => mcp_e(array_keys($ivd['accents']), 'The colour of buttons and links: ' . $ivd_pairs('accents') . '.'),
+                'font' => mcp_e(array_keys($ivd['fonts']), 'The lettering of the event\'s title: ' . $ivd_pairs('fonts') . '.'),
+                'effect' => mcp_e(array_keys($ivd['effects']), 'A few seconds of movement when the invitation opens: ' . $ivd_pairs('effects') . '.'),
+                'remove_cover' => mcp_b('True takes the cover picture off.'),
+                'copy_from' => mcp_i('The id of another event they host: its whole design, picture included, replaces this one\'s. Not together with look.')],
+            'run' => function ($db, $a, $x) {
+                $body = mcp_body($x, ['event_id', 'copy_from']);
+                if (array_key_exists('copy_from', $x)) $body['copy_from_event_id'] = is_string($x['copy_from']) && ctype_digit($x['copy_from']) ? (int)$x['copy_from'] : $x['copy_from'];
+                return gn_invite_design_set($db, $a, (int)$x['event_id'], $body);
+            }],
         'add_guests' => ['title' => 'Add guests', 'scope' => 'events', 'hints' => $wr + ['idempotentHint' => true], 'args' => $eid + ['guests' => $guest_items], 'required' => ['event_id', 'guests'],
             'description' => 'Host only. Add people to an event\'s guest list. Anyone already on it is skipped. With a waitlist, people past capacity land on it. Nobody is told until send_invitations.',
             'run' => fn($db, $a, $x) => gn_invites_add($db, $a, (int)$x['event_id'], ['guests' => $x['guests'] ?? null])],

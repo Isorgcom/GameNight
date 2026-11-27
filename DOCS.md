@@ -1791,7 +1791,8 @@ An account holder's email address and phone number are never returned, to anyone
 | `GET /me` | The token's owner, its permissions, the site's name and timezone, and your leagues |
 | `GET /me/contacts` | Your contacts. `search` matches name, email or phone. `has_account`, `user_id` and `account_name` are filled only for people you already share a league or event with |
 | `GET /events`, `GET /me/events` | Events you can see. `from`, `to` (default today to +90 days, at most 366 days), `role=any\|host\|guest`, `league_id`, `include_cancelled=1` |
-| `GET /events/{id}` | One event: RSVP totals, your role and answer, capacity, and a summary of its game |
+| `GET /events/{id}` | One event: RSVP totals, your role and answer, capacity, how its invitation looks (`invite_design`), and a summary of its game |
+| `GET /invite-designs` | What an invitation can look like: `themes` (backgrounds), `accents`, `fonts` and `effects`, each a `key` and a `name`, and the ready-made `looks` with the four parts each one sets |
 | `GET /events/{id}/invites` | The guest list. The host also gets each invite's state |
 | `GET /events/{id}/game` | *Host.* The whole game: setup, players, prize pool, payouts with amounts, blinds, clock, and which timer display and layout it uses |
 | `GET /presets` | What a game can be set up from, as the check-in console lists it: `game_presets` (saved setups), `blind_schedules` and `timer_layouts` (the built-ins and saved ones). Each says whose it is: `site default`, `site`, `league` or `mine` |
@@ -1822,7 +1823,8 @@ Changes. The permission each needs is in the second column.
 | `PATCH /events/{id}` | `events` | *Host.* Change any of the create fields except `guests` |
 | `POST /events/{id}/cancel` | `events` | *Host.* Call it off and keep it: every guest is told, and it can still be duplicated |
 | `DELETE /events/{id}` | `events` | *Host.* Delete for good, with guest list, messages and game. Needs a one-time `confirm` code |
-| `POST /events/{id}/duplicate` | `events` | *Host.* A new event copied from this one, guest list included, nobody's answer carried over. Body: `start_at` (required), `title`, `end_at` |
+| `POST /events/{id}/duplicate` | `events` | *Host.* A new event copied from this one, guest list and invite design included, nobody's answer carried over. Body: `start_at` (required), `title`, `end_at` |
+| `PUT /events/{id}/design` | `events` | *Host.* How the invitation looks: `look`, `theme`, `accent`, `font`, `effect`, `remove_cover`, `copy_from_event_id`. Only what you send changes. See below |
 | `POST /events/{id}/invites` | `events` | *Host.* Add guests: `{"guests": [...]}`. Someone already listed is skipped |
 | `PATCH /events/{id}/invites/{invite_id}` | `events` | *Host.* `rsvp` (`yes`, `no`, `maybe` or `null`), `role` (`invitee` or `manager` for a co-host) |
 | `DELETE /events/{id}/invites/{invite_id}` | `events` | *Host.* Take a guest off the list. On an upcoming event they are told |
@@ -2030,7 +2032,7 @@ The first call to make: it says who the token is, what it may do, and which leag
 }
 ```
 
-`my_role` is `host`, `guest` or `viewer` (you can see it, for example through your league, but are not on the list). `GET /events/{id}` returns one such object as `event`, with these added: `capacity` (seats, or `null` for no limit), `rsvp_deadline_hours`, `guest_list_hidden`, `guest_list_public`, `league_name`, and `game` (`status`, `game_type`, `buyin_cents`, `tables`, `seats_per_table`; `null` when it is not a poker event or has no game yet).
+`my_role` is `host`, `guest` or `viewer` (you can see it, for example through your league, but are not on the list). `GET /events/{id}` returns one such object as `event`, with these added: `capacity` (seats, or `null` for no limit), `rsvp_deadline_hours`, `guest_list_hidden`, `guest_list_public`, `league_name`, `invite_design` (how the invitation looks, as `PUT /events/{id}/design` answers it; the host's copy also has `design_url`), and `game` (`status`, `game_type`, `buyin_cents`, `tables`, `seats_per_table`; `null` when it is not a poker event or has no game yet).
 
 #### `GET /api/v2/events/{id}/invites`
 
@@ -2199,7 +2201,35 @@ Deleting removes the event with its guest list, messages, comments and game resu
   "confirm_code": "cfm_8d1f4c2a9b7e3d60a5c4f1e2" }
 ```
 
-Duplicating takes `start_at` (required), and optionally `title` and `end_at`. The copy has the original's details, game settings, reminder schedule and guest list (people who were turned down are left off), with every answer cleared, and no end unless one is sent. The answer is the new event with `"created": true` and `"copied_from"`.
+Duplicating takes `start_at` (required), and optionally `title` and `end_at`. The copy has the original's details, game settings, reminder schedule, invite design (with a copy of the cover picture that is its own) and guest list (people who were turned down are left off), with every answer cleared, and no end unless one is sent. The answer is the new event with `"created": true` and `"copied_from"`.
+
+#### `PUT /api/v2/events/{id}/design`
+
+How the event's invitation looks to a guest: on the shared invite link, on each guest's own link, on the QR poster and, for the cover picture and the button colour, in the invitation email. It is the same design the host sets on the site under **More → Invite design**.
+
+| Field | Notes |
+|---|---|
+| `look` | A ready-made look, which sets the four parts together: `classic`, `pokernight`, `highroller`, `saloon`, `casino`, `neonnight`, `latenight`, `sunset`, `biggame`, `party` |
+| `theme`, `accent`, `font`, `effect` | One part each, by key from `GET /invite-designs`. A part sent beside `look` wins over it |
+| `remove_cover` | `true` takes the cover picture off and deletes the file |
+| `copy_from_event_id` | Another event you host (a cancelled one will do): its whole design, cover picture included, replaces this one's. Not together with `look` |
+
+```bash
+curl -X PUT $API/events/886/design -H "$AUTH" -H 'Content-Type: application/json' -d '{"look": "casino", "accent": "gold"}'
+```
+
+```json
+{ "event_id": 886, "title": "December Tournament", "updated": true,
+  "invite_design": { "look": null, "theme": "velvet", "accent": "gold", "font": "playfair", "effect": "cards",
+    "standard": false, "cover_url": null,
+    "design_url": "https://your-site.com/invite_design.php?id=886" } }
+```
+
+- Only what you send changes, and nobody is told: guests see the look the next time they open the invitation. Set it before sending invitations and the email goes out wearing it.
+- `look` in the answer names the ready-made look the four parts add up to, or `null` for a mix. `standard` is `true` when nothing is set at all.
+- Every value is a key from a fixed list. One that is not on the list is refused (`bad_field`) with the list, and nothing changes.
+- **A cover picture cannot be sent here.** It is uploaded on the site; `design_url` is that page. What this route can do with a picture is take it off, or bring one over with `copy_from_event_id`.
+- A cancelled event answers `409 event_cancelled`.
 
 #### `POST /api/v2/events/{id}/invites`
 
@@ -2491,7 +2521,7 @@ Any other MCP client that speaks Streamable HTTP works the same way, by OAuth or
 | Permission | Tools |
 |---|---|
 | `read` | `whoami`, `list_events`, `get_event`, `list_guests`, `list_messages`, `list_contacts`, `get_league`, `get_standings`, `get_player_history`, `list_league_posts`, `list_join_requests`, `get_game`, `get_results`, `get_game_log`, `list_game_presets` |
-| `events` | `create_event`, `update_event`, `cancel_event`, `delete_event`, `duplicate_event`, `add_guests`, `update_guest`, `remove_guest`, `decide_guest`, `add_contacts`, `update_contact`, `delete_contact`, `update_league_member`, `remove_league_member`, `add_season`, `delete_season`, `create_league_post`, `decide_join_request` |
+| `events` | `create_event`, `update_event`, `cancel_event`, `delete_event`, `duplicate_event`, `set_invite_design`, `add_guests`, `update_guest`, `remove_guest`, `decide_guest`, `add_contacts`, `update_contact`, `delete_contact`, `update_league_member`, `remove_league_member`, `add_season`, `delete_season`, `create_league_post`, `decide_join_request` |
 | `messages` | `send_invitations`, `resend_invitation`, `nudge_guests`, `message_guests`, `add_league_member`, `resend_league_invite` |
 | `game` | `configure_game`, `apply_game_preset`, `set_blinds`, `apply_blind_schedule`, `set_timer_layout`, `set_payouts`, `game_status`, `add_walk_in`, `player_action`, `add_on_for_players`, `manage_tables`, `void_ledger_entry`, `clock` |
 
